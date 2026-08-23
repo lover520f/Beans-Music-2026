@@ -686,16 +686,17 @@ struct PlayerView: View {
     // MARK: - 底部控制栏（普通材质圆角面板：进度 / 主控制 / 工具行）
 
     /// 底部控制栏估算高度（单行控制后降低，给歌词视口更多空间）
-    private let deckInset: CGFloat = 130
+    /// 底部控制栏预留高度（越小歌词视口越大；需 >= 控制栏实际高度避免遮挡）
+    private let deckInset: CGFloat = 120
 
     private func controlDeck(bottomInset: CGFloat) -> some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 4) {
             progressBlock
             deckRow
         }
         .padding(.horizontal, 24)
-        .padding(.top, 4)
-        .padding(.bottom, 6 + bottomInset)
+        .padding(.top, 2)
+        .padding(.bottom, 4 + bottomInset)
         .frame(maxWidth: .infinity)
         // 底部控件直接悬浮在模糊背景上：单行控制 + 底部进度条，歌词视口更大
     }
@@ -709,7 +710,7 @@ struct PlayerView: View {
     // MARK: - 进度区块（可点按 / 拖动的进度条 + 当前时间 / 总时长 + ±15 秒）
 
     private var progressBlock: some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 1) {
             SeekBar(accent: palette.accent, track: palette.secondary.opacity(0.3))
             HStack(spacing: 6) {
                 seekPillButton("gobackward.15") { player.seekBy(-15) }
