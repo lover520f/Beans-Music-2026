@@ -27,8 +27,7 @@ struct ProfileView: View {
 
     private var appVersionText: String {
         let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-        return "Beans · \(ver) (\(build))"
+        return "Beans · \(ver)"
     }
 
     /// 两个平台登录状态的合并提示
@@ -1079,3 +1078,4 @@ struct FontDocumentPicker: UIViewControllerRepresentable {
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {}
     }
 }
+
