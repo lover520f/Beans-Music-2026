@@ -36,6 +36,7 @@ struct DiscoverView: View {
             // 实例级 UITabBar 清透风格（固定全透明，无需调节）
             TabBarAppearanceConfigurator()
             ScrollView {
+                ScrollViewReader { proxy in
                 VStack(alignment: .leading, spacing: 26) {
                     header
                     providerPicker
@@ -60,6 +61,14 @@ struct DiscoverView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 190)
+                .onChange(of: ranksExpanded) { _, expanded in
+                    if expanded {
+                        withAnimation(.spring(duration: 0.35)) {
+                            proxy.scrollTo("rankTopSection", anchor: .top)
+                        }
+                    }
+                }
+                }
             }
             .scrollIndicators(.hidden)
             .refreshable { await load(force: true) }
@@ -212,6 +221,12 @@ struct DiscoverView: View {
     private var displayedRankCount: Int {
         ranksExpanded ? visibleRankCount : min(visibleRankCount, collapsedRankLimit)
     }
+    /// 展开后排行榜卡片固定高度（内部滚动 + 顶部收起条，避免划到底才能收回）
+    private var expandedRankHeight: CGFloat {
+        let rowHeight: CGFloat = 69
+        let contentHeight = CGFloat(max(visibleRankCount, collapsedRankLimit + 1)) * rowHeight + 8
+        return min(contentHeight, UIScreen.main.bounds.height * 0.58)
+    }
 
     /// 当前平台是否有排行榜数据（网易云用 topLists，QQ / 酷狗用各自的数组）
     private var hasRankData: Bool {
@@ -228,49 +243,23 @@ struct DiscoverView: View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "排行榜")
             VStack(spacing: 0) {
-                if source == .netease {
-                    ForEach(Array(neteaseTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, topList in
-                        rankRow(index: index, name: topList.name, subtitle: topList.updateFrequency, coverURL: topList.coverURL) {
-                            BeansHaptics.tap()
-                            selectedTopList = topList
+                if ranksExpanded {
+                    // 展开态：顶部固定收起条（始终可见，不用划到底才能收回）
+                    rankToggleButton(label: "收起", icon: "chevron.up")
+                    Divider().overlay(Color.beansSecondary.opacity(0.12))
+                    ScrollView {
+                        LazyVStack(spacing: 0) {
+                            rankRowsContent
                         }
-                        Divider().overlay(Color.beansSecondary.opacity(0.12))
                     }
-                } else if source == .qq {
-                    ForEach(Array(qqTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, info in
-                        rankRow(index: index, name: info.name, subtitle: "QQ 峰尖榜", coverURL: info.coverURL) {
-                            BeansHaptics.tap()
-                            selectedQQTopList = info
-                        }
-                        Divider().overlay(Color.beansSecondary.opacity(0.12))
-                    }
+                    .frame(height: expandedRankHeight)
+                    .clipped()
+                    .transition(.opacity)
                 } else {
-                    ForEach(Array(kugouTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, info in
-                        rankRow(index: index, name: info.name, subtitle: "酷狗音乐榜单", coverURL: info.coverURL) {
-                            BeansHaptics.tap()
-                            selectedKugouTopList = info
-                        }
-                        Divider().overlay(Color.beansSecondary.opacity(0.12))
+                    rankRowsContent
+                    if visibleRankCount > collapsedRankLimit {
+                        rankToggleButton(label: "展开全部（\(visibleRankCount)）", icon: "chevron.down")
                     }
-                }
-
-                if visibleRankCount > collapsedRankLimit {
-                    Button {
-                        BeansHaptics.select()
-                        withAnimation(.spring(duration: 0.35)) { ranksExpanded.toggle() }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Text(ranksExpanded ? "收起" : "展开全部（\(visibleRankCount)）")
-                                .font(BeansFont.appFont(13, .medium))
-                            Image(systemName: ranksExpanded ? "chevron.up" : "chevron.down")
-                                .font(.system(size: 11, weight: .semibold))
-                        }
-                        .foregroundStyle(Color.beansAmber)
-                        .frame(maxWidth: .infinity)
-                        .padding(.vertical, 11)
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 14)
@@ -280,7 +269,58 @@ struct DiscoverView: View {
             }
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .beansCardShadow(radius: 9, y: 3)
+            .id("rankTopSection")
         }
+    }
+
+    /// 排行榜行列表（按平台渲染）
+    @ViewBuilder
+    private var rankRowsContent: some View {
+        if source == .netease {
+            ForEach(Array(neteaseTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, topList in
+                rankRow(index: index, name: topList.name, subtitle: topList.updateFrequency, coverURL: topList.coverURL) {
+                    BeansHaptics.tap()
+                    selectedTopList = topList
+                }
+                Divider().overlay(Color.beansSecondary.opacity(0.12))
+            }
+        } else if source == .qq {
+            ForEach(Array(qqTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, info in
+                rankRow(index: index, name: info.name, subtitle: "QQ 峰尖榜", coverURL: info.coverURL) {
+                    BeansHaptics.tap()
+                    selectedQQTopList = info
+                }
+                Divider().overlay(Color.beansSecondary.opacity(0.12))
+            }
+        } else {
+            ForEach(Array(kugouTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, info in
+                rankRow(index: index, name: info.name, subtitle: "酷狗音乐榜单", coverURL: info.coverURL) {
+                    BeansHaptics.tap()
+                    selectedKugouTopList = info
+                }
+                Divider().overlay(Color.beansSecondary.opacity(0.12))
+            }
+        }
+    }
+
+    /// 展开 / 收起切换按钮
+    private func rankToggleButton(label: String, icon: String) -> some View {
+        Button {
+            BeansHaptics.select()
+            withAnimation(.spring(duration: 0.35)) { ranksExpanded.toggle() }
+        } label: {
+            HStack(spacing: 6) {
+                Text(label)
+                    .font(BeansFont.appFont(13, .medium))
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+            }
+            .foregroundStyle(Color.beansAmber)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
     }
 
     private func rankRow(index: Int, name: String, subtitle: String, coverURL: URL?, action: @escaping () -> Void) -> some View {
