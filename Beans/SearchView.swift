@@ -173,7 +173,7 @@ struct SearchView: View {
                     .foregroundStyle(Color.beansSecondary)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .background { BeansGlass(shape: Capsule()) }
             }
         }
     }
@@ -249,7 +249,7 @@ struct SearchView: View {
                     .foregroundStyle(Color.beansAmber)
                     .padding(.horizontal, 13)
                     .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
+                    .background { BeansGlass(shape: Capsule()) }
             }
             .buttonStyle(GlassPressButtonStyle(scale: 0.9))
         }
@@ -292,7 +292,7 @@ struct SearchView: View {
             }
         }
         .padding(4)
-        .background(.ultraThinMaterial, in: Capsule())
+        .background { BeansGlass(shape: Capsule()) }
         .clipShape(Capsule())
     }
 
@@ -326,7 +326,7 @@ struct SearchView: View {
                         .padding(.vertical, 8)
                         .background {
                             if resultType == type {
-                                Capsule().fill(.ultraThinMaterial)
+                                Capsule().fill(.white.opacity(colorScheme == .dark ? 0.24 : 0.20))
                             }
                         }
                 }
@@ -365,30 +365,63 @@ struct SearchView: View {
         .scrollDismissesKeyboard(.interactively)
     }
 
-    /// 热搜标签：前三名带主题色序号圆标
+    /// 热搜前三名渐变配色（更亮眼：橙红 / 金黄 / 冰蓝）
+    private let hotRankColors: [[Color]] = [
+        [Color(red: 1.00, green: 0.62, blue: 0.18), Color(red: 0.95, green: 0.25, blue: 0.18)],
+        [Color(red: 1.00, green: 0.82, blue: 0.30), Color(red: 0.98, green: 0.56, blue: 0.12)],
+        [Color(red: 0.55, green: 0.85, blue: 1.00), Color(red: 0.30, green: 0.52, blue: 0.98)],
+    ]
+    private let hotRankIcons = ["crown.fill", "flame.fill", "sparkles"]
+
+    /// 热搜标签：前三名渐变发光圆标（更亮眼），其余为普通序号
     private func hotTag(index: Int, word: String) -> some View {
-        Button {
+        let top3 = index < 3
+        return Button {
             BeansHaptics.tap()
             keyword = word
             searchController.dismissKeyboard()
             debounceTask?.cancel()
             Task { await startSearch(word) }
         } label: {
-            HStack(spacing: 6) {
-                if index < 3 {
+            HStack(spacing: 7) {
+                if top3 {
+                    ZStack {
+                        Circle()
+                            .fill(
+                                LinearGradient(
+                                    colors: hotRankColors[index],
+                                    startPoint: .topLeading, endPoint: .bottomTrailing
+                                )
+                            )
+                            .frame(width: 24, height: 24)
+                            .shadow(color: hotRankColors[index][0].opacity(0.6), radius: 6, y: 2)
+                            .overlay {
+                                Circle().strokeBorder(.white.opacity(0.6), lineWidth: 1)
+                            }
+                        Image(systemName: hotRankIcons[index])
+                            .font(.system(size: 10, weight: .bold))
+                            .foregroundStyle(.white)
+                    }
+                } else {
                     Text("\(index + 1)")
                         .font(BeansFont.appFont(11, .bold, .rounded))
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.beansSecondary)
                         .frame(width: 18, height: 18)
-                        .background(Color.beansAmber, in: Circle())
                 }
                 Text(word)
-                    .font(BeansFont.appFont(14, .medium))
-                    .foregroundStyle(Color.beansLabel)
+                    .font(BeansFont.appFont(top3 ? 15 : 14, top3 ? .bold : .medium))
+                    .foregroundStyle(top3 ? Color.beansLabel : Color.beansSecondary)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
-            .background(.ultraThinMaterial, in: Capsule())
+            .background {
+                BeansGlass(shape: Capsule())
+            }
+            .overlay {
+                if top3 {
+                    Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.8)
+                }
+            }
         }
         .buttonStyle(GlassPressButtonStyle(scale: 0.92))
     }
@@ -429,7 +462,7 @@ struct SearchView: View {
                                     .foregroundStyle(Color.beansAmber)
                                     .padding(.horizontal, 10)
                                     .padding(.vertical, 5)
-                                    .background(.ultraThinMaterial, in: Capsule())
+                                    .background { BeansGlass(shape: Capsule()) }
                             }
                             .buttonStyle(.plain)
                         }

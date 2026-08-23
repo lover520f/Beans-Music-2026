@@ -25,6 +25,7 @@ struct PlayerView: View {
     @State private var showAddToPlaylist = false
     @State private var showComments = false
     @State private var showDownloadPicker = false
+    @State private var showShare = false
     @State private var showLyricSettings = false
     @State private var showPlayerSettings = false
     @State private var showArtistHome = false
@@ -170,6 +171,11 @@ struct PlayerView: View {
             PlayerSettingsSheet(
                 breath: $playerBreath
             )
+        }
+        .sheet(isPresented: $showShare) {
+            if let song {
+                ShareSheet(items: shareItems(for: song))
+            }
         }
         .sheet(isPresented: $showLyricSettings) {
             LyricSettingsSheet(
@@ -331,6 +337,11 @@ struct PlayerView: View {
                 } label: {
                     Label("下载歌曲", systemImage: "arrow.down.circle")
                 }
+                Button {
+                    showShare = true
+                } label: {
+                    Label("分享歌曲", systemImage: "square.and.arrow.up")
+                }
                 Divider()
                 Button {
                     showPlayerSettings = true
@@ -355,8 +366,8 @@ struct PlayerView: View {
             .buttonStyle(GlassPressButtonStyle())
         }
         .padding(.horizontal, 20)
-        .padding(.top, 8)
-        .padding(.bottom, 4)
+        .padding(.top, 4)
+        .padding(.bottom, 2)
     }
 
     // MARK: - 中间内容区（专辑 / 歌词 两模式独立视图，自动布局居中）
@@ -611,8 +622,8 @@ struct PlayerView: View {
                 .buttonStyle(GlassPressButtonStyle())
             }
             .padding(.horizontal, 20)
-            .padding(.top, 10)
-            .padding(.bottom, 6)
+            .padding(.top, 6)
+            .padding(.bottom, 4)
 
             // 歌词视口截止到底栏上方：当前行在可见区居中（26 版风格，无渐隐遮挡）
             Group {
@@ -687,16 +698,16 @@ struct PlayerView: View {
 
     /// 底部控制栏估算高度（单行控制后降低，给歌词视口更多空间）
     /// 底部控制栏预留高度（越小歌词视口越大；需 >= 控制栏实际高度避免遮挡）
-    private let deckInset: CGFloat = 120
+    private let deckInset: CGFloat = 112
 
     private func controlDeck(bottomInset: CGFloat) -> some View {
-        VStack(spacing: 4) {
+        VStack(spacing: 2) {
             progressBlock
             deckRow
         }
         .padding(.horizontal, 24)
         .padding(.top, 2)
-        .padding(.bottom, 4 + bottomInset)
+        .padding(.bottom, 2 + bottomInset)
         .frame(maxWidth: .infinity)
         // 底部控件直接悬浮在模糊背景上：单行控制 + 底部进度条，歌词视口更大
     }
@@ -736,7 +747,7 @@ struct PlayerView: View {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(palette.secondary)
-                .frame(width: 30, height: 26)
+                .frame(width: 30, height: 24)
                 .contentShape(Rectangle())
         }
         .buttonStyle(GlassPressButtonStyle())
@@ -753,7 +764,7 @@ struct PlayerView: View {
                 queueButton
             }
             // 中间主控制组：上一曲 / 播放暂停 / 下一曲 真正居中
-            HStack(spacing: 26) {
+            HStack(spacing: 20) {
                 deckButton(icon: "backward.fill", expand: false) {
                     BeansHaptics.tap()
                     player.previous()
@@ -788,7 +799,7 @@ struct PlayerView: View {
             Image(systemName: player.playMode.icon)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(player.playMode == .shuffle ? palette.accent : palette.secondary)
-                .frame(width: 30, height: 30)
+                .frame(width: 26, height: 26)
                 .background {
                                         BeansGlass(shape: Circle())
                 }
@@ -806,7 +817,7 @@ struct PlayerView: View {
             Image(systemName: "list.bullet")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(palette.secondary)
-                .frame(width: 30, height: 30)
+                .frame(width: 26, height: 26)
                 .background {
                                         BeansGlass(shape: Circle())
                 }
@@ -823,7 +834,7 @@ struct PlayerView: View {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(accent ? palette.accent : palette.text)
-                .frame(width: 40, height: 40)
+                .frame(width: 36, height: 36)
                 .background {
                                         BeansGlass(shape: Circle())
                 }
@@ -844,7 +855,7 @@ struct PlayerView: View {
                 .contentTransition(.symbolEffect(.replace))
                 .scaleEffect(player.isPlaying ? 1.0 : 0.88)
                 .animation(.spring(response: 0.32, dampingFraction: 0.6), value: player.isPlaying)
-                .frame(width: 52, height: 52)
+                .frame(width: 48, height: 48)
                 .background {
                                         BeansGlass(shape: Circle())
                     .overlay {
@@ -865,6 +876,42 @@ struct PlayerView: View {
         .buttonStyle(GlassPressButtonStyle(scale: 0.9))
     }
 
+
+    // MARK: - 分享
+
+    /// 原生系统分享内容：歌名 - 歌手 + 对应平台链接
+    private func shareItems(for song: Song) -> [Any] {
+        var text = "\(song.name) - \(song.artists)"
+        if let url = shareURL(for: song) {
+            text += "\n\(url.absoluteString)"
+        }
+        return [text]
+    }
+
+    /// 各平台歌曲链接（网易云 / QQ音乐 / 酷狗音乐）
+    private func shareURL(for song: Song) -> URL? {
+        switch song.source {
+        case .netease:
+            return URL(string: "https://music.163.com/#/song?id=\(song.id)")
+        case .qq:
+            if let mid = song.qqMid, !mid.isEmpty {
+                return URL(string: "https://y.qq.com/n/ryqq/songDetail/\(mid)")
+            }
+            let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
+            return URL(string: "https://y.qq.com/n/ryqq/search?w=\(encoded)")
+        case .kugou:
+            if let hash = song.kugouHash, !hash.isEmpty {
+                var comps = URLComponents(string: "https://m.kugou.com/share/index.html")!
+                var items: [URLQueryItem] = [URLQueryItem(name: "hash", value: hash)]
+                if let aid = song.kugouAlbumID, !aid.isEmpty {
+                    items.append(URLQueryItem(name: "album_id", value: aid))
+                }
+                comps.queryItems = items
+                return comps.url
+            }
+            return URL(string: "https://m.kugou.com/share/index.html")
+        }
+    }
 
     // MARK: - 下载
 
@@ -1604,3 +1651,22 @@ struct PlayerSettingsSheet: View {
 
 
 
+
+
+// MARK: - 原生系统分享面板（UIActivityViewController 封装，直接调系统自带分享）
+
+struct ShareSheet: UIViewControllerRepresentable {
+    let items: [Any]
+
+    func makeUIViewController(context: Context) -> UIActivityViewController {
+        let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
+        // iPad 弹出需要 popover 锚点，否则会崩溃
+        if let popover = controller.popoverPresentationController {
+            popover.sourceView = controller.view
+            popover.permittedArrowDirections = []
+        }
+        return controller
+    }
+
+    func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
