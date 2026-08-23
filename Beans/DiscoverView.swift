@@ -21,6 +21,8 @@ struct DiscoverView: View {
     @State private var selectedQQPlaylist: Playlist?
     @State private var kugouTopLists: [KugouMusicAPI.KugouTopInfo] = []
     @State private var selectedKugouTopList: KugouMusicAPI.KugouTopInfo?
+    /// 排行榜是否展开（收起时只显示前几个，用户可自主展开）
+    @State private var ranksExpanded = false
 
     var body: some View {
         let _ = theme.accent
@@ -35,7 +37,7 @@ struct DiscoverView: View {
                     providerPicker
                     if let errorMessage {
                         ErrorStateView(message: errorMessage) {
-                            Task { await load() }
+                            Task { await load(force: true) }
                         }
                     } else if loading {
                         LoadingStateView()
@@ -56,8 +58,8 @@ struct DiscoverView: View {
                 .padding(.bottom, 190)
             }
             .scrollIndicators(.hidden)
-            .refreshable { await load() }
-            .task(id: source) { await load() }
+            .refreshable { await load(force: true) }
+            .task(id: source) { await load(force: false) }
             .sheet(item: $selectedTopList) { topList in
                 TopListDetailView(topList: topList)
                     .environmentObject(player)
@@ -106,7 +108,7 @@ struct DiscoverView: View {
                 Spacer()
                 GlassIconButton(systemName: "arrow.clockwise") {
                     BeansHaptics.tap()
-                    Task { await load() }
+                    Task { await load(force: true) }
                 }
             }
         }
@@ -179,16 +181,32 @@ struct DiscoverView: View {
         .padding(7)
     }
 
-    /// 网易云排行榜：只保留 热歌榜 / 飙升榜 / 新歌榜 / 原创榜 四个，热歌榜排第一
-    private var filteredTopLists: [TopList] {
-        let order = ["热歌榜", "飙升榜", "新歌榜", "原创榜"]
-        var result: [TopList] = []
-        for key in order {
-            if let item = topLists.first(where: { $0.name.contains(key) }) {
-                result.append(item)
-            }
+    /// 网易云排行榜：全部榜单保留，热歌榜置顶
+    private var neteaseTopLists: [TopList] {
+        var list = topLists
+        if let hot = list.first(where: { $0.name.contains("热歌榜") }),
+           let idx = list.firstIndex(where: { $0.id == hot.id }), idx != 0 {
+            list.remove(at: idx)
+            list.insert(hot, at: 0)
         }
-        return result
+        return list
+    }
+
+    /// 收起时每平台显示的榜单数量（网易云 4，QQ / 酷狗 6）
+    private var collapsedRankLimit: Int {
+        source == .netease ? 4 : 6
+    }
+
+    private var visibleRankCount: Int {
+        switch source {
+        case .netease: return neteaseTopLists.count
+        case .qq: return qqTopLists.count
+        case .kugou: return kugouTopLists.count
+        }
+    }
+
+    private var displayedRankCount: Int {
+        ranksExpanded ? visibleRankCount : min(visibleRankCount, collapsedRankLimit)
     }
 
     // MARK: - 排行榜（竖排行列表）
@@ -198,7 +216,7 @@ struct DiscoverView: View {
             SectionHeader(title: "排行榜")
             VStack(spacing: 0) {
                 if source == .netease {
-                    ForEach(Array(filteredTopLists.enumerated()), id: \.element.id) { index, topList in
+                    ForEach(Array(neteaseTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, topList in
                         rankRow(index: index, name: topList.name, subtitle: topList.updateFrequency, coverURL: topList.coverURL) {
                             BeansHaptics.tap()
                             selectedTopList = topList
@@ -206,7 +224,7 @@ struct DiscoverView: View {
                         Divider().overlay(Color.beansSecondary.opacity(0.12))
                     }
                 } else if source == .qq {
-                    ForEach(Array(qqTopLists.prefix(6).enumerated()), id: \.element.id) { index, info in
+                    ForEach(Array(qqTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, info in
                         rankRow(index: index, name: info.name, subtitle: "QQ 峰尖榜", coverURL: info.coverURL) {
                             BeansHaptics.tap()
                             selectedQQTopList = info
@@ -214,13 +232,32 @@ struct DiscoverView: View {
                         Divider().overlay(Color.beansSecondary.opacity(0.12))
                     }
                 } else {
-                    ForEach(Array(kugouTopLists.prefix(6).enumerated()), id: \.element.id) { index, info in
+                    ForEach(Array(kugouTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, info in
                         rankRow(index: index, name: info.name, subtitle: "酷狗音乐榜单", coverURL: info.coverURL) {
                             BeansHaptics.tap()
                             selectedKugouTopList = info
                         }
                         Divider().overlay(Color.beansSecondary.opacity(0.12))
                     }
+                }
+
+                if visibleRankCount > collapsedRankLimit {
+                    Button {
+                        BeansHaptics.select()
+                        withAnimation(.spring(duration: 0.35)) { ranksExpanded.toggle() }
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text(ranksExpanded ? "收起" : "展开全部（\(visibleRankCount)）")
+                                .font(BeansFont.appFont(13, .medium))
+                            Image(systemName: ranksExpanded ? "chevron.up" : "chevron.down")
+                                .font(.system(size: 11, weight: .semibold))
+                        }
+                        .foregroundStyle(Color.beansAmber)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 11)
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
                 }
             }
             .padding(.horizontal, 14)
@@ -367,52 +404,76 @@ struct DiscoverView: View {
 
     // MARK: - 动作
 
-    private func load() async {
-        loading = true
-        errorMessage = nil
-        if source == .qq {
-            do {
-                async let a = QQMusicAPI.shared.recommendSongs(limit: 30)
-                async let b = QQMusicAPI.shared.topLists()
-                async let c = QQMusicAPI.shared.recommendPlaylists(limit: 12)
-                let (dr, tl, pp) = try await (a, b, c)
-                dailySongs = dr
-                qqTopLists = tl
-                personalized = pp
-                loading = false
-            } catch {
-                errorMessage = error.localizedDescription
-                loading = false
-            }
-        } else if source == .kugou {
-            do {
-                async let a = KugouMusicAPI.shared.topListSongs(rankID: 8888, page: 1, limit: 30)
-                async let b = KugouMusicAPI.shared.topLists()
-                async let c = KugouMusicAPI.shared.playlists(page: 1, limit: 12)
-                let (dr, tl, pp) = try await (a, b, c)
-                dailySongs = dr
-                kugouTopLists = tl
-                personalized = pp
-                loading = false
-            } catch {
-                errorMessage = error.localizedDescription
-                loading = false
-            }
+    private func load(force: Bool = false) async {
+        let cache = DiscoverCache.shared
+        if let cached = cache.cached(for: source), !force {
+            apply(cached)
+            loading = false
+            errorMessage = nil
+            if cache.isFresh(cached) { return }
+            // 缓存过期：先用缓存展示，后台静默刷新
         } else {
+            loading = true
+            errorMessage = nil
+        }
+
+        do {
+            let snapshot = try await fetchSnapshot(for: source)
+            apply(snapshot)
+            cache.save(snapshot, for: source)
+            loading = false
+            errorMessage = nil
+        } catch {
+            loading = false
+            if !hasAnyData {
+                errorMessage = error.localizedDescription
+            }
+        }
+    }
+
+    private func fetchSnapshot(for source: SearchProvider) async throws -> DiscoverCache.Snapshot {
+        var snapshot = DiscoverCache.Snapshot()
+        snapshot.savedAt = Date()
+        switch source {
+        case .qq:
+            async let a = QQMusicAPI.shared.recommendSongs(limit: 30)
+            async let b = QQMusicAPI.shared.topLists()
+            async let c = QQMusicAPI.shared.recommendPlaylists(limit: 12)
+            let (dr, tl, pp) = try await (a, b, c)
+            snapshot.dailySongs = dr
+            snapshot.qqTopLists = tl
+            snapshot.personalized = pp
+        case .kugou:
+            async let a = KugouMusicAPI.shared.topListSongs(rankID: 8888, page: 1, limit: 30)
+            async let b = KugouMusicAPI.shared.topLists()
+            async let c = KugouMusicAPI.shared.playlists(page: 1, limit: 12)
+            let (dr, tl, pp) = try await (a, b, c)
+            snapshot.dailySongs = dr
+            snapshot.kugouTopLists = tl
+            snapshot.personalized = pp
+        case .netease:
             async let a = NetEaseAPI.shared.topLists()
             async let b = NetEaseAPI.shared.dailyRecommend()
             async let c = NetEaseAPI.shared.playlistSquare(limit: 10)
-            do {
-                let (tl, dr, pp) = try await (a, b, c)
-                topLists = tl
-                dailySongs = dr
-                personalized = pp
-                loading = false
-            } catch {
-                errorMessage = error.localizedDescription
-                loading = false
-            }
+            let (tl, dr, pp) = try await (a, b, c)
+            snapshot.topLists = tl
+            snapshot.dailySongs = dr
+            snapshot.personalized = pp
         }
+        return snapshot
+    }
+
+    private func apply(_ snapshot: DiscoverCache.Snapshot) {
+        dailySongs = snapshot.dailySongs
+        topLists = snapshot.topLists
+        personalized = snapshot.personalized
+        qqTopLists = snapshot.qqTopLists
+        kugouTopLists = snapshot.kugouTopLists
+    }
+
+    private var hasAnyData: Bool {
+        !dailySongs.isEmpty || !topLists.isEmpty || !personalized.isEmpty
+            || !qqTopLists.isEmpty || !kugouTopLists.isEmpty
     }
 }
 
