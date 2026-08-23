@@ -518,6 +518,9 @@ struct SettingsView: View {
     @State private var appearanceExpanded = false
     @State private var bgImageItem: PhotosPickerItem?
     @State private var showFontImporter = false
+    /// 第三方音源管理
+    @ObservedObject private var unblockStore = UnblockSourceStore.shared
+    @State private var showSourceImport = false
 
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
@@ -531,6 +534,7 @@ struct SettingsView: View {
                     VStack(alignment: .leading, spacing: 22) {
                         appearanceSection
                         playbackSection
+                        unblockSection
                         footerNote
                     }
                     .padding(.horizontal, 16)
@@ -555,6 +559,10 @@ struct SettingsView: View {
                     BeansHaptics.success()
                 }
             }
+        }
+        .sheet(isPresented: $showSourceImport) {
+            ThirdPartySourceImportSheet()
+                .environmentObject(theme)
         }
         .fullScreenCover(isPresented: $showFontImporter) {
             FontDocumentPicker { url in
@@ -905,6 +913,104 @@ struct SettingsView: View {
             }
             .beansCardShadow(radius: 9, y: 3)
         }
+    }
+
+    /// 第三方音源管理：内置源开关 + 导入自定义源
+    private var unblockSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "第三方音源")
+            VStack(spacing: 10) {
+                unblockSourceToggle(id: "pyncmd", icon: "bolt.fill", title: "GD 音乐台", subtitle: "按网易云 ID 取高音质地址")
+                unblockSourceToggle(id: "kuwo", icon: "music.note", title: "酷我音源", subtitle: "酷我搜索 + 双直链兜底")
+                unblockSourceToggle(id: "kugou", icon: "music.note.list", title: "酷狗音源", subtitle: "酷狗搜索 + 播放直链")
+                unblockSourceToggle(id: "bodian", icon: "waveform.badge.plus", title: "波点音源", subtitle: "波点签名取流（Splayer 解锁插件）")
+
+                Divider().overlay(Color.beansSecondary.opacity(0.15))
+
+                Button {
+                    BeansHaptics.tap()
+                    showSourceImport = true
+                } label: {
+                    HStack(spacing: 10) {
+                        Image(systemName: "square.and.arrow.down")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(width: 28)
+                        Text("导入第三方源")
+                            .font(BeansFont.appFont(15))
+                            .foregroundStyle(Color.beansLabel)
+                        Spacer()
+                        Image(systemName: "chevron.right")
+                            .font(.system(size: 11, weight: .semibold))
+                            .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                    }
+                }
+                .buttonStyle(.plain)
+
+                if unblockStore.customSources.isEmpty {
+                    Text("尚未导入自定义音源（JSON 配置：请求模板 + 播放地址字段路径）")
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansSecondary)
+                } else {
+                    ForEach(unblockStore.customSources) { source in
+                        HStack(spacing: 10) {
+                            Image(systemName: "externaldrive.fill")
+                                .font(.system(size: 12))
+                                .foregroundStyle(Color.beansAmber)
+                                .frame(width: 28)
+                            VStack(alignment: .leading, spacing: 2) {
+                                Text(source.name)
+                                    .font(BeansFont.appFont(14, .semibold))
+                                    .foregroundStyle(Color.beansLabel)
+                                    .lineLimit(1)
+                                Text(source.kind == "netease-id" ? "按网易云 ID 查询" : "关键词查询")
+                                    .font(BeansFont.appFont(10))
+                                    .foregroundStyle(Color.beansSecondary)
+                            }
+                            Spacer()
+                            Button(role: .destructive) {
+                                BeansHaptics.medium()
+                                unblockStore.remove(source)
+                            } label: {
+                                Image(systemName: "trash")
+                                    .font(.system(size: 13))
+                                    .foregroundStyle(.red)
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                }
+            }
+            .padding(16)
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+            .beansCardShadow(radius: 9, y: 3)
+        }
+    }
+
+    private func unblockSourceToggle(id: String, icon: String, title: String, subtitle: String) -> some View {
+        Toggle(isOn: Binding(
+            get: { unblockStore.isEnabled(id) },
+            set: { unblockStore.setBuiltin(id, enabled: $0) }
+        )) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.beansAmber)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(BeansFont.appFont(14))
+                        .foregroundStyle(Color.beansLabel)
+                    Text(subtitle)
+                        .font(BeansFont.appFont(10))
+                        .foregroundStyle(Color.beansSecondary)
+                }
+            }
+        }
+        .toggleStyle(.switch)
+        .tint(Color.beansAmber)
     }
 
     private var footerNote: some View {

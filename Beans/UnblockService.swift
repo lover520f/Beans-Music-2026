@@ -39,17 +39,23 @@ enum UnblockService {
         return data
     }
 
-    /// 入口：返回第一个可用的第三方播放地址；全部失败返回 nil
+    /// 入口：按 内置源开关顺序 + 用户导入的自定义源 依次尝试，返回第一个可用地址
     static func resolve(name: String, artists: String, durationMS: Int, neteaseID: Int) async -> Resolved? {
         let keyword = ([name, artists].filter { !$0.isEmpty })
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !keyword.isEmpty else { return nil }
 
+        let store = UnblockSourceStore.shared
         // pyncmd 只支持网易云 id；QQ 歌曲（neteaseID = 0）直接跳过
-        if neteaseID > 0, let r = await pyncmd(neteaseID: neteaseID) { return r }
-        if let r = await kuwo(keyword: keyword, durationMS: durationMS) { return r }
-        if let r = await kugou(keyword: keyword, durationMS: durationMS) { return r }
+        if neteaseID > 0, store.isEnabled("pyncmd"), let r = await pyncmd(neteaseID: neteaseID) { return r }
+        if store.isEnabled("kuwo"), let r = await kuwo(keyword: keyword, durationMS: durationMS) { return r }
+        if store.isEnabled("kugou"), let r = await kugou(keyword: keyword, durationMS: durationMS) { return r }
+        if store.isEnabled("bodian"), let r = await bodian(keyword: keyword, durationMS: durationMS) { return r }
+        // 用户导入的自定义源（按导入顺序）
+        for source in store.customSources {
+            if let r = await custom(source: source, name: name, artists: artists, neteaseID: neteaseID) { return r }
+        }
         return nil
     }
 
@@ -77,7 +83,8 @@ enum UnblockService {
 
     // MARK: - 音源 2：酷我（搜索 + 时长匹配 + 直链转换）
 
-    private static func kuwo(keyword: String, durationMS: Int) async -> Resolved? {
+    /// 酷我搜索：按 歌名+歌手 匹配，返回 rid（不含 MUSIC_ 前缀）
+    private static func kuwoSearchID(keyword: String, durationMS: Int) async -> String? {
         let target = Double(durationMS) / 1000.0
         var comps = URLComponents(string: "http://search.kuwo.cn/r.s")!
         comps.queryItems = [
@@ -104,12 +111,40 @@ enum UnblockService {
             var rid = song["rid"] as? String ?? song["MUSICRID"] as? String ?? ""
             if rid.isEmpty { rid = song["DC_TARGETID"] as? String ?? "" }
             guard !rid.isEmpty else { continue }
-            if !rid.hasPrefix("MUSIC_") { rid = "MUSIC_\(rid)" }
+            if rid.hasPrefix("MUSIC_") { rid = String(rid.dropFirst("MUSIC_".count)) }
             // 时长匹配 ±5 秒（酷我返回秒数或 mm:ss，缺省时放宽）
             if let dur = duration(of: song["duration"] ?? song["DURATION"]), abs(dur - target) > 5 { continue }
-            guard let urlString = await kuwoConvertURL(rid: rid),
-                  let playURL = URL(string: urlString) else { continue }
+            return rid
+        }
+        return nil
+    }
+
+    private static func kuwo(keyword: String, durationMS: Int) async -> Resolved? {
+        guard let rid = await kuwoSearchID(keyword: keyword, durationMS: durationMS) else { return nil }
+        // Try 1：antiserver 直链（无需加密，稳定取整曲 MP3）
+        if let urlString = await kuwoConvertURL(rid: rid), let playURL = URL(string: urlString) {
             return Resolved(url: playURL, source: "kuwo")
+        }
+        // Try 2：www.kuwo.cn/url 网页接口（支持码率，借鉴 splayer 解锁插件）
+        var comps = URLComponents(string: "http://www.kuwo.cn/url")!
+        comps.queryItems = [
+            URLQueryItem(name: "format", value: "mp3"),
+            URLQueryItem(name: "response", value: "url"),
+            URLQueryItem(name: "type", value: "convert_url3"),
+            URLQueryItem(name: "br", value: "320kmp3"),
+            URLQueryItem(name: "rid", value: rid),
+        ]
+        if let url = comps.url {
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 12
+            request.setValue("http://www.kuwo.cn/", forHTTPHeaderField: "Referer")
+            if let (data, resp) = try? await session.data(for: request),
+               let http = resp as? HTTPURLResponse, http.statusCode == 200,
+               let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
+               text.hasPrefix("http"),
+               let playURL = URL(string: text) {
+                return Resolved(url: playURL, source: "kuwo")
+            }
         }
         return nil
     }
@@ -176,6 +211,84 @@ enum UnblockService {
             return Resolved(url: playURL, source: "kugou")
         }
         return nil
+    }
+
+    // MARK: - 音源 4：波点（借鉴 splayer-unlock-plugin：酷我搜索 + 波点签名取流）
+
+    /// 随机设备号（对应插件 generateDeviceId，0 ~ 100000000000）
+    private static let bodianDeviceID: String = String(Int.random(in: 0...100_000_000_000))
+
+    private static func bodian(keyword: String, durationMS: Int) async -> Resolved? {
+        guard let songID = await kuwoSearchID(keyword: keyword, durationMS: durationMS) else { return nil }
+        let path = "/api/play/music/v2/audioUrl"
+        for br in ["320kmp3", "192kmp3", "128kmp3"] {
+            var str = "http://bd-api.kuwo.cn\(path)?br=\(br)&musicId=\(songID)"
+            let timestamp = Int(Date().timeIntervalSince1970 * 1000)
+            str += "&timestamp=\(timestamp)"
+            // 签名：kuwotest + (查询串去掉非字母数字排序后拼接) + path，整体 MD5
+            let qIndex = str.firstIndex(of: "?")!
+            let queryPart = str[str.index(after: qIndex)...]
+            let filtered = queryPart.filter { $0.isLetter || $0.isNumber }.sorted().map(String.init).joined()
+            let sign = md5Hex("kuwotest\(filtered)\(path)")
+            guard let url = URL(string: "\(str)&sign=\(sign)") else { continue }
+            var request = URLRequest(url: url)
+            request.timeoutInterval = 12
+            request.setValue("Dart/2.19 (dart:io)", forHTTPHeaderField: "User-Agent")
+            request.setValue("ar", forHTTPHeaderField: "plat")
+            request.setValue("aliopen", forHTTPHeaderField: "channel")
+            request.setValue(bodianDeviceID, forHTTPHeaderField: "devid")
+            request.setValue("3.9.0", forHTTPHeaderField: "ver")
+            request.setValue("bd-api.kuwo.cn", forHTTPHeaderField: "host")
+            request.setValue("1.0.1.114", forHTTPHeaderField: "X-Forwarded-For")
+            guard let (data, resp) = try? await session.data(for: request),
+                  let http = resp as? HTTPURLResponse, http.statusCode == 200,
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let dataObj = obj["data"] as? [String: Any],
+                  let urlString = dataObj["audioUrl"] as? String,
+                  let playURL = URL(string: urlString) else { continue }
+            return Resolved(url: playURL, source: "bodian")
+        }
+        return nil
+    }
+
+    // MARK: - 自定义源（用户导入的第三方解锁源）
+
+    private static func custom(source: ThirdPartySource, name: String, artists: String, neteaseID: Int) async -> Resolved? {
+        guard !source.template.isEmpty else { return nil }
+        var urlString = source.template
+        urlString = urlString.replacingOccurrences(of: "{id}", with: String(neteaseID))
+        urlString = urlString.replacingOccurrences(of: "{name}", with: urlEncoded(name))
+        let keyword = ([name, artists].filter { !$0.isEmpty }).joined(separator: " ")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        urlString = urlString.replacingOccurrences(of: "{keyword}", with: urlEncoded(keyword))
+        urlString = urlString.replacingOccurrences(of: "{artist}", with: urlEncoded(artists))
+        guard let url = URL(string: urlString) else { return nil }
+        var request = URLRequest(url: url)
+        request.timeoutInterval = 12
+        for (key, value) in source.headers {
+            request.setValue(value, forHTTPHeaderField: key)
+        }
+        guard let (data, resp) = try? await session.data(for: request),
+              let http = resp as? HTTPURLResponse, http.statusCode == 200,
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let value = valueAtPath(obj, source.urlPath),
+              let urlString = value as? String, !urlString.isEmpty,
+              let playURL = URL(string: urlString) else { return nil }
+        return Resolved(url: playURL, source: source.name)
+    }
+
+    /// 点分路径取值：url / data.url / data.audioUrl ...
+    private static func valueAtPath(_ obj: Any, _ path: String) -> Any? {
+        var current: Any = obj
+        for key in path.split(separator: ".") {
+            guard let dict = current as? [String: Any], let next = dict[String(key)] else { return nil }
+            current = next
+        }
+        return current
+    }
+
+    private static func urlEncoded(_ string: String) -> String {
+        string.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? string
     }
 
     // MARK: - 工具
