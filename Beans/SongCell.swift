@@ -23,10 +23,20 @@ struct SongCell: View {
                 CoverImage(url: song.coverURL, size: 46, cornerRadius: 10)
             }
             VStack(alignment: .leading, spacing: 3) {
-                Text(song.name)
-                    .font(BeansFont.appFont(15, isCurrent ? .semibold : .regular))
-                    .foregroundStyle(isCurrent ? Color.beansAmber : Color.beansLabel)
-                    .lineLimit(1)
+                HStack(spacing: 6) {
+                    Text(song.name)
+                        .font(BeansFont.appFont(15, isCurrent ? .semibold : .regular))
+                        .foregroundStyle(isCurrent ? Color.beansAmber : Color.beansLabel)
+                        .lineLimit(1)
+                    if song.isVIP {
+                        Text("VIP")
+                            .font(BeansFont.appFont(9, .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 5)
+                            .padding(.vertical, 1.5)
+                            .background(Capsule().fill(Color.beansAmber))
+                    }
+                }
                 Text(song.artists.isEmpty ? song.album : song.artists)
                     .font(BeansFont.appFont(12))
                     .foregroundStyle(Color.beansSecondary)

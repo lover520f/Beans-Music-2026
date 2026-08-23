@@ -457,13 +457,24 @@ struct PlayerView: View {
             .buttonStyle(GlassPressButtonStyle(scale: 0.96))
 
             VStack(spacing: 6) {
-                Text(song?.name ?? "未在播放")
-                    .font(BeansFont.appFont(22, .bold))
-                    .foregroundStyle(palette.text)
-                    .lineLimit(2)
-                    .minimumScaleFactor(0.55)
-                    .multilineTextAlignment(.center)
-                    .shadow(color: palette.accent.opacity(0.30), radius: 10)
+                HStack(spacing: 8) {
+                    Text(song?.name ?? "未在播放")
+                        .font(BeansFont.appFont(22, .bold))
+                        .foregroundStyle(palette.text)
+                        .lineLimit(2)
+                        .minimumScaleFactor(0.55)
+                        .multilineTextAlignment(.center)
+                    if song?.isVIP == true {
+                        Text("VIP")
+                            .font(BeansFont.appFont(9, .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color.beansAmber))
+                            .shadow(color: palette.accent.opacity(0.45), radius: 6)
+                    }
+                }
+                .shadow(color: palette.accent.opacity(0.30), radius: 10)
                 Text(subtitle)
                     .font(BeansFont.appFont(14, .medium))
                     .foregroundStyle(palette.secondary)
@@ -497,11 +508,21 @@ struct PlayerView: View {
                 .buttonStyle(GlassPressButtonStyle(scale: 0.9))
 
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(song?.name ?? "")
-                        .font(BeansFont.appFont(14, .semibold))
-                        .foregroundStyle(palette.text)
-                        .lineLimit(1)
-                        .truncationMode(.tail)
+                    HStack(spacing: 5) {
+                        Text(song?.name ?? "")
+                            .font(BeansFont.appFont(14, .semibold))
+                            .foregroundStyle(palette.text)
+                            .lineLimit(1)
+                            .truncationMode(.tail)
+                        if song?.isVIP == true {
+                            Text("VIP")
+                                .font(BeansFont.appFont(8, .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(Color.beansAmber))
+                        }
+                    }
                     Text(song?.artists ?? "")
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(palette.secondary)

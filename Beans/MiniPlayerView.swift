@@ -40,10 +40,20 @@ struct MiniPlayerView: View {
                 }
                 .frame(width: 48, height: 48)
                 VStack(alignment: .leading, spacing: 2) {
-                    Text(player.currentSong?.name ?? "")
-                        .font(BeansFont.appFont(14, .semibold))
-                        .foregroundStyle(Color.beansLabel)
-                        .lineLimit(1)
+                    HStack(spacing: 5) {
+                        Text(player.currentSong?.name ?? "")
+                            .font(BeansFont.appFont(14, .semibold))
+                            .foregroundStyle(Color.beansLabel)
+                            .lineLimit(1)
+                        if player.currentSong?.isVIP == true {
+                            Text("VIP")
+                                .font(BeansFont.appFont(8, .bold))
+                                .foregroundStyle(.white)
+                                .padding(.horizontal, 4)
+                                .padding(.vertical, 1.5)
+                                .background(Capsule().fill(Color.beansAmber))
+                        }
+                    }
                     Text(currentLyricLine?.text ?? player.currentSong?.artists ?? "")
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansSecondary)

@@ -327,10 +327,8 @@ final class PlayerManager: NSObject, ObservableObject {
                 }
             }
             if let resolved = resolvedThirdParty {
-                await MainActor.run {
-                    self.setupPlayer(url: resolved.url)
-                    ToastCenter.shared.show("已使用\(resolved.sourceTitle)播放")
-                }
+                // 第三方音源只用于播放，不打扰用户（无需提示用了哪个音源）
+                await MainActor.run { self.setupPlayer(url: resolved.url) }
                 return
             }
             guard let urlString, let url = URL(string: urlString) else {

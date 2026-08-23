@@ -17,9 +17,10 @@ struct ProfileView: View {
     @State private var appearanceExpanded = false
     @State private var weekRecord: [PlayRecordItem] = []
     @State private var allRecord: [PlayRecordItem] = []
-    @State private var rankLoading = false
+
     @State private var showNetEaseRank = false
     @State private var showFontImporter = false
+    @State private var showSleepTimer = false
     @ObservedObject private var qqAuth = QQMusicAuth.shared
 
     private var themeMode: BeansThemeMode {
@@ -42,7 +43,7 @@ struct ProfileView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     userCard
-                    qqCard
+                    featuresGrid
                     settingsSection
                     aboutSection
                 }
@@ -80,6 +81,10 @@ struct ProfileView: View {
         .sheet(isPresented: $showQQLogin) {
             QQLoginSheet()
                 .environmentObject(theme)
+        }
+        .sheet(isPresented: $showSleepTimer) {
+            SleepTimerSheet()
+                .environmentObject(player)
         }
         .confirmationDialog("退出登录？", isPresented: $confirmLogout, titleVisibility: .visible) {
             Button("退出登录", role: .destructive) {
@@ -164,43 +169,6 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
 
-            // 网易云历史听歌排行（登录后同步网易云数据）
-            Button {
-                BeansHaptics.tap()
-                showNetEaseRank = true
-            } label: {
-                HStack(spacing: 12) {
-                    Image(systemName: "chart.bar.fill")
-                        .font(.system(size: 15))
-                        .foregroundStyle(Color.beansAmber)
-                        .frame(width: 28)
-                    Text("历史听歌排行")
-                        .font(BeansFont.appFont(15))
-                        .foregroundStyle(Color.beansLabel)
-                    Spacer()
-                    if rankLoading {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(Color.beansAmber)
-                    } else {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.beansSecondary.opacity(0.6))
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background {
-                    GlassEffectContainer {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.clear)
-                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-            }
-            .buttonStyle(GlassPressButtonStyle(scale: 0.97))
-            .disabled(!auth.isLoggedIn)
         }
         .padding(16)
         .background {
@@ -213,50 +181,7 @@ struct ProfileView: View {
         .beansCardShadow(radius: 10, y: 4)
     }
 
-    /// QQ 音乐登录状态卡片（扫码登录 / 退出）
-    private var qqCard: some View {
-        Button {
-            BeansHaptics.tap()
-            if qqAuth.isLoggedIn {
-                confirmQQLogout = true
-            } else {
-                showQQLogin = true
-            }
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: qqAuth.isLoggedIn ? "checkmark.seal.fill" : "globe")
-                    .font(.system(size: 17))
-                    .foregroundStyle(qqAuth.isLoggedIn ? Color.beansSage : Color.beansAmber)
-                    .frame(width: 38, height: 38)
-                    .background(Color.beansGlassFill, in: Circle())
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("QQ 音乐")
-                        .font(BeansFont.appFont(15, .semibold))
-                        .foregroundStyle(Color.beansLabel)
-                    Text(qqAuth.isLoggedIn
-                         ? "已登录：\(qqAuth.nickname.isEmpty ? "QQ 账号" : qqAuth.nickname)"
-                         : "登录后可播放 QQ 音乐歌曲")
-                        .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
-                        .lineLimit(1)
-                }
-                Spacer()
-                Image(systemName: qqAuth.isLoggedIn ? "person.crop.circle.badge.xmark" : "chevron.right")
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.beansSecondary)
-            }
-            .padding(14)
-            .background {
-                GlassEffectContainer {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(.clear)
-                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                }
-            }
-            .beansCardShadow(radius: 9, y: 3)
-        }
-        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
-    }
+
 
     /// 壁纸格子：点击应用为当前背景；使用中的壁纸显示主题色边框+勾选；右上角删除
     private func wallpaperCell(path: String) -> some View {
@@ -306,6 +231,72 @@ struct ProfileView: View {
             .buttonStyle(.plain)
             .zIndex(2)
         }
+    }
+
+    /// 功能宫格：常用功能统一整合排版
+    private var featuresGrid: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "我的功能")
+            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
+                featureCell(icon: "clock.arrow.circlepath", title: "播放历史", subtitle: "最近播放 \(player.history.count) 首") {
+                    showHistory = true
+                }
+                featureCell(icon: "chart.bar.fill", title: "历史听歌排行", subtitle: auth.isLoggedIn ? "网易云同步" : "登录后可用") {
+                    if auth.isLoggedIn {
+                        showNetEaseRank = true
+                    } else {
+                        ToastCenter.shared.show("请先登录网易云账号")
+                    }
+                }
+                featureCell(icon: "moon.zzz.fill", title: "定时关闭", subtitle: "播放到点自动停止") {
+                    showSleepTimer = true
+                }
+                featureCell(icon: qqAuth.isLoggedIn ? "checkmark.seal.fill" : "globe", title: "QQ 音乐", subtitle: qqAuth.isLoggedIn ? (qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname) : "登录后播放 QQ 歌曲") {
+                    BeansHaptics.tap()
+                    if qqAuth.isLoggedIn {
+                        confirmQQLogout = true
+                    } else {
+                        showQQLogin = true
+                    }
+                }
+            }
+        }
+    }
+
+    private func featureCell(icon: String, title: String, subtitle: String, action: @escaping () -> Void) -> some View {
+        Button {
+            BeansHaptics.tap()
+            action()
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.beansAmber)
+                    .frame(width: 34, height: 34)
+                    .background(Color.beansGlassFill, in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(BeansFont.appFont(14, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                        .lineLimit(1)
+                    Text(subtitle)
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansSecondary)
+                        .lineLimit(1)
+                }
+                Spacer(minLength: 0)
+            }
+            .padding(12)
+            .background {
+                GlassEffectContainer {
+                    RoundedRectangle(cornerRadius: 18, style: .continuous)
+                        .fill(.clear)
+                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
     }
 
     private var settingsSection: some View {
@@ -588,13 +579,13 @@ struct ProfileView: View {
     /// 加载网易云听歌排行（本周 + 所有时间）
     private func loadNetEaseRank() async {
         guard let user = auth.user, auth.isLoggedIn else { return }
-        rankLoading = true
+
         async let w = try? NetEaseAPI.shared.playRecord(uid: user.uid, type: 1)
         async let a = try? NetEaseAPI.shared.playRecord(uid: user.uid, type: 0)
         let (wr, ar) = await (w, a)
         weekRecord = wr?.items ?? []
         allRecord = ar?.items ?? []
-        rankLoading = false
+
     }
 
     private var aboutSection: some View {

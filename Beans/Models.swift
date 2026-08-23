@@ -17,6 +17,8 @@ struct Song: Identifiable, Hashable, Codable {
     let source: SongSource
     /// QQ 音乐 songmid（source == .qq 时用于获取播放地址与歌词）
     let qqMid: String?
+    /// 付费/VIP 标记（网易云：0 免费、1 VIP、4 付费单曲；QQ 音乐：0 免费、非 0 付费）
+    let fee: Int
 
     var formattedDuration: String {
         let total = max(0, Int(duration))
@@ -28,7 +30,12 @@ struct Song: Identifiable, Hashable, Codable {
         source == .qq ? "qq-\(id)" : "netease-\(id)"
     }
 
-    init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil) {
+    /// 是否为 VIP / 付费歌曲（用于列表与播放器角标）
+    var isVIP: Bool {
+        fee != 0
+    }
+
+    init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil, fee: Int = 0) {
         self.id = id
         self.name = name
         self.artists = artists
@@ -37,6 +44,7 @@ struct Song: Identifiable, Hashable, Codable {
         self.duration = duration
         self.source = source
         self.qqMid = qqMid
+        self.fee = fee
     }
 
     init?(json: [String: Any]) {
@@ -61,9 +69,10 @@ struct Song: Identifiable, Hashable, Codable {
         duration = Double(ms) / 1000.0
         source = .netease
         qqMid = nil
+        fee = json["fee"] as? Int ?? 0
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, artists, album, coverURL, duration, source, qqMid }
+    private enum CodingKeys: String, CodingKey { case id, name, artists, album, coverURL, duration, source, qqMid, fee }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -75,6 +84,7 @@ struct Song: Identifiable, Hashable, Codable {
         duration = try c.decodeIfPresent(TimeInterval.self, forKey: .duration) ?? 0
         source = try c.decodeIfPresent(SongSource.self, forKey: .source) ?? .netease
         qqMid = try c.decodeIfPresent(String.self, forKey: .qqMid)
+        fee = try c.decodeIfPresent(Int.self, forKey: .fee) ?? 0
     }
 
     func encode(to encoder: Encoder) throws {
@@ -87,6 +97,7 @@ struct Song: Identifiable, Hashable, Codable {
         try c.encode(duration, forKey: .duration)
         try c.encode(source, forKey: .source)
         try c.encodeIfPresent(qqMid, forKey: .qqMid)
+        try c.encode(fee, forKey: .fee)
     }
 }
 
