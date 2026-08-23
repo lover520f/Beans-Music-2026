@@ -12,11 +12,11 @@ struct AmbientGlowView: View {
     var breath: Double = 0.6
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)) { timeline in
-            Canvas { context, size in
-                guard size.width > 0, size.height > 0 else { return }
-                let t = timeline.date.timeIntervalSinceReferenceDate
-                let w = size.width, h = size.height
+        // 静态渲染：位置固定、无漂移（用户要求封面外液态 UI 飘动效果暂停，保持静止）
+        Canvas { context, size in
+            guard size.width > 0, size.height > 0 else { return }
+            let t = 1.7
+            let w = size.width, h = size.height
 
                 // 主色光斑（缓慢漂移 + 呼吸）
                 let cx = w * (0.5 + 0.18 * sin(t * 0.25))
@@ -49,7 +49,6 @@ struct AmbientGlowView: View {
                     context.fill(Path(ellipseIn: rect), with: .color(.white.opacity(0.05 + 0.06 * tw)))
                 }
             }
-        }
         .ignoresSafeArea()
         .allowsHitTesting(false)
         .drawingGroup()

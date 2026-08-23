@@ -1,5 +1,35 @@
 import Foundation
 
+/// 音质等级（借鉴 Kumone：standard / higher / exhigh / lossless / hires）
+enum BeansAudioQuality: String, CaseIterable, Identifiable {
+    case standard
+    case higher
+    case exhigh
+    case lossless
+    case hires
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .standard: return "标准"
+        case .higher: return "较高"
+        case .exhigh: return "极高"
+        case .lossless: return "无损"
+        case .hires: return "Hi-Res"
+        }
+    }
+
+    /// 网易云 songURL 的 level 参数
+    var level: String { rawValue }
+
+    /// 当前设置（默认极高 320kbps；高音质拿不到时自动回落到标准音质）
+    static var current: BeansAudioQuality {
+        let raw = UserDefaults.standard.string(forKey: "beans.audioQuality")
+        return BeansAudioQuality(rawValue: raw ?? "") ?? .exhigh
+    }
+}
+
 /// 歌曲来源（网易云 / QQ音乐）
 enum SongSource: String, Codable {
     case netease

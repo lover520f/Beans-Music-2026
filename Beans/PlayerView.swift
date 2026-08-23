@@ -43,8 +43,6 @@ struct PlayerView: View {
     /// 歌词行距（14~40，默认 24）
     @AppStorage("beans.lyricSpacing") private var lyricLineSpacing = 24
     /// 播放器氛围：背景流动开关 / 速度 / 呼吸光晕强度
-    @AppStorage("beans.playerFlowOn") private var playerFlowOn = true
-    @AppStorage("beans.playerFlowSpeed") private var playerFlowSpeed = 1
     @AppStorage("beans.playerBreath") private var playerBreath = 0.6
     /// 显示歌词翻译（借鉴 Kumone：网易云 tlyric）
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
@@ -172,9 +170,7 @@ struct PlayerView: View {
         }
         .sheet(isPresented: $showPlayerSettings) {
             PlayerSettingsSheet(
-                breath: $playerBreath,
-                flowOn: $playerFlowOn,
-                flowSpeed: $playerFlowSpeed
+                breath: $playerBreath
             )
         }
         .sheet(isPresented: $showLyricSettings) {
@@ -225,24 +221,11 @@ struct PlayerView: View {
 
     private var background: some View {
         ZStack {
-            // 动态流动渐变：随封面主色缓慢流动（暂停冻结 + 低帧率，避免发烫）
-            if playerFlowOn {
-                TimelineView(.animation(minimumInterval: 1.0 / 15.0, paused: !player.isPlaying)) { timeline in
-                    let t = timeline.date.timeIntervalSinceReferenceDate
-                    let speed: Double = [0.14, 0.22, 0.34][min(max(playerFlowSpeed, 0), 2)]
-                    let sway = sin(t * speed)
-                    LinearGradient(
-                        colors: [palette.backgroundTop, palette.backgroundBottom],
-                        startPoint: UnitPoint(x: 0.5 - 0.38 * sway, y: 0.0),
-                        endPoint: UnitPoint(x: 0.5 + 0.38 * sway, y: 1.0)
-                    )
-                }
-            } else {
-                LinearGradient(
-                    colors: [palette.backgroundTop, palette.backgroundBottom],
-                    startPoint: .top, endPoint: .bottom
-                )
-            }
+            // 静态渐变：随封面主色取色，不流动（用户要求封面外液态 UI 飘动效果暂停，保持静止）
+            LinearGradient(
+                colors: [palette.backgroundTop, palette.backgroundBottom],
+                startPoint: .top, endPoint: .bottom
+            )
             CoverBlurBackground(url: song?.coverURL, scheme: colorScheme)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             AmbientGlowView(
@@ -403,24 +386,20 @@ struct PlayerView: View {
                 toggleLyrics()
             } label: {
                 ZStack {
-                    // 动态装饰层（呼吸光晕 + 浮动托盘）：封面本体静止，避免布局重算
-                    TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !player.isPlaying)) { timeline in
-                        let t = timeline.date.timeIntervalSinceReferenceDate
-                        let breathe = player.isPlaying ? 1.0 + 0.05 * sin(t * 2.0) : 1.0
-                        let lift = player.isPlaying ? CGFloat(sin(t * 1.3)) * 5 : 0
-                        ZStack {
+                    // 静态装饰层（光晕 + 托盘）：不再呼吸/浮动（用户要求飘动效果暂停），封面本体静止
+                    ZStack {
                             // 主色光晕（呼吸）
                             Circle()
                                 .fill(palette.accent.opacity(0.24))
                                 .frame(width: size * 1.38, height: size * 1.38)
                                 .blur(radius: 46)
-                                .scaleEffect(breathe)
+                                .scaleEffect(1.0)
                             // 次色光晕（反向呼吸，增加层次）
                             Circle()
                                 .fill(palette.secondary.opacity(0.15))
                                 .frame(width: size * 1.10, height: size * 1.10)
                                 .blur(radius: 40)
-                                .scaleEffect(2.0 - breathe)
+                                .scaleEffect(1.0)
                             // 液态玻璃托盘（微浮动）
                             GlassEffectContainer {
                                 RoundedRectangle(cornerRadius: min(30, size * 0.10), style: .continuous)
@@ -429,9 +408,8 @@ struct PlayerView: View {
                             }
                             .frame(width: size * 1.10, height: size * 1.10)
                             .shadow(color: .black.opacity(0.28), radius: 26, y: 12)
-                            .offset(y: lift)
+                            .offset(y: 0)
                         }
-                    }
                     .allowsHitTesting(false)
 
                     // 封面（静态）
@@ -1044,6 +1022,9 @@ struct LyricsSection: View {
     /// 长按歌词进入多选复制模式（可多选 / 全选复制）
     @State private var selectionMode = false
     @State private var selected: Set<Int> = []
+    /// 用户手动滚动时暂停自动跟随（借鉴 Kumone：3 秒后恢复）
+    @State private var isUserScrolling = false
+    @State private var resumeScrollTask: Task<Void, Never>?
 
     /// 二分查找当前行（歌词按时间升序），避免逐行扫描降低 CPU
     private var currentIndex: Int? {
@@ -1109,6 +1090,18 @@ struct LyricsSection: View {
             }
             .frame(maxWidth: .infinity)
             .scrollIndicators(.hidden)
+            // 上下渐隐遮罩（借鉴 Kumone 歌词界面）：歌词接近顶部/底部时自然淡出
+            .mask(
+                LinearGradient(
+                    stops: [
+                        .init(color: .clear, location: 0.0),
+                        .init(color: .black, location: 0.10),
+                        .init(color: .black, location: 0.90),
+                        .init(color: .clear, location: 1.0)
+                    ],
+                    startPoint: .top, endPoint: .bottom
+                )
+            )
             .overlay(alignment: .top) {
                 if selectionMode {
                     selectionBar
@@ -1120,11 +1113,24 @@ struct LyricsSection: View {
                 scrollToCurrent(proxy)
             }
             .onChange(of: currentIndex) { _, newIndex in
-                guard let newIndex else { return }
+                guard let newIndex, !isUserScrolling else { return }
                 withAnimation(.easeInOut(duration: 0.3)) {
                     proxy.scrollTo(newIndex, anchor: .center)
                 }
             }
+            .simultaneousGesture(
+                DragGesture(minimumDistance: 6)
+                    .onChanged { _ in
+                        guard !isUserScrolling else { return }
+                        isUserScrolling = true
+                        resumeScrollTask?.cancel()
+                        resumeScrollTask = Task {
+                            try? await Task.sleep(nanoseconds: 3_000_000_000)
+                            guard !Task.isCancelled else { return }
+                            await MainActor.run { isUserScrolling = false }
+                        }
+                    }
+            )
         }
     }
 
@@ -1528,25 +1534,12 @@ struct LyricPreset {
 
 struct PlayerSettingsSheet: View {
     @Binding var breath: Double
-    @Binding var flowOn: Bool
-    @Binding var flowSpeed: Int
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         NavigationStack {
             Form {
-                Section("背景氛围") {
-                    Toggle("背景缓慢流动", isOn: $flowOn)
-                        .tint(Color.beansAmber)
-                    Picker("流动速度", selection: $flowSpeed) {
-                        Text("舒缓").tag(0)
-                        Text("适中").tag(1)
-                        Text("灵动").tag(2)
-                    }
-                    .pickerStyle(.segmented)
-                    .disabled(!flowOn)
-                }
-                Section("呼吸光晕强度") {
+                Section("背景光晕强度") {
                     HStack(spacing: 12) {
                         Image(systemName: "circle.lefthalf.filled")
                             .foregroundStyle(Color.beansAmber)

@@ -310,48 +310,20 @@ final class PlayerManager: NSObject, ObservableObject {
         Task {
             var urlString: String?
             var resolvedThirdParty: UnblockService.Resolved?
+            let enableUnblock = defaults.object(forKey: "beans.enableUnblock") as? Bool ?? true
+            let quality = BeansAudioQuality.current
             if song.source == .qq, let mid = song.qqMid {
-                urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
-                // QQ vkey 拿不到播放地址（未登录或接口受限）时：
-                // 1) 先在网易云按 歌名+歌手 匹配同名歌曲，走网易云地址或 pyncmd 解锁（免费听 VIP）
-                // 2) 仍未拿到再用酷我/酷狗按关键字兜底
-                if urlString == nil {
-                    if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000)) {
-                        let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [matched.id])
-                        let info = infos?[matched.id]
-                        if let u = info?.url {
-                            urlString = u
-                        } else if info?.freeTrial == true || info == nil {
-                            resolvedThirdParty = await UnblockService.resolve(
-                                name: matched.name,
-                                artists: matched.artists,
-                                durationMS: Int(matched.duration * 1000),
-                                neteaseID: matched.id
-                            )
-                        }
-                    }
-                    if urlString == nil && resolvedThirdParty == nil {
-                        resolvedThirdParty = await UnblockService.resolve(
-                            name: song.name,
-                            artists: song.artists,
-                            durationMS: Int(song.duration * 1000),
-                            neteaseID: 0
-                        )
+                // VIP 歌曲：vkey 未登录只会返回试听片段，直接走网易云同名兜底（免费听 VIP）
+                if song.isVIP {
+                    (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock)
+                } else {
+                    urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
+                    if urlString == nil {
+                        (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock)
                     }
                 }
             } else {
-                let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [song.id])
-                let info = infos?[song.id]
-                urlString = info?.url
-                // 灰色歌曲 / VIP 试听解锁：URL 为空或仅有试听片段时尝试第三方音源（借鉴 Kumone UnblockService）
-                if info?.url == nil || info?.freeTrial == true {
-                    resolvedThirdParty = await UnblockService.resolve(
-                        name: song.name,
-                        artists: song.artists,
-                        durationMS: Int(song.duration * 1000),
-                        neteaseID: song.id
-                    )
-                }
+                (urlString, resolvedThirdParty) = await neteaseResolve(song: song, quality: quality, enableUnblock: enableUnblock)
             }
             if let resolved = resolvedThirdParty {
                 // 第三方音源只用于播放，不打扰用户（无需提示用了哪个音源）
@@ -369,6 +341,66 @@ final class PlayerManager: NSObject, ObservableObject {
         }
     }
 
+
+    /// 网易云播放地址解析：按设置音质取 URL，VIP/灰色歌曲交给第三方解锁（借鉴 Kumone）
+    private func neteaseResolve(song: Song, quality: BeansAudioQuality, enableUnblock: Bool) async -> (String?, UnblockService.Resolved?) {
+        var urlString: String?
+        var resolved: UnblockService.Resolved?
+        let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [song.id], level: quality.level)
+        var info = infos?[song.id]
+        if (info?.url == nil || info?.freeTrial == true), quality != .standard {
+            // 高音质拿不到时自动回落到标准音质
+            let fallback = try? await NetEaseAPI.shared.songURLInfo(ids: [song.id], level: "standard")
+            info = fallback?[song.id]
+        }
+        // 试听片段 / 无 URL 一律不直接播放，交给第三方解锁，避免"只能试听"
+        if let u = info?.url, info?.freeTrial != true {
+            urlString = u
+        }
+        if urlString == nil, enableUnblock {
+            resolved = await UnblockService.resolve(
+                name: song.name,
+                artists: song.artists,
+                durationMS: Int(song.duration * 1000),
+                neteaseID: song.id
+            )
+        }
+        return (urlString, resolved)
+    }
+
+    /// QQ 歌曲兜底：先在网易云按 歌名+歌手 匹配同名歌曲，免费完整 URL 直接播，VIP/无 URL 交给第三方解锁
+    private func qqFallback(song: Song, quality: BeansAudioQuality, enableUnblock: Bool) async -> (String?, UnblockService.Resolved?) {
+        var urlString: String?
+        var resolved: UnblockService.Resolved?
+        if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000)) {
+            let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [matched.id], level: quality.level)
+            var info = infos?[matched.id]
+            if (info?.url == nil || info?.freeTrial == true), quality != .standard {
+                let fallback = try? await NetEaseAPI.shared.songURLInfo(ids: [matched.id], level: "standard")
+                info = fallback?[matched.id]
+            }
+            // 免费完整 URL 直接用；试听片段 / 无 URL 交给第三方解锁
+            if let u = info?.url, info?.freeTrial != true {
+                urlString = u
+            } else if enableUnblock {
+                resolved = await UnblockService.resolve(
+                    name: matched.name,
+                    artists: matched.artists,
+                    durationMS: Int(matched.duration * 1000),
+                    neteaseID: matched.id
+                )
+            }
+        }
+        if urlString == nil, resolved == nil, enableUnblock {
+            resolved = await UnblockService.resolve(
+                name: song.name,
+                artists: song.artists,
+                durationMS: Int(song.duration * 1000),
+                neteaseID: 0
+            )
+        }
+        return (urlString, resolved)
+    }
 
     /// 在网易云按 歌名+歌手 匹配同名歌曲（QQ vkey 失败时的免费播放兜底）
     private func matchNetEaseSong(name: String, artists: String, durationMS: Int) async -> Song? {

@@ -413,11 +413,13 @@ struct AccountHubSheet: View {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(Color(red: 0.93, green: 0.25, blue: 0.22))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: "music.note")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.white)
+                        .fill(.white.opacity(0.06))
+                        .frame(width: 48, height: 48)
+                    Image("BrandNetease")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text("网易云音乐")
@@ -458,11 +460,13 @@ struct AccountHubSheet: View {
             HStack(spacing: 14) {
                 ZStack {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(LinearGradient(colors: [Color(red: 0.20, green: 0.55, blue: 0.95), Color(red: 0.38, green: 0.68, blue: 1.0)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        .frame(width: 44, height: 44)
-                    Image(systemName: "bubble.left.and.bubble.right.fill")
-                        .font(.system(size: 20))
-                        .foregroundStyle(.white)
+                        .fill(.white.opacity(0.06))
+                        .frame(width: 48, height: 48)
+                    Image("BrandQQ")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 48, height: 48)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text("QQ 音乐")
@@ -503,8 +507,12 @@ struct SettingsView: View {
     @AppStorage("beans.themeMode") private var themeModeRaw = BeansThemeMode.system.rawValue
     /// 显示歌词翻译（借鉴 Kumone：网易云 tlyric）
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
+    /// 音质等级（借鉴 Kumone）
+    @AppStorage("beans.audioQuality") private var audioQualityRaw = BeansAudioQuality.exhigh.rawValue
+    /// 灰色歌曲 / VIP 解锁（借鉴 Kumone）
+    @AppStorage("beans.enableUnblock") private var enableUnblock = true
 
-    @State private var appearanceExpanded = true
+    @State private var appearanceExpanded = false
     @State private var bgImageItem: PhotosPickerItem?
     @State private var showFontImporter = false
 
@@ -818,11 +826,55 @@ struct SettingsView: View {
         }
     }
 
-    /// 播放与歌词设置（借鉴 Kumone：显示歌词翻译）
+    /// 播放与歌词设置（借鉴 Kumone：音质 / 灰色歌曲解锁 / 显示歌词翻译）
     private var playbackSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "播放与歌词")
             VStack(spacing: 14) {
+                VStack(alignment: .leading, spacing: 6) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "waveform.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(width: 28)
+                        Text("音质")
+                            .font(BeansFont.appFont(15))
+                            .foregroundStyle(Color.beansLabel)
+                    }
+                    Picker("音质", selection: $audioQualityRaw) {
+                        ForEach(BeansAudioQuality.allCases) { q in
+                            Text(q.displayName).tag(q.rawValue)
+                        }
+                    }
+                    .pickerStyle(.segmented)
+                    Text("无损与 Hi-Res 需要黑胶 VIP，未开通时自动回落到可用音质")
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansSecondary)
+                }
+
+                Divider().overlay(Color.beansSecondary.opacity(0.15))
+
+                Toggle(isOn: $enableUnblock) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "wand.and.stars")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("灰色歌曲解锁")
+                                .font(BeansFont.appFont(15))
+                                .foregroundStyle(Color.beansLabel)
+                            Text("无版权 / 下架 / VIP 歌曲自动从第三方音源匹配播放")
+                                .font(BeansFont.appFont(11))
+                                .foregroundStyle(Color.beansSecondary)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .tint(Color.beansAmber)
+
+                Divider().overlay(Color.beansSecondary.opacity(0.15))
+
                 Toggle(isOn: $lyricTranslation) {
                     HStack(spacing: 12) {
                         Image(systemName: "character.bubble.fill")

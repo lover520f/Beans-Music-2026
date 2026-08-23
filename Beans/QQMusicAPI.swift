@@ -159,7 +159,8 @@ final class QQMusicAPI {
             let artists = singer.compactMap { $0["name"] as? String }.joined(separator: " / ")
             let albumMid = item["albummid"] as? String ?? item["albumMID"] as? String
             let interval = (item["interval"] as? Int) ?? 0
-            let fee = (item["fee"] as? Int) ?? ((item["pay"] as? [String: Any])?["pay_play"] as? Int) ?? 0
+            let pay = item["pay"] as? [String: Any]
+            let fee = (item["fee"] as? Int) ?? (pay?["pay_play"] as? Int) ?? (pay?["payplay"] as? Int) ?? 0
             songs.append(Song(
                 id: songid,
                 name: item["songname"] as? String ?? "",
@@ -610,7 +611,8 @@ final class QQMusicAPI {
         let albumName = albumDict["name"] as? String ?? (item["albumname"] as? String ?? "")
         let albumMid = albumDict["mid"] as? String ?? (item["albummid"] as? String ?? "")
         let interval = item["interval"] as? Int ?? 0
-        let fee = (item["fee"] as? Int) ?? ((item["pay"] as? [String: Any])?["pay_play"] as? Int) ?? 0
+        let pay = item["pay"] as? [String: Any]
+        let fee = (item["fee"] as? Int) ?? (pay?["pay_play"] as? Int) ?? (pay?["payplay"] as? Int) ?? 0
         return Song(
             id: sid,
             name: item["songname"] as? String ?? (item["name"] as? String ?? ""),
