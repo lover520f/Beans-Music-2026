@@ -155,13 +155,16 @@ struct Playlist: Identifiable, Hashable {
     let coverURL: URL?
     let trackCount: Int
     let creatorName: String
+    /// 歌单来源（网易云 / QQ音乐），QQ 歌单用对应接口加载
+    let source: SongSource
 
-    init(id: Int, name: String, coverURL: URL?, trackCount: Int = 0) {
+    init(id: Int, name: String, coverURL: URL?, trackCount: Int = 0, source: SongSource = .netease) {
         self.id = id
         self.name = name
         self.coverURL = coverURL
         self.trackCount = trackCount
         self.creatorName = ""
+        self.source = source
     }
 
     init?(json: [String: Any]) {
@@ -172,6 +175,7 @@ struct Playlist: Identifiable, Hashable {
         let pic = json["coverImgUrl"] as? String ?? ""
         coverURL = pic.isEmpty ? nil : URL(string: pic)
         creatorName = (json["creator"] as? [String: Any])?["nickname"] as? String ?? ""
+        source = .netease
     }
 
     init?(personalizedJSON json: [String: Any]) {
@@ -182,6 +186,7 @@ struct Playlist: Identifiable, Hashable {
         let pic = json["picUrl"] as? String ?? ""
         coverURL = pic.isEmpty ? nil : URL(string: pic)
         creatorName = ""
+        source = .netease
     }
 }
 
@@ -341,3 +346,4 @@ struct SongComment: Identifiable, Hashable {
         self.isHot = isHot
     }
 }
+

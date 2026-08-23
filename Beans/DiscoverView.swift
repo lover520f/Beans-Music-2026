@@ -175,6 +175,19 @@ struct DiscoverView: View {
         }
         .padding(7)
     }
+
+    /// 网易云排行榜：只保留 热歌榜 / 飙升榜 / 新歌榜 / 原创榜 四个，热歌榜排第一
+    private var filteredTopLists: [TopList] {
+        let order = ["热歌榜", "飙升榜", "新歌榜", "原创榜"]
+        var result: [TopList] = []
+        for key in order {
+            if let item = topLists.first(where: { $0.name.contains(key) }) {
+                result.append(item)
+            }
+        }
+        return result
+    }
+
     // MARK: - 排行榜（竖排行列表）
 
     private var topListsSection: some View {
@@ -182,7 +195,7 @@ struct DiscoverView: View {
             SectionHeader(title: "排行榜")
             VStack(spacing: 0) {
                 if source == .netease {
-                    ForEach(Array(topLists.prefix(6).enumerated()), id: \.element.id) { index, topList in
+                    ForEach(Array(filteredTopLists.enumerated()), id: \.element.id) { index, topList in
                         rankRow(index: index, name: topList.name, subtitle: topList.updateFrequency, coverURL: topList.coverURL) {
                             BeansHaptics.tap()
                             selectedTopList = topList
@@ -604,3 +617,5 @@ struct TopListDetailView: View {
         }
     }
 }
+
+

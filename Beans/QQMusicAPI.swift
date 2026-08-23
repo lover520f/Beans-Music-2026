@@ -552,6 +552,32 @@ final class QQMusicAPI {
         return Array(songs.prefix(limit))
     }
 
+    /// 用户创建的歌单（fcg_user_created_songlist；登录后带 Cookie 可拉取完整列表）
+    func userPlaylists(uin: String) async throws -> [Playlist] {
+        let urlString = "https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_songlist.fcg?format=json&uin=\(uin)"
+        guard let url = URL(string: urlString) else { throw NetEaseError.unknown("请求地址无效") }
+        var request = URLRequest(url: url)
+        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 QQMusic/9.0.5", forHTTPHeaderField: "User-Agent")
+        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+        let qqAuth = QQMusicAuth.shared
+        request.setValue(qqAuth.isLoggedIn ? qqAuth.cookieHeader : "uin=0; qqmusic_fromtag=66", forHTTPHeaderField: "Cookie")
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw NetEaseError.network }
+        guard let json = parseJSON(data) else { throw NetEaseError.decoding("QQ 歌单解析失败") }
+        let dataObj = json["data"] as? [String: Any] ?? [:]
+        let diss = dataObj["diss"] as? [[String: Any]] ?? []
+        var playlists: [Playlist] = []
+        for item in diss {
+            guard let id = item["dissid"] as? Int ?? (item["tid"] as? Int) else { continue }
+            let name = item["diss_name"] as? String ?? (item["title"] as? String ?? "")
+            var cover = item["diss_cover"] as? String ?? (item["cover"] as? String ?? "")
+            if cover.hasPrefix("http://") { cover = "https://" + cover.dropFirst(7) }
+            let count = item["songcnt"] as? Int ?? 0
+            playlists.append(Playlist(id: id, name: name, coverURL: cover.isEmpty ? nil : URL(string: cover), trackCount: count, source: .qq))
+        }
+        return playlists
+    }
+
     /// QQ 推荐歌单
     func recommendPlaylists(limit: Int = 12) async throws -> [Playlist] {
         let payload: [String: Any] = [
@@ -678,3 +704,4 @@ private struct SeededRNG: RandomNumberGenerator {
         return state
     }
 }
+

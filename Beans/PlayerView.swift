@@ -145,7 +145,7 @@ struct PlayerView: View {
                 }
                 .foregroundStyle(palette.text)
 
-                controlDeck
+                controlDeck(bottomInset: geo.safeAreaInsets.bottom)
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: .infinity, alignment: .bottom)
             }
@@ -386,7 +386,7 @@ struct PlayerView: View {
             if song == nil {
                 placeholderView
             } else if showLyrics {
-                lyricsPanel
+                lyricsPanel(geo: geo)
                     .transition(.opacity)
             } else {
                 albumPanel(geo: geo)
@@ -497,7 +497,7 @@ struct PlayerView: View {
 
             Spacer(minLength: 2)
         }
-        .padding(.bottom, deckInset)
+        .padding(.bottom, deckInset + geo.safeAreaInsets.bottom)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
 
@@ -577,7 +577,7 @@ struct PlayerView: View {
 
 
     /// 歌词模式：左上小封面 + 歌名信息条 + 居中歌词（自动布局，歌词可滚动到底部透过底栏玻璃）
-    private var lyricsPanel: some View {
+    private func lyricsPanel(geo: GeometryProxy) -> some View {
         VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Button {
@@ -652,7 +652,7 @@ struct PlayerView: View {
                     }
                 }
             }
-            .padding(.bottom, deckInset)
+            .padding(.bottom, deckInset + geo.safeAreaInsets.bottom)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .id("lyricsPanel-\(song?.identityKey ?? "none")")
@@ -719,14 +719,14 @@ struct PlayerView: View {
     /// 底部控制栏估算高度（单行控制后降低，给歌词视口更多空间）
     private let deckInset: CGFloat = 130
 
-    private var controlDeck: some View {
+    private func controlDeck(bottomInset: CGFloat) -> some View {
         VStack(spacing: 8) {
             deckRow
             progressBlock
         }
         .padding(.horizontal, 24)
         .padding(.top, 4)
-        .padding(.bottom, 6)
+        .padding(.bottom, 6 + bottomInset)
         .frame(maxWidth: .infinity)
         // 底部控件直接悬浮在模糊背景上：单行控制 + 底部进度条，歌词视口更大
     }
@@ -775,25 +775,28 @@ struct PlayerView: View {
     // MARK: - 合并控制行（循环 / 上一曲 / 播放暂停 / 下一曲 / 播放列表 平行排列，播放键居中）
 
     private var deckRow: some View {
-        HStack(spacing: 8) {
-            modeButton
-                .frame(maxWidth: .infinity)
-            deckButton(icon: "backward.fill", expand: false) {
-                BeansHaptics.tap()
-                player.previous()
+        ZStack {
+            // 两侧对称：循环模式 / 播放列表
+            HStack {
+                modeButton
+                Spacer(minLength: 0)
+                queueButton
             }
-            .frame(maxWidth: .infinity)
-            playButton
-                .frame(maxWidth: .infinity)
-            deckButton(icon: "forward.fill", expand: false) {
-                BeansHaptics.tap()
-                player.next()
+            // 中间主控制组：上一曲 / 播放暂停 / 下一曲 真正居中
+            HStack(spacing: 26) {
+                deckButton(icon: "backward.fill", expand: false) {
+                    BeansHaptics.tap()
+                    player.previous()
+                }
+                playButton
+                deckButton(icon: "forward.fill", expand: false) {
+                    BeansHaptics.tap()
+                    player.next()
+                }
             }
-            .frame(maxWidth: .infinity)
-            queueButton
-                .frame(maxWidth: .infinity)
         }
         .frame(maxWidth: .infinity)
+        .padding(.horizontal, 28)
         .simultaneousGesture(
             // 上滑控制行呼出评论区（进度条区域保留拖动，不误触）
             DragGesture(minimumDistance: 25)
@@ -1641,4 +1644,6 @@ struct PlayerSettingsSheet: View {
         .presentationDragIndicator(.visible)
     }
 }
+
+
 

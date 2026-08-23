@@ -156,7 +156,11 @@ struct PlaylistView: View {
         loading = true
         errorMessage = nil
         do {
-            tracks = try await NetEaseAPI.shared.playlistTracks(id: playlist.id)
+            if playlist.source == .qq {
+                tracks = try await QQMusicAPI.shared.playlistSongs(listID: playlist.id)
+            } else {
+                tracks = try await NetEaseAPI.shared.playlistTracks(id: playlist.id)
+            }
             loading = false
         } catch {
             errorMessage = error.localizedDescription
