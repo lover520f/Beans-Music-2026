@@ -135,7 +135,7 @@ final class KugouMusicAPI {
         )
     }
 
-    /// 歌手搜索（mobilecdn search/singer，data 直接是数组）
+    /// 歌手搜索（mobilecdn search/singer；歌手头像需逐个调 singer/info 获取，失败时封面为 nil）
     func searchArtists(keyword: String) async throws -> [Artist] {
         var comps = URLComponents(string: "http://mobilecdn.kugou.com/api/v3/search/singer")!
         comps.queryItems = [
@@ -148,9 +148,31 @@ final class KugouMusicAPI {
         guard let obj = json(data), let list = obj["data"] as? [[String: Any]] else {
             throw NetEaseError.decoding("酷狗歌手解析失败")
         }
-        return list.compactMap { item in
+        let base: [Artist] = list.compactMap { item in
             guard let id = item["singerid"] as? Int ?? Int(item["singerid"] as? String ?? "") else { return nil }
             return Artist(id: "kg-\(id)", name: decodeName(item["singername"] as? String ?? ""), coverURL: nil, source: .kugou)
+        }
+        // 并发拉取歌手头像（singer/info 返回 imgurl 模板，{size} 替换为 200），失败保持 nil 占位
+        let avatars = await withTaskGroup(of: (Int, URL?).self, returning: [Int: URL?].self) { group in
+            for (index, artist) in base.prefix(10).enumerated() {
+                group.addTask {
+                    let id = String(artist.id.dropFirst(3))
+                    let url = "http://mobilecdn.kugou.com/api/v3/singer/info?singerid=\(id)"
+                    if let d = try? await self.get(url, referer: "https://m.kugou.com/"),
+                       let o = self.json(d),
+                       let img = (o["data"] as? [String: Any])?["imgurl"] as? String {
+                        return (index, URL(string: img.replacingOccurrences(of: "{size}", with: "200")))
+                    }
+                    return (index, nil)
+                }
+            }
+            var map: [Int: URL?] = [:]
+            for await (index, avatar) in group { map[index] = avatar }
+            return map
+        }
+        return base.enumerated().map { index, artist in
+            guard let avatar = avatars[index] ?? nil else { return artist }
+            return Artist(id: artist.id, name: artist.name, coverURL: avatar, source: .kugou)
         }
     }
 

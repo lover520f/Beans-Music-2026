@@ -52,6 +52,8 @@ final class QQMusicAPI {
         }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
+        // musicu 偶发挂起/风控，单独限制 6 秒超时，避免搜索卡住 20 秒
+        request.timeoutInterval = 6
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)", forHTTPHeaderField: "User-Agent")
         request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
@@ -215,6 +217,22 @@ final class QQMusicAPI {
                     coverURL: pic.isEmpty ? Self.photoURL(mid) : URL(string: pic),
                     source: .qq
                 ))
+            }
+            if !artists.isEmpty { return artists }
+        }
+        // 兜底 2：歌曲搜索结果里的歌手名去重（保证关键词搜索始终能出歌手）
+        if let songs = try? await searchSongs(keyword: keyword, limit: 40) {
+            var seen = Set<String>()
+            var artists: [Artist] = []
+            for song in songs {
+                for part in song.artists.components(separatedBy: " / ") {
+                    let name = part.trimmingCharacters(in: .whitespacesAndNewlines)
+                    guard !name.isEmpty, !seen.contains(name) else { continue }
+                    seen.insert(name)
+                    artists.append(Artist(id: "qq-name-\(name)", name: name, coverURL: nil, source: .qq))
+                    if artists.count >= limit { break }
+                }
+                if artists.count >= limit { break }
             }
             if !artists.isEmpty { return artists }
         }
