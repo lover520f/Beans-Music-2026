@@ -690,8 +690,8 @@ struct PlayerView: View {
 
     private func controlDeck(bottomInset: CGFloat) -> some View {
         VStack(spacing: 8) {
-            deckRow
             progressBlock
+            deckRow
         }
         .padding(.horizontal, 24)
         .padding(.top, 4)
