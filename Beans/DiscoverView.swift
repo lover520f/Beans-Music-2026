@@ -19,6 +19,8 @@ struct DiscoverView: View {
     @State private var qqTopLists: [QQTopInfo] = []
     @State private var selectedQQTopList: QQTopInfo?
     @State private var selectedQQPlaylist: Playlist?
+    @State private var kugouTopLists: [KugouMusicAPI.KugouTopInfo] = []
+    @State private var selectedKugouTopList: KugouMusicAPI.KugouTopInfo?
 
     var body: some View {
         let _ = theme.accent
@@ -73,6 +75,11 @@ struct DiscoverView: View {
             }
             .sheet(item: $selectedQQPlaylist) { playlist in
                 QQPlaylistSongsSheet(playlist: playlist)
+                    .environmentObject(player)
+                    .environmentObject(auth)
+            }
+            .sheet(item: $selectedKugouTopList) { info in
+                KugouTopListDetailView(info: info)
                     .environmentObject(player)
                     .environmentObject(auth)
             }
@@ -198,11 +205,19 @@ struct DiscoverView: View {
                         }
                         Divider().overlay(Color.beansSecondary.opacity(0.12))
                     }
-                } else {
+                } else if source == .qq {
                     ForEach(Array(qqTopLists.prefix(6).enumerated()), id: \.element.id) { index, info in
                         rankRow(index: index, name: info.name, subtitle: "QQ 峰尖榜", coverURL: info.coverURL) {
                             BeansHaptics.tap()
                             selectedQQTopList = info
+                        }
+                        Divider().overlay(Color.beansSecondary.opacity(0.12))
+                    }
+                } else {
+                    ForEach(Array(kugouTopLists.prefix(6).enumerated()), id: \.element.id) { index, info in
+                        rankRow(index: index, name: info.name, subtitle: "酷狗榜单", coverURL: info.coverURL) {
+                            BeansHaptics.tap()
+                            selectedKugouTopList = info
                         }
                         Divider().overlay(Color.beansSecondary.opacity(0.12))
                     }
@@ -369,6 +384,20 @@ struct DiscoverView: View {
                 errorMessage = error.localizedDescription
                 loading = false
             }
+        } else if source == .kugou {
+            do {
+                async let a = KugouMusicAPI.shared.topListSongs(rankID: 8888, page: 1, limit: 30)
+                async let b = KugouMusicAPI.shared.topLists()
+                async let c = KugouMusicAPI.shared.playlists(page: 1, limit: 12)
+                let (dr, tl, pp) = try await (a, b, c)
+                dailySongs = dr
+                kugouTopLists = tl
+                personalized = pp
+                loading = false
+            } catch {
+                errorMessage = error.localizedDescription
+                loading = false
+            }
         } else {
             async let a = NetEaseAPI.shared.topLists()
             async let b = NetEaseAPI.shared.dailyRecommend()
@@ -383,6 +412,59 @@ struct DiscoverView: View {
                 errorMessage = error.localizedDescription
                 loading = false
             }
+        }
+    }
+}
+
+// MARK: - 酷狗榜单详情
+
+struct KugouTopListDetailView: View {
+    @EnvironmentObject private var player: PlayerManager
+    @EnvironmentObject private var auth: AuthStore
+
+    let info: KugouMusicAPI.KugouTopInfo
+    @State private var tracks: [Song] = []
+    @State private var loading = true
+    @State private var errorMessage: String?
+
+    var body: some View {
+        NavigationStack {
+            Group {
+                if loading {
+                    LoadingStateView()
+                } else if let errorMessage {
+                    ErrorStateView(message: errorMessage) {
+                        Task { await load() }
+                    }
+                } else {
+                    List {
+                        Section {
+                            ForEach(Array(tracks.enumerated()), id: .element.id) { index, song in
+                                SongCell(song: song, glassRow: true) {
+                                    player.play(songs: tracks, startAt: index)
+                                }
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
+                            }
+                        }
+                    }
+                }
+            }
+            .navigationTitle(info.name)
+            .navigationBarTitleDisplayMode(.inline)
+        }
+        .task { await load() }
+    }
+
+    private func load() async {
+        loading = true
+        errorMessage = nil
+        do {
+            tracks = try await KugouMusicAPI.shared.topListSongs(rankID: info.id, page: 1, limit: 50)
+            loading = false
+        } catch {
+            errorMessage = error.localizedDescription
+            loading = false
         }
     }
 }

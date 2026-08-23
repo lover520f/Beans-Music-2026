@@ -23,6 +23,9 @@ struct CommentsSheet: View {
     @State private var qqComments: [SongComment] = []
     @State private var qqTotal = 0
     @State private var qqPageNum = 0
+    @State private var kugouComments: [SongComment] = []
+    @State private var kugouTotal = 0
+    @State private var kugouPageNum = 0
     @State private var loading = true
     @State private var errorMessage: String?
     @State private var offset = 0
@@ -43,6 +46,8 @@ struct CommentsSheet: View {
                     }
                 } else if song.source == .qq {
                     qqCommentList
+                } else if song.source == .kugou {
+                    kugouCommentList
                 } else if let page {
                     if page.hot.isEmpty && page.comments.isEmpty {
                         EmptyStateView(icon: "bubble.left", text: "暂无评论")
@@ -96,6 +101,9 @@ struct CommentsSheet: View {
             qqComments = []
             qqTotal = 0
             qqPageNum = 0
+            kugouComments = []
+            kugouTotal = 0
+            kugouPageNum = 0
             loading = true
         }
         errorMessage = nil
@@ -108,6 +116,14 @@ struct CommentsSheet: View {
                     qqComments.append(contentsOf: result.comments)
                 }
                 qqTotal = result.total
+            } else if song.source == .kugou, let hash = song.kugouHash {
+                let result = try await KugouMusicAPI.shared.comments(hash: hash, page: kugouPageNum + 1, limit: 20)
+                if reset {
+                    kugouComments = result.comments
+                } else {
+                    kugouComments.append(contentsOf: result.comments)
+                }
+                kugouTotal = result.total
             } else {
                 let result = try await NetEaseAPI.shared.songComments(id: song.id, limit: limit, offset: offset)
                 if reset {
@@ -163,6 +179,48 @@ struct CommentsSheet: View {
     /// QQ 评论翻页
     private func loadQQMore() async {
         qqPageNum += 1
+        await load(reset: false)
+    }
+
+    /// 酷狗音乐评论列表（分页加载更多）
+    private var kugouCommentList: some View {
+        Group {
+            if kugouComments.isEmpty {
+                EmptyStateView(icon: "bubble.left", text: "暂无评论")
+            } else {
+                List {
+                    Section {
+                        Text(kugouTotal > 0
+                            ? "《\(song.name)》 · 酷狗音乐 \(kugouTotal) 条评论"
+                            : "《\(song.name)》 · 酷狗音乐 \(kugouComments.count) 条评论")
+                            .font(BeansFont.appFont(12))
+                            .foregroundStyle(Color.beansSecondary)
+                    }
+                    Section("评论") {
+                        ForEach(kugouComments) { comment in
+                            CommentRow(comment: comment)
+                        }
+                    }
+                    if kugouTotal <= 0 || kugouComments.count < kugouTotal {
+                        Section {
+                            Button {
+                                Task { await loadKugouMore() }
+                            } label: {
+                                Text("加载更多")
+                                    .font(BeansFont.appFont(14, .semibold))
+                                    .foregroundStyle(Color.beansAmber)
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    /// 酷狗评论翻页
+    private func loadKugouMore() async {
+        kugouPageNum += 1
         await load(reset: false)
     }
 

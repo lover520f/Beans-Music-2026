@@ -16,6 +16,8 @@ struct LibraryView: View {
     @State private var source: SearchProvider = .netease
     @State private var qqPlaylists: [Playlist] = []
     @State private var qqLoading = false
+    @State private var kugouPlaylists: [Playlist] = []
+    @State private var kugouLoading = false
 
     var body: some View {
         let _ = theme.accent
@@ -28,7 +30,7 @@ struct LibraryView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     providerPicker
-                    if source == .netease { playlistsSection } else { qqSection }
+                    if source == .netease { playlistsSection } else if source == .qq { qqSection } else { kugouSection }
                     historySection
                 }
                 .padding(.horizontal, 16)
@@ -39,7 +41,10 @@ struct LibraryView: View {
             .refreshable { await auth.loadLibrary() }
         }
         .task { await auth.loadLibrary() }
-        .task(id: source) { if source == .qq { await loadQQPlaylists() } }
+        .task(id: source) {
+            if source == .qq { await loadQQPlaylists() }
+            if source == .kugou { await loadKugouPlaylists() }
+        }
         .sheet(isPresented: $showHistory) {
             HistoryView()
                 .environmentObject(player)
@@ -70,7 +75,7 @@ struct LibraryView: View {
                     Text("音乐库")
                         .font(BeansFont.appFont(30, .bold))
                         .foregroundStyle(Color.beansLabel)
-                    Text(source == .netease ? "网易云歌单" : "QQ 音乐收藏与歌单")
+                    Text(source == .netease ? "网易云歌单" : source == .qq ? "QQ 音乐收藏与歌单" : "酷狗音乐歌单")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
                 }
@@ -343,6 +348,93 @@ struct LibraryView: View {
     }
 
     // MARK: - 歌单新建 / 删除
+
+    /// 酷狗模式整体内容：酷狗歌单广场 + 本地红心收藏
+    private var kugouSection: some View {
+        VStack(alignment: .leading, spacing: 24) {
+            kugouPlaylistsSection
+            kugouFavoritesSection
+        }
+    }
+
+    /// 酷狗歌单广场（无需登录）
+    private var kugouPlaylistsSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "酷狗歌单", trailing: kugouPlaylists.isEmpty ? nil : "\(kugouPlaylists.count) 个") {}
+            if kugouLoading {
+                LoadingStateView()
+            } else if kugouPlaylists.isEmpty {
+                EmptyStateView(icon: "music.note.list", text: "暂未加载到酷狗歌单")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(kugouPlaylists) { playlist in
+                        Button {
+                            selectedPlaylist = playlist
+                        } label: {
+                            HStack(spacing: 12) {
+                                CoverImage(url: playlist.coverURL, size: 56, cornerRadius: 12)
+                                VStack(alignment: .leading, spacing: 3) {
+                                    Text(playlist.name)
+                                        .font(BeansFont.appFont(15, .medium))
+                                        .foregroundStyle(Color.beansLabel)
+                                        .lineLimit(1)
+                                    Text("\(playlist.trackCount) 首")
+                                        .font(BeansFont.appFont(12))
+                                        .foregroundStyle(Color.beansSecondary)
+                                }
+                                Spacer(minLength: 8)
+                                Image(systemName: "chevron.right")
+                                    .font(.system(size: 12, weight: .semibold))
+                                    .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                            }
+                            .padding(.horizontal, 14)
+                            .padding(.vertical, 10)
+                            .contentShape(Rectangle())
+                        }
+                        .buttonStyle(.plain)
+                        Divider().overlay(Color.beansSecondary.opacity(0.12))
+                    }
+                }
+                .padding(.vertical, 6)
+                .background {
+                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
+                .beansCardShadow(radius: 8, y: 3)
+            }
+        }
+    }
+
+    /// 酷狗红心收藏（本地持久化）
+    private var kugouFavoritesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "酷狗收藏", trailing: favorites.kugouFavoriteSongs.isEmpty ? nil : "\(favorites.kugouFavoriteSongs.count) 首") {}
+            if favorites.kugouFavoriteSongs.isEmpty {
+                EmptyStateView(icon: "heart", text: "还没有收藏的酷狗歌曲\n在播放器点击红心即可收藏")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(favorites.kugouFavoriteSongs.enumerated()), id: \.element.id) { index, song in
+                        SongCell(song: song) {
+                            player.play(songs: favorites.kugouFavoriteSongs, startAt: index)
+                        }
+                        Divider().overlay(Color.beansSecondary.opacity(0.15))
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background {
+                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .beansCardShadow(radius: 8, y: 3)
+            }
+        }
+    }
+
+    private func loadKugouPlaylists() async {
+        kugouLoading = true
+        kugouPlaylists = (try? await KugouMusicAPI.shared.playlists(page: 1, limit: 30)) ?? []
+        kugouLoading = false
+    }
 
     private func loadQQPlaylists() async {
         guard qqAuth.isLoggedIn else {

@@ -926,6 +926,10 @@ struct PlayerView: View {
             if let raw = try? await QQMusicAPI.shared.lyric(songmid: mid) {
                 lyrics = LyricParser.parse(raw)
             }
+        } else if song.source == .kugou, let hash = song.kugouHash {
+            if let raw = try? await KugouMusicAPI.shared.lyric(hash: hash, durationMS: Int(song.duration * 1000)) {
+                lyrics = LyricParser.parse(raw)
+            }
         } else {
             if let (lrc, tlyric) = try? await NetEaseAPI.shared.lyricWithTranslation(id: song.id) {
                 lyrics = LyricParser.parse(lrc ?? "", translationRaw: tlyric)

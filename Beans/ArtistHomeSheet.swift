@@ -41,7 +41,7 @@ struct ArtistHomeSheet: View {
                         VStack(alignment: .leading, spacing: 20) {
                             artistHeader
                             hotSongsSection
-                            if artistSource != .qq {
+                            if artistSource == .netease {
                                 albumsSection
                             }
                         }
@@ -84,9 +84,9 @@ struct ArtistHomeSheet: View {
                     .font(BeansFont.appFont(20, .bold))
                     .foregroundStyle(Color.beansLabel)
                     .lineLimit(1)
-                Text(artistSource == .qq
-                     ? "热门歌曲 \(hotSongs.count) 首"
-                     : "热门歌曲 \(hotSongs.count) 首 · 专辑 \(albums.count) 张")
+                Text(artistSource == .netease
+                     ? "热门歌曲 \(hotSongs.count) 首 · 专辑 \(albums.count) 张"
+                     : "热门歌曲 \(hotSongs.count) 首")
                     .font(BeansFont.appFont(12))
                     .foregroundStyle(Color.beansSecondary)
             }
@@ -204,8 +204,20 @@ struct ArtistHomeSheet: View {
         errorMessage = nil
         if artistSource == .qq {
             await loadQQArtist()
+        } else if artistSource == .kugou {
+            await loadKugouArtist()
         } else {
             await loadNetEaseArtist()
+        }
+    }
+
+    /// 酷狗歌手：酷狗无歌手详情接口，用"歌手名"搜索热门歌曲代替
+    private func loadKugouArtist() async {
+        do {
+            artist = Artist(id: "kg-0", name: artistName, coverURL: nil, source: .kugou)
+            let songs = (try? await KugouMusicAPI.shared.searchSongs(keyword: artistName, limit: 50)) ?? []
+            hotSongs = songs
+            loading = false
         }
     }
 

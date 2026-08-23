@@ -323,6 +323,11 @@ final class PlayerManager: NSObject, ObservableObject {
                         (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock)
                     }
                 }
+            } else if song.source == .kugou, let hash = song.kugouHash {
+                urlString = try? await KugouMusicAPI.shared.playURL(hash: hash)
+                if urlString == nil {
+                    (urlString, resolvedThirdParty) = await kugouFallback(song: song, quality: quality, enableUnblock: enableUnblock)
+                }
             } else {
                 (urlString, resolvedThirdParty) = await neteaseResolve(song: song, quality: quality, enableUnblock: enableUnblock)
             }
@@ -387,6 +392,39 @@ final class PlayerManager: NSObject, ObservableObject {
                 info = fallback?[matched.id]
             }
             // 免费完整 URL 直接用；试听片段 / 无 URL 交给第三方解锁
+            if let u = info?.url, info?.freeTrial != true {
+                urlString = u
+            } else if enableUnblock {
+                resolved = await UnblockService.resolve(
+                    name: matched.name,
+                    artists: matched.artists,
+                    durationMS: Int(matched.duration * 1000),
+                    neteaseID: matched.id
+                )
+            }
+        }
+        if urlString == nil, resolved == nil, enableUnblock {
+            resolved = await UnblockService.resolve(
+                name: song.name,
+                artists: song.artists,
+                durationMS: Int(song.duration * 1000),
+                neteaseID: 0
+            )
+        }
+        return (urlString, resolved)
+    }
+
+    /// 酷狗歌曲兜底：酷狗 VIP 返回"需要付费"时，先在网易云按 歌名+歌手 匹配同名免费歌曲，否则交给第三方解锁
+    private func kugouFallback(song: Song, quality: BeansAudioQuality, enableUnblock: Bool) async -> (String?, UnblockService.Resolved?) {
+        var urlString: String?
+        var resolved: UnblockService.Resolved?
+        if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000)) {
+            let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [matched.id], level: quality.level)
+            var info = infos?[matched.id]
+            if (info?.url == nil || info?.freeTrial == true), quality != .standard {
+                let fallback = try? await NetEaseAPI.shared.songURLInfo(ids: [matched.id], level: "standard")
+                info = fallback?[matched.id]
+            }
             if let u = info?.url, info?.freeTrial != true {
                 urlString = u
             } else if enableUnblock {
