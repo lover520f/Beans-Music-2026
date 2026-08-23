@@ -74,11 +74,12 @@ enum ClimaxAnalyzer {
 
         while let sampleBuffer = output.copyNextSampleBuffer() {
             guard let blockBuffer = CMSampleBufferGetDataBuffer(sampleBuffer) else { continue }
-            var length = 0
+            var lengthAtOffset = 0
+            var totalLength = 0
             var pointer: UnsafeMutablePointer<Int8>?
-            CMBlockBufferGetDataPointer(blockBuffer, atOffset: 0, lengthAtOffsetOut: &length, totalLengthOut: &length, dataPointerOut: &pointer)
-            guard let ptr = pointer, length > 0 else { continue }
-            let count = length / MemoryLayout<Int16>.size
+            CMBlockBufferGetDataPointer(blockBuffer, atOffset: 0, lengthAtOffsetOut: &lengthAtOffset, totalLengthOut: &totalLength, dataPointerOut: &pointer)
+            guard let ptr = pointer, totalLength > 0 else { continue }
+            let count = totalLength / MemoryLayout<Int16>.size
             ptr.withMemoryRebound(to: Int16.self, capacity: count) { p in
                 buffer.append(contentsOf: UnsafeBufferPointer(start: p, count: count))
             }
