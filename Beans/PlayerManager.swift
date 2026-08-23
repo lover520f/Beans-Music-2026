@@ -311,26 +311,27 @@ final class PlayerManager: NSObject, ObservableObject {
         Task {
             var urlString: String?
             var resolvedThirdParty: UnblockService.Resolved?
-            // 版权受限歌手（周杰伦）禁用第三方音源兜底：官方拿不到完整音源就提示，绝不用翻唱顶替
-            let enableUnblock = (defaults.object(forKey: "beans.enableUnblock") as? Bool ?? true) && !shouldLockOfficialOnly(song)
+            // 版权受限歌手（周杰伦）：允许第三方音源，但启用严格模式（歌名+歌手+时长三重匹配原唱，校验不过拒绝，绝不播放翻唱）
+            let enableUnblock = defaults.object(forKey: "beans.enableUnblock") as? Bool ?? true
+            let strictUnlock = shouldLockOfficialOnly(song)
             let quality = BeansAudioQuality.current
             if song.source == .qq, let mid = song.qqMid {
                 // VIP 歌曲：vkey 未登录只会返回试听片段，直接走网易云同名兜底（免费听 VIP）
                 if song.isVIP {
-                    (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock)
+                    (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
                 } else {
                     urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
                     if urlString == nil {
-                        (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock)
+                        (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
                     }
                 }
             } else if song.source == .kugou, let hash = song.kugouHash {
                 urlString = try? await KugouMusicAPI.shared.playURL(hash: hash)
                 if urlString == nil {
-                    (urlString, resolvedThirdParty) = await kugouFallback(song: song, quality: quality, enableUnblock: enableUnblock)
+                    (urlString, resolvedThirdParty) = await kugouFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
                 }
             } else {
-                (urlString, resolvedThirdParty) = await neteaseResolve(song: song, quality: quality, enableUnblock: enableUnblock)
+                (urlString, resolvedThirdParty) = await neteaseResolve(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
             }
             if let resolved = resolvedThirdParty {
                 // 第三方音源只用于播放，不打扰用户（无需提示用了哪个音源）
@@ -346,7 +347,7 @@ final class PlayerManager: NSObject, ObservableObject {
                     self.isBuffering = false
                     self.loadFailed = true
                     if self.shouldLockOfficialOnly(song) {
-                        ToastCenter.shared.show("《\(song.name)》受版权保护，仅支持官方会员音源，已停止播放翻唱版本")
+                        ToastCenter.shared.show("《\(song.name)》未找到原唱音源（官方受限），已停止播放，拒绝翻唱版本")
                     }
                 }
                 return
@@ -359,7 +360,7 @@ final class PlayerManager: NSObject, ObservableObject {
     }
 
     /// 网易云播放地址解析：按设置音质取 URL，VIP/灰色歌曲交给第三方解锁（借鉴 Kumone）
-    private func neteaseResolve(song: Song, quality: BeansAudioQuality, enableUnblock: Bool) async -> (String?, UnblockService.Resolved?) {
+    private func neteaseResolve(song: Song, quality: BeansAudioQuality, enableUnblock: Bool, strict: Bool = false) async -> (String?, UnblockService.Resolved?) {
         var urlString: String?
         var resolved: UnblockService.Resolved?
         let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [song.id], level: quality.level)
@@ -378,14 +379,15 @@ final class PlayerManager: NSObject, ObservableObject {
                 name: song.name,
                 artists: song.artists,
                 durationMS: Int(song.duration * 1000),
-                neteaseID: song.id
+                neteaseID: song.id,
+                strict: strict
             )
         }
         return (urlString, resolved)
     }
 
     /// QQ 歌曲兜底：先在网易云按 歌名+歌手 匹配同名歌曲，免费完整 URL 直接播，VIP/无 URL 交给第三方解锁
-    private func qqFallback(song: Song, quality: BeansAudioQuality, enableUnblock: Bool) async -> (String?, UnblockService.Resolved?) {
+    private func qqFallback(song: Song, quality: BeansAudioQuality, enableUnblock: Bool, strict: Bool = false) async -> (String?, UnblockService.Resolved?) {
         var urlString: String?
         var resolved: UnblockService.Resolved?
         if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000)) {
@@ -403,7 +405,8 @@ final class PlayerManager: NSObject, ObservableObject {
                     name: matched.name,
                     artists: matched.artists,
                     durationMS: Int(matched.duration * 1000),
-                    neteaseID: matched.id
+                    neteaseID: matched.id,
+                    strict: strict
                 )
             }
         }
@@ -412,14 +415,15 @@ final class PlayerManager: NSObject, ObservableObject {
                 name: song.name,
                 artists: song.artists,
                 durationMS: Int(song.duration * 1000),
-                neteaseID: 0
+                neteaseID: 0,
+                strict: strict
             )
         }
         return (urlString, resolved)
     }
 
     /// 酷狗歌曲兜底：酷狗 VIP 返回"需要付费"时，先在网易云按 歌名+歌手 匹配同名免费歌曲，否则交给第三方解锁
-    private func kugouFallback(song: Song, quality: BeansAudioQuality, enableUnblock: Bool) async -> (String?, UnblockService.Resolved?) {
+    private func kugouFallback(song: Song, quality: BeansAudioQuality, enableUnblock: Bool, strict: Bool = false) async -> (String?, UnblockService.Resolved?) {
         var urlString: String?
         var resolved: UnblockService.Resolved?
         if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000)) {
@@ -436,7 +440,8 @@ final class PlayerManager: NSObject, ObservableObject {
                     name: matched.name,
                     artists: matched.artists,
                     durationMS: Int(matched.duration * 1000),
-                    neteaseID: matched.id
+                    neteaseID: matched.id,
+                    strict: strict
                 )
             }
         }
@@ -445,7 +450,8 @@ final class PlayerManager: NSObject, ObservableObject {
                 name: song.name,
                 artists: song.artists,
                 durationMS: Int(song.duration * 1000),
-                neteaseID: 0
+                neteaseID: 0,
+                strict: strict
             )
         }
         return (urlString, resolved)

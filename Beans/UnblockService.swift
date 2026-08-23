@@ -40,7 +40,8 @@ enum UnblockService {
     }
 
     /// 入口：按 内置源开关顺序 + 用户导入的自定义源 依次尝试，返回第一个可用地址
-    static func resolve(name: String, artists: String, durationMS: Int, neteaseID: Int) async -> Resolved? {
+    /// - Parameter strict: 严格模式（周杰伦等版权歌手）：要求 歌名+歌手+时长 三重匹配原唱，校验不过直接拒绝，绝不播放翻唱
+    static func resolve(name: String, artists: String, durationMS: Int, neteaseID: Int, strict: Bool = false) async -> Resolved? {
         let keyword = ([name, artists].filter { !$0.isEmpty })
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
@@ -49,9 +50,9 @@ enum UnblockService {
         let store = UnblockSourceStore.shared
         // pyncmd 只支持网易云 id；QQ 歌曲（neteaseID = 0）直接跳过
         if neteaseID > 0, store.isEnabled("pyncmd"), let r = await pyncmd(neteaseID: neteaseID) { return r }
-        if store.isEnabled("kuwo"), let r = await kuwo(keyword: keyword, durationMS: durationMS, artists: artists) { return r }
-        if store.isEnabled("kugou"), let r = await kugou(keyword: keyword, durationMS: durationMS, artists: artists) { return r }
-        if store.isEnabled("bodian"), let r = await bodian(keyword: keyword, durationMS: durationMS, artists: artists) { return r }
+        if store.isEnabled("kuwo"), let r = await kuwo(keyword: keyword, durationMS: durationMS, artists: artists, strict: strict, songName: name) { return r }
+        if store.isEnabled("kugou"), let r = await kugou(keyword: keyword, durationMS: durationMS, artists: artists, strict: strict, songName: name) { return r }
+        if store.isEnabled("bodian"), let r = await bodian(keyword: keyword, durationMS: durationMS, artists: artists, strict: strict, songName: name) { return r }
         // 用户导入的自定义源（按导入顺序）
         for source in store.customSources {
             if let r = await custom(source: source, name: name, artists: artists, neteaseID: neteaseID) { return r }
@@ -85,7 +86,8 @@ enum UnblockService {
 
     /// 酷我搜索：按 歌名+歌手 匹配，返回 rid（不含 MUSIC_ 前缀）
     /// 歌手字段优先校验，避免第三方音源匹配到翻唱（歌名对但人声不对）；无歌手匹配时回退第一条时长匹配项
-    private static func kuwoSearchID(keyword: String, durationMS: Int, artists: String = "") async -> String? {
+    /// strict：歌名+歌手+时长三重匹配原唱，不满足直接拒绝（无回退）
+    private static func kuwoSearchID(keyword: String, durationMS: Int, artists: String = "", strict: Bool = false, songName: String = "") async -> String? {
         let target = Double(durationMS) / 1000.0
         var comps = URLComponents(string: "http://search.kuwo.cn/r.s")!
         comps.queryItems = [
@@ -118,14 +120,20 @@ enum UnblockService {
             if let dur = duration(of: song["duration"] ?? song["DURATION"]), abs(dur - target) > 5 { continue }
             // 歌手校验：优先原唱（酷我字段大写 ARTIST，兼容小写）
             let singer = song["ARTIST"] as? String ?? song["artist"] as? String ?? ""
+            if strict {
+                // 严格模式：歌名 + 歌手 同时匹配才算原唱
+                let songTitle = song["SONGNAME"] as? String ?? song["songname"] as? String ?? ""
+                if songNameMatches(songName, songTitle) && artistMatches(artists, singer) { return rid }
+                continue
+            }
             if artistMatches(artists, singer) { return rid }
             if fallback == nil { fallback = rid }
         }
         return fallback
     }
 
-    private static func kuwo(keyword: String, durationMS: Int, artists: String = "") async -> Resolved? {
-        guard let rid = await kuwoSearchID(keyword: keyword, durationMS: durationMS, artists: artists) else { return nil }
+    private static func kuwo(keyword: String, durationMS: Int, artists: String = "", strict: Bool = false, songName: String = "") async -> Resolved? {
+        guard let rid = await kuwoSearchID(keyword: keyword, durationMS: durationMS, artists: artists, strict: strict, songName: songName) else { return nil }
         // Try 1：antiserver 直链（无需加密，稳定取整曲 MP3）
         if let urlString = await kuwoConvertURL(rid: rid), let playURL = URL(string: urlString) {
             return Resolved(url: playURL, source: "kuwo")
@@ -173,7 +181,7 @@ enum UnblockService {
 
     // MARK: - 音源 3：酷狗（搜索 + 时长匹配 + 播放直链）
 
-    private static func kugou(keyword: String, durationMS: Int, artists: String = "") async -> Resolved? {
+    private static func kugou(keyword: String, durationMS: Int, artists: String = "", strict: Bool = false, songName: String = "") async -> Resolved? {
         let target = Double(durationMS) / 1000.0
         var comps = URLComponents(string: "http://mobilecdn.kugou.com/api/v3/search/song")!
         comps.queryItems = [
@@ -200,27 +208,16 @@ enum UnblockService {
 
             // 歌手校验：优先原唱（酷狗 singername），避免翻唱误匹配
             let singer = song["singername"] as? String ?? ""
+            if strict {
+                // 严格模式：歌名 + 歌手 同时匹配才算原唱，不满足直接跳过（无回退）
+                let songTitle = song["songname"] as? String ?? song["SongName"] as? String ?? ""
+                if songNameMatches(songName, songTitle) && artistMatches(artists, singer), let r = await kugouPlayURL(hash: hash, albumID: albumID) { return r }
+                continue
+            }
             if fallbackHash == nil { fallbackHash = hash; fallbackAlbumID = albumID }
             if !artistMatches(artists, singer) { continue }
 
-            let key = md5Hex("\(hash)kgcloudv2")
-            var t = URLComponents(string: "http://trackercdn.kugou.com/i/v2/")!
-            t.queryItems = [
-                URLQueryItem(name: "key", value: key),
-                URLQueryItem(name: "hash", value: hash),
-                URLQueryItem(name: "appid", value: "1005"),
-                URLQueryItem(name: "pid", value: "2"),
-                URLQueryItem(name: "cmd", value: "25"),
-                URLQueryItem(name: "behavior", value: "play"),
-                URLQueryItem(name: "album_id", value: albumID),
-            ]
-            guard let trackURL = t.url,
-                  let td = await get(trackURL),
-                  let to = try? JSONSerialization.jsonObject(with: td) as? [String: Any],
-                  let urls = to["url"] as? [Any],
-                  let first = urls.first as? String,
-                  let playURL = URL(string: first) else { continue }
-            return Resolved(url: playURL, source: "kugou")
+            if let r = await kugouPlayURL(hash: hash, albumID: albumID) { return r }
         }
         // 无歌手匹配时回退第一个时长匹配项，保证可播放
         if let hash = fallbackHash {
@@ -247,13 +244,35 @@ enum UnblockService {
         return nil
     }
 
+    /// 酷狗直链转换（hash + album_id → 播放 URL）
+    private static func kugouPlayURL(hash: String, albumID: String) async -> Resolved? {
+        let key = md5Hex("\(hash)kgcloudv2")
+        var t = URLComponents(string: "http://trackercdn.kugou.com/i/v2/")!
+        t.queryItems = [
+            URLQueryItem(name: "key", value: key),
+            URLQueryItem(name: "hash", value: hash),
+            URLQueryItem(name: "appid", value: "1005"),
+            URLQueryItem(name: "pid", value: "2"),
+            URLQueryItem(name: "cmd", value: "25"),
+            URLQueryItem(name: "behavior", value: "play"),
+            URLQueryItem(name: "album_id", value: albumID),
+        ]
+        guard let trackURL = t.url,
+              let td = await get(trackURL),
+              let to = try? JSONSerialization.jsonObject(with: td) as? [String: Any],
+              let urls = to["url"] as? [Any],
+              let first = urls.first as? String,
+              let playURL = URL(string: first) else { return nil }
+        return Resolved(url: playURL, source: "kugou")
+    }
+
     // MARK: - 音源 4：波点（借鉴 splayer-unlock-plugin：酷我搜索 + 波点签名取流）
 
     /// 随机设备号（对应插件 generateDeviceId，0 ~ 100000000000）
     private static let bodianDeviceID: String = String(Int.random(in: 0...100_000_000_000))
 
-    private static func bodian(keyword: String, durationMS: Int, artists: String = "") async -> Resolved? {
-        guard let songID = await kuwoSearchID(keyword: keyword, durationMS: durationMS, artists: artists) else { return nil }
+    private static func bodian(keyword: String, durationMS: Int, artists: String = "", strict: Bool = false, songName: String = "") async -> Resolved? {
+        guard let songID = await kuwoSearchID(keyword: keyword, durationMS: durationMS, artists: artists, strict: strict, songName: songName) else { return nil }
         let path = "/api/play/music/v2/audioUrl"
         for br in ["320kmp3", "192kmp3", "128kmp3"] {
             var str = "http://bd-api.kuwo.cn\(path)?br=\(br)&musicId=\(songID)"
@@ -326,6 +345,30 @@ enum UnblockService {
     }
 
     // MARK: - 工具
+
+    /// 歌名匹配：忽略大小写、空格、括号内容（翻唱/Live 后缀等）；任一包含对方即视为匹配
+    private static func songNameMatches(_ target: String, _ candidate: String) -> Bool {
+        let norm: (String) -> String = { s in
+            var t = s.lowercased()
+            // 去掉英文括号内容（如 (Live)、(cover)）
+            while let a = t.firstIndex(of: "("), let b = t.firstIndex(of: ")"), a < b {
+                t.removeSubrange(a...b)
+            }
+            // 去掉中文括号内容
+            while let a = t.firstIndex(of: "（"), let b = t.firstIndex(of: "）"), a < b {
+                t.removeSubrange(a...b)
+            }
+            t = t.replacingOccurrences(of: " ", with: "")
+            t = t.replacingOccurrences(of: "-", with: "")
+            t = t.replacingOccurrences(of: "·", with: "")
+            return t
+        }
+        let tn = norm(target)
+        let cn = norm(candidate)
+        guard !tn.isEmpty else { return true }
+        guard !cn.isEmpty else { return false }
+        return cn.contains(tn) || tn.contains(cn)
+    }
 
     /// 歌手模糊匹配：忽略大小写、空格与分隔符；任一目标歌手命中即可
     private static func artistMatches(_ target: String, _ candidate: String) -> Bool {
