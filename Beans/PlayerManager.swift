@@ -312,6 +312,15 @@ final class PlayerManager: NSObject, ObservableObject {
             var resolvedThirdParty: UnblockService.Resolved?
             if song.source == .qq, let mid = song.qqMid {
                 urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
+                // QQ vkey 拿不到播放地址（未登录或接口受限）时，用第三方音源兜底（neteaseID=0 跳过 pyncmd）
+                if urlString == nil {
+                    resolvedThirdParty = await UnblockService.resolve(
+                        name: song.name,
+                        artists: song.artists,
+                        durationMS: Int(song.duration * 1000),
+                        neteaseID: 0
+                    )
+                }
             } else {
                 let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [song.id])
                 let info = infos?[song.id]

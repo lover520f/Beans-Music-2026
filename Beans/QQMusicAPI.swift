@@ -16,7 +16,7 @@ final class QQMusicAPI {
     static let shared = QQMusicAPI()
 
     private let base = "https://u.y.qq.com/cgi-bin/musicu.fcg"
-    private let searchBase = "https://c.y.qq.com/soso/fcgi-bin/client_search_cp"
+    private let searchBase = "https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp"
     private let session: URLSession
 
     private init() {
@@ -128,32 +128,15 @@ final class QQMusicAPI {
         ]
     }
 
-    /// client_search_cp 搜索 URL（t：0 单曲 / 8 专辑 / 9 歌手）
+    /// search_for_qq_cp 搜索 URL（未登录可用；t：0 单曲 / 8 专辑）
     private func clientSearchURL(keyword: String, limit: Int, type: Int) -> URL? {
         var comps = URLComponents(string: searchBase)
         comps?.queryItems = [
-            URLQueryItem(name: "ct", value: "24"),
-            URLQueryItem(name: "qqmusic_ver", value: "1298"),
-            URLQueryItem(name: "remoteplace", value: "txt.yqq.top"),
-            URLQueryItem(name: "aggr", value: "1"),
-            URLQueryItem(name: "cr", value: "1"),
-            URLQueryItem(name: "catZhida", value: "1"),
-            URLQueryItem(name: "lossless", value: "0"),
-            URLQueryItem(name: "flag_qc", value: "0"),
-            URLQueryItem(name: "t", value: "\(type)"),
-            URLQueryItem(name: "p", value: "1"),
-            URLQueryItem(name: "n", value: "\(limit)"),
-            URLQueryItem(name: "w", value: keyword),
-            URLQueryItem(name: "cv", value: "4747474"),
             URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "inCharset", value: "utf-8"),
-            URLQueryItem(name: "outCharset", value: "utf-8"),
-            URLQueryItem(name: "notice", value: "0"),
-            URLQueryItem(name: "platform", value: "yqq.json"),
-            URLQueryItem(name: "needNewCode", value: "0"),
-            URLQueryItem(name: "uin", value: "0"),
-            URLQueryItem(name: "hostUin", value: "0"),
-            URLQueryItem(name: "loginUin", value: "0"),
+            URLQueryItem(name: "w", value: keyword),
+            URLQueryItem(name: "n", value: "\(limit)"),
+            URLQueryItem(name: "p", value: "1"),
+            URLQueryItem(name: "t", value: "\(type)"),
         ]
         return comps?.url
     }
@@ -174,14 +157,14 @@ final class QQMusicAPI {
             guard let songid = item["songid"] as? Int, let mid = item["songmid"] as? String else { continue }
             let singer = (item["singer"] as? [[String: Any]]) ?? []
             let artists = singer.compactMap { $0["name"] as? String }.joined(separator: " / ")
-            let albumMid = item["albummid"] as? String
+            let albumMid = item["albummid"] as? String ?? item["albumMID"] as? String
             let interval = (item["interval"] as? Int) ?? 0
             let fee = (item["fee"] as? Int) ?? ((item["pay"] as? [String: Any])?["pay_play"] as? Int) ?? 0
             songs.append(Song(
                 id: songid,
                 name: item["songname"] as? String ?? "",
                 artists: artists,
-                album: item["albumname"] as? String ?? "",
+                album: item["albumname"] as? String ?? item["albumName"] as? String ?? "",
                 coverURL: Self.photoURL(albumMid),
                 duration: TimeInterval(interval),
                 source: .qq,
@@ -235,11 +218,12 @@ final class QQMusicAPI {
     private func parseAlbumItems(_ items: [[String: Any]]) -> [Album] {
         var albums: [Album] = []
         for item in items {
-            let name = item["name"] as? String ?? (item["albumname"] as? String ?? "")
+            let name = item["name"] as? String ?? (item["albumname"] as? String ?? item["albumName"] as? String ?? "")
             guard !name.isEmpty else { continue }
-            let mid = item["mid"] as? String ?? (item["albummid"] as? String)
+            let mid = item["mid"] as? String ?? (item["albummid"] as? String ?? item["albumMID"] as? String)
             let singer = (item["singer"] as? [[String: Any]]) ?? []
-            let artistName = singer.compactMap { $0["name"] as? String }.joined(separator: " / ")
+            var artistName = singer.compactMap { $0["name"] as? String }.joined(separator: " / ")
+            if artistName.isEmpty { artistName = item["singerName"] as? String ?? "" }
             let numericID = item["id"] as? Int ?? 0
             albums.append(Album(
                 id: mid ?? "qq-album-\(numericID)-\(name)",

@@ -46,7 +46,8 @@ enum UnblockService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !keyword.isEmpty else { return nil }
 
-        if let r = await pyncmd(neteaseID: neteaseID) { return r }
+        // pyncmd 只支持网易云 id；QQ 歌曲（neteaseID = 0）直接跳过
+        if neteaseID > 0, let r = await pyncmd(neteaseID: neteaseID) { return r }
         if let r = await kuwo(keyword: keyword, durationMS: durationMS) { return r }
         if let r = await kugou(keyword: keyword, durationMS: durationMS) { return r }
         return nil
@@ -99,9 +100,13 @@ enum UnblockService {
               let list = musicpage["abslist"] as? [[String: Any]] else { return nil }
 
         for song in list.prefix(5) {
-            guard let rid = song["rid"] as? String, !rid.isEmpty else { continue }
-            // 时长匹配 ±5 秒（酷我返回 mm:ss 或秒数，缺省时放宽）
-            if let dur = duration(of: song["duration"]), abs(dur - target) > 5 { continue }
+            // 酷我字段为大写（MUSICRID 已含 MUSIC_ 前缀），兼容小写
+            var rid = song["rid"] as? String ?? song["MUSICRID"] as? String ?? ""
+            if rid.isEmpty { rid = song["DC_TARGETID"] as? String ?? "" }
+            guard !rid.isEmpty else { continue }
+            if !rid.hasPrefix("MUSIC_") { rid = "MUSIC_\(rid)" }
+            // 时长匹配 ±5 秒（酷我返回秒数或 mm:ss，缺省时放宽）
+            if let dur = duration(of: song["duration"] ?? song["DURATION"]), abs(dur - target) > 5 { continue }
             guard let urlString = await kuwoConvertURL(rid: rid),
                   let playURL = URL(string: urlString) else { continue }
             return Resolved(url: playURL, source: "kuwo")
@@ -111,11 +116,12 @@ enum UnblockService {
 
     private static func kuwoConvertURL(rid: String) async -> String? {
         var comps = URLComponents(string: "http://antiserver.kuwo.cn/anti.s")!
+        let ridParam = rid.hasPrefix("MUSIC_") ? rid : "MUSIC_\(rid)"
         comps.queryItems = [
             URLQueryItem(name: "type", value: "convert_url"),
             URLQueryItem(name: "format", value: "mp3"),
             URLQueryItem(name: "response", value: "url"),
-            URLQueryItem(name: "rid", value: "MUSIC_\(rid)"),
+            URLQueryItem(name: "rid", value: ridParam),
         ]
         guard let url = comps.url,
               let data = await get(url),
