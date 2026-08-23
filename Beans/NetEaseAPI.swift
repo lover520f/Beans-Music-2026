@@ -262,6 +262,28 @@ final class NetEaseAPI {
         return result
     }
 
+    /// 歌曲播放地址 + 试听标记（用于灰色/VIP 歌曲解锁判断）
+    struct SongURLInfo {
+        let url: String?
+        /// 存在 freeTrialInfo 表示仅返回试听片段（VIP 歌曲）
+        let freeTrial: Bool
+    }
+
+    func songURLInfo(ids: [Int], level: String = "standard") async throws -> [Int: SongURLInfo] {
+        let idsString = "[" + ids.map(String.init).joined(separator: ",") + "]"
+        let json = try await request("/api/song/enhance/player/url/v1", payload: ["ids": idsString, "level": level, "encodeType": "flac"], crypto: "eapi")
+        let data = json["data"] as? [[String: Any]] ?? []
+        var result: [Int: SongURLInfo] = [:]
+        for item in data {
+            guard let id = item["id"] as? Int else { continue }
+            let rawURL = item["url"] as? String
+            let url = (rawURL?.isEmpty ?? true) ? nil : rawURL
+            let freeTrial = (item["freeTrialInfo"] as? [String: Any]) != nil
+            result[id] = SongURLInfo(url: url, freeTrial: freeTrial)
+        }
+        return result
+    }
+
     // MARK: - 歌词
 
     func lyric(id: Int) async throws -> String? {
@@ -514,3 +536,4 @@ enum NetEaseError: LocalizedError {
         }
     }
 }
+

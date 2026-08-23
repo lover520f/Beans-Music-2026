@@ -40,6 +40,7 @@ final class PlayerManager: NSObject, ObservableObject {
     @Published var sleepTimerRemaining: Int = 0
     @Published var history: [Song] = []
     @Published var playCounts: [String: Int] = [:]
+    @Published var energyClimaxTime: Double?
 
     private var player: AVPlayer?
     private var timeObserver: Any?
@@ -304,14 +305,33 @@ final class PlayerManager: NSObject, ObservableObject {
         isPlaying = false
         isBuffering = true
         loadFailed = false
+        energyClimaxTime = nil
         pushHistory(song)
         Task {
             var urlString: String?
+            var resolvedThirdParty: UnblockService.Resolved?
             if song.source == .qq, let mid = song.qqMid {
                 urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
             } else {
-                let urls = try? await NetEaseAPI.shared.songURLs(ids: [song.id])
-                urlString = urls?[song.id]
+                let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [song.id])
+                let info = infos?[song.id]
+                urlString = info?.url
+                // 灰色歌曲 / VIP 试听解锁：URL 为空或仅有试听片段时尝试第三方音源（借鉴 Kumone UnblockService）
+                if info?.url == nil || info?.freeTrial == true {
+                    resolvedThirdParty = await UnblockService.resolve(
+                        name: song.name,
+                        artists: song.artists,
+                        durationMS: Int(song.duration * 1000),
+                        neteaseID: song.id
+                    )
+                }
+            }
+            if let resolved = resolvedThirdParty {
+                await MainActor.run {
+                    self.setupPlayer(url: resolved.url)
+                    ToastCenter.shared.show("已使用\(resolved.sourceTitle)播放")
+                }
+                return
             }
             guard let urlString, let url = URL(string: urlString) else {
                 await MainActor.run {
@@ -321,6 +341,22 @@ final class PlayerManager: NSObject, ObservableObject {
                 return
             }
             await MainActor.run { self.setupPlayer(url: url) }
+        }
+    }
+
+
+    /// 高潮点能量分析（PeakEnergy）：播放器页面可见时按需调用，结果按歌曲缓存，失败自动回退启发式
+    func analyzeClimaxIfNeeded() {
+        guard energyClimaxTime == nil, let song = currentSong else { return }
+        let key = song.identityKey
+        guard let asset = player?.currentItem?.asset as? AVURLAsset else { return }
+        let url = asset.url
+        Task {
+            let time = await ClimaxAnalyzer.analyze(url: url, key: key)
+            await MainActor.run {
+                guard self.currentSong?.identityKey == key else { return }
+                self.energyClimaxTime = time
+            }
         }
     }
 

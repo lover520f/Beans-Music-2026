@@ -153,6 +153,7 @@ struct PlayerView: View {
             dominantColor = nil
             await loadLyrics()
             await extractCoverPalette()
+            player.analyzeClimaxIfNeeded()
         }
         .sheet(isPresented: $showQueue) { QueueView().environmentObject(player) }
         .sheet(isPresented: $showSleepTimer) { SleepTimerSheet().environmentObject(player) }
@@ -555,7 +556,7 @@ struct PlayerView: View {
 
     private var placeholderView: some View {
         VStack(spacing: 14) {
-            Image(systemName: "music.note")
+            Image(systemName: "waveform")
                 .font(.system(size: 44, weight: .light))
                 .foregroundStyle(palette.secondary)
             Text("暂无播放内容")
@@ -630,10 +631,12 @@ struct PlayerView: View {
         return parts.isEmpty ? "未知歌曲" : parts.joined(separator: " · ")
     }
 
-    /// 高潮提示时间点（秒）：有歌词时取歌词行最密集的 20 秒窗口中心，无歌词时取全曲 68% 处
+    /// 高潮提示时间点（秒）：优先使用 PeakEnergy 能量分析结果（后台检测并缓存），
+    /// 未完成或失败时回退到「歌词行最密集的 20 秒窗口中心 / 全曲 68%」启发式
     private var climaxTime: Double? {
         let total = player.duration
         guard total > 1 else { return nil }
+        if let energy = player.energyClimaxTime, energy > 1, energy < total { return energy }
         guard !lyrics.isEmpty else { return total * 0.68 }
         let times = lyrics.map { $0.time }.filter { $0 >= 0 && $0 <= total }
         guard !times.isEmpty else { return total * 0.68 }
@@ -1012,6 +1015,10 @@ struct LyricsSection: View {
     var glowRadius: CGFloat = 9
     let onTapLine: (LyricLine) -> Void
 
+    /// 长按歌词进入多选复制模式（可多选 / 全选复制）
+    @State private var selectionMode = false
+    @State private var selected: Set<Int> = []
+
     /// 二分查找当前行（歌词按时间升序），避免逐行扫描降低 CPU
     private var currentIndex: Int? {
         guard !lyrics.isEmpty else { return nil }
@@ -1037,7 +1044,37 @@ struct LyricsSection: View {
                     ForEach(Array(lyrics.enumerated()), id: \.element.id) { index, line in
                         lyricRow(index: index, line: line)
                             .contentShape(Rectangle())
-                            .onTapGesture { onTapLine(line) }
+                            .overlay(alignment: .topTrailing) {
+                                if selectionMode {
+                                    Image(systemName: selected.contains(index) ? "checkmark.circle.fill" : "circle")
+                                        .font(.system(size: 15, weight: .semibold))
+                                        .foregroundStyle(selected.contains(index) ? accent : secondary.opacity(0.55))
+                                        .padding(.trailing, 10)
+                                        .padding(.top, 2)
+                                        .transition(.scale.combined(with: .opacity))
+                                }
+                            }
+                            .gesture(
+                                LongPressGesture(minimumDuration: 0.35)
+                                    .onEnded { _ in
+                                        BeansHaptics.medium()
+                                        withAnimation(.easeInOut(duration: 0.2)) {
+                                            if !selectionMode {
+                                                selectionMode = true
+                                                selected = [index]
+                                            } else {
+                                                toggleSelect(index)
+                                            }
+                                        }
+                                    }
+                                    .exclusively(before: TapGesture().onEnded { _ in
+                                        if selectionMode {
+                                            withAnimation(.easeInOut(duration: 0.2)) { toggleSelect(index) }
+                                        } else {
+                                            onTapLine(line)
+                                        }
+                                    })
+                            )
                             .id(index)
                     }
                 }
@@ -1046,6 +1083,13 @@ struct LyricsSection: View {
             }
             .frame(maxWidth: .infinity)
             .scrollIndicators(.hidden)
+            .overlay(alignment: .top) {
+                if selectionMode {
+                    selectionBar
+                        .padding(.top, 4)
+                        .transition(.move(edge: .top).combined(with: .opacity))
+                }
+            }
             .onAppear {
                 scrollToCurrent(proxy)
             }
@@ -1102,6 +1146,73 @@ struct LyricsSection: View {
             .frame(maxWidth: .infinity, alignment: .center)
             .padding(.horizontal, 36)
             .animation(.easeInOut(duration: 0.25), value: currentIndex)
+    }
+
+    private func toggleSelect(_ index: Int) {
+        if selected.contains(index) {
+            selected.remove(index)
+        } else {
+            selected.insert(index)
+        }
+    }
+
+    private func copySelected() {
+        let text = selected.sorted()
+            .compactMap { idx -> String? in
+                lyrics.indices.contains(idx) ? lyrics[idx].text : nil
+            }
+            .filter { !$0.isEmpty }
+            .joined(separator: "\n")
+        guard !text.isEmpty else { return }
+        UIPasteboard.general.string = text
+        BeansHaptics.success()
+        withAnimation(.easeInOut(duration: 0.2)) {
+            selectionMode = false
+            selected = []
+        }
+    }
+
+    private var selectionBar: some View {
+        HStack(spacing: 16) {
+            Button {
+                withAnimation(.easeInOut(duration: 0.15)) { selected = Set(lyrics.indices) }
+            } label: {
+                Text("全选")
+                    .font(BeansFont.appFont(13, .medium))
+                    .foregroundStyle(accent)
+            }
+            .buttonStyle(.plain)
+            Button {
+                copySelected()
+            } label: {
+                Text(selected.isEmpty ? "复制" : "复制 (\(selected.count))")
+                    .font(BeansFont.appFont(13, .semibold))
+                    .foregroundStyle(accent)
+            }
+            .buttonStyle(.plain)
+            Spacer()
+            Button {
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    selectionMode = false
+                    selected = []
+                }
+            } label: {
+                Text("取消")
+                    .font(BeansFont.appFont(13))
+                    .foregroundStyle(secondary)
+            }
+            .buttonStyle(.plain)
+        }
+        .padding(.horizontal, 16)
+        .padding(.vertical, 9)
+        .background {
+            Capsule()
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    Capsule().strokeBorder(.white.opacity(0.18), lineWidth: 0.8)
+                }
+        }
+        .shadow(color: .black.opacity(0.12), radius: 10, y: 4)
     }
 
     private func scrollToCurrent(_ proxy: ScrollViewProxy) {
