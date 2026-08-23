@@ -18,6 +18,9 @@ struct LibraryView: View {
     @State private var qqLoading = false
     @State private var kugouPlaylists: [Playlist] = []
     @State private var kugouLoading = false
+    /// QQ「我喜欢」云端歌曲（登录后拉取，与本地红心合并展示）
+    @State private var qqCloudFavorites: [Song] = []
+    @ObservedObject private var kugouAuth = KugouMusicAuth.shared
 
     var body: some View {
         let _ = theme.accent
@@ -42,7 +45,10 @@ struct LibraryView: View {
         }
         .task { await auth.loadLibrary() }
         .task(id: source) {
-            if source == .qq { await loadQQPlaylists() }
+            if source == .qq {
+                await loadQQPlaylists()
+                await loadQQFavorites()
+            }
             if source == .kugou { await loadKugouPlaylists() }
         }
         .sheet(isPresented: $showHistory) {
@@ -60,7 +66,7 @@ struct LibraryView: View {
             Button("创建") { createPlaylist() }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("输入歌单名称，创建后同步到网易云")
+            Text("输入歌单名称，创建后同步到\(source == .netease ? "网易云" : source == .qq ? "QQ 音乐" : "酷狗音乐")")
         }
         .confirmationDialog("确定删除歌单「\(pendingDelete?.name ?? "")」吗？", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("删除", role: .destructive) { confirmDeletePlaylist() }
@@ -275,7 +281,13 @@ struct LibraryView: View {
     /// 我的 QQ 歌单（登录后从 QQ 音乐拉取）
     private var qqPlaylistsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "我的 QQ 歌单", trailing: qqPlaylists.isEmpty ? nil : "\(qqPlaylists.count) 个") {}
+            SectionHeader(title: "我的 QQ 歌单", trailing: qqAuth.isLoggedIn ? (qqPlaylists.isEmpty ? "新建" : "新建 · \(qqPlaylists.count) 个") : nil) {
+                if qqAuth.isLoggedIn {
+                    BeansHaptics.tap()
+                    newPlaylistName = ""
+                    showCreatePlaylist = true
+                }
+            }
             if !qqAuth.isLoggedIn {
                 EmptyStateView(icon: "music.note.list", text: "登录 QQ 音乐后即可查看你的歌单")
             } else if qqLoading {
@@ -309,6 +321,14 @@ struct LibraryView: View {
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
+                        .contextMenu {
+                            Button {
+                                BeansHaptics.tap()
+                                requestDelete(playlist)
+                            } label: {
+                                Label("删除歌单", systemImage: "trash")
+                            }
+                        }
                         Divider().overlay(Color.beansSecondary.opacity(0.12))
                     }
                 }
@@ -325,14 +345,14 @@ struct LibraryView: View {
     /// QQ 音乐收藏（红心歌曲，本地持久化 + 云端尽力同步）
     private var qqFavoritesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "QQ 收藏", trailing: favorites.qqFavoriteSongs.isEmpty ? nil : "\(favorites.qqFavoriteSongs.count) 首") {}
-            if favorites.qqFavoriteSongs.isEmpty {
-                EmptyStateView(icon: "heart", text: "还没有收藏的 QQ 歌曲\n在播放器点击红心即可收藏")
+            SectionHeader(title: "QQ 我喜欢", trailing: mergedQQFavorites.isEmpty ? nil : "\(mergedQQFavorites.count) 首") {}
+            if mergedQQFavorites.isEmpty {
+                EmptyStateView(icon: "heart", text: "还没有喜欢的 QQ 歌曲\n在播放器点击红心即可收藏")
             } else {
                 VStack(spacing: 0) {
-                    ForEach(Array(favorites.qqFavoriteSongs.enumerated()), id: \.element.id) { index, song in
+                    ForEach(Array(mergedQQFavorites.enumerated()), id: \.element.id) { index, song in
                         SongCell(song: song) {
-                            player.play(songs: favorites.qqFavoriteSongs, startAt: index)
+                            player.play(songs: mergedQQFavorites, startAt: index)
                         }
                         Divider().overlay(Color.beansSecondary.opacity(0.15))
                     }
@@ -345,6 +365,18 @@ struct LibraryView: View {
                 .beansCardShadow(radius: 8, y: 3)
             }
         }
+    }
+
+    /// QQ「我喜欢」歌曲：云端（登录拉取）与本地红心合并去重
+    private var mergedQQFavorites: [Song] {
+        var seen = Set<String>()
+        var result: [Song] = []
+        for song in qqCloudFavorites + favorites.qqFavoriteSongs {
+            guard let mid = song.qqMid, !mid.isEmpty, !seen.contains(mid) else { continue }
+            seen.insert(mid)
+            result.append(song)
+        }
+        return result
     }
 
     // MARK: - 歌单新建 / 删除
@@ -360,11 +392,13 @@ struct LibraryView: View {
     /// 酷狗歌单广场（无需登录）
     private var kugouPlaylistsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "酷狗音乐歌单", trailing: kugouPlaylists.isEmpty ? nil : "\(kugouPlaylists.count) 个") {}
-            if kugouLoading {
+            SectionHeader(title: "我的酷狗歌单", trailing: kugouPlaylists.isEmpty ? nil : "\(kugouPlaylists.count) 个") {}
+            if !kugouAuth.isLoggedIn {
+                EmptyStateView(icon: "music.note.list", text: "登录酷狗音乐后即可查看你的歌单")
+            } else if kugouLoading {
                 LoadingStateView()
             } else if kugouPlaylists.isEmpty {
-                EmptyStateView(icon: "music.note.list", text: "暂未加载到酷狗音乐歌单")
+                EmptyStateView(icon: "music.note.list", text: "暂未拉取到酷狗歌单\n可在「我的」检查酷狗登录状态")
             } else {
                 VStack(spacing: 0) {
                     ForEach(kugouPlaylists) { playlist in
@@ -431,9 +465,20 @@ struct LibraryView: View {
     }
 
     private func loadKugouPlaylists() async {
+        guard kugouAuth.isLoggedIn, !kugouAuth.userID.isEmpty else {
+            kugouPlaylists = []
+            kugouLoading = false
+            return
+        }
         kugouLoading = true
-        kugouPlaylists = (try? await KugouMusicAPI.shared.playlists(page: 1, limit: 30)) ?? []
+        kugouPlaylists = (try? await KugouMusicAPI.shared.userPlaylists(userid: kugouAuth.userID)) ?? []
         kugouLoading = false
+    }
+
+    /// QQ「我喜欢」云端歌曲（登录后拉取，失败保留本地红心）
+    private func loadQQFavorites() async {
+        guard qqAuth.isLoggedIn else { return }
+        qqCloudFavorites = (try? await QQMusicAPI.shared.favoriteSongs()) ?? []
     }
 
     private func loadQQPlaylists() async {
@@ -453,19 +498,43 @@ struct LibraryView: View {
             ToastCenter.shared.show("请输入歌单名称")
             return
         }
-        guard auth.isLoggedIn else {
-            ToastCenter.shared.show("请先登录后再创建歌单")
-            return
-        }
-        Task {
-            do {
-                _ = try await NetEaseAPI.shared.createPlaylist(name: name)
-                ToastCenter.shared.show("歌单「\(name)」已创建")
-                newPlaylistName = ""
-                await auth.loadLibrary()
-            } catch {
-                ToastCenter.shared.show("创建失败：\(error.localizedDescription)")
+        switch source {
+        case .netease:
+            guard auth.isLoggedIn else {
+                ToastCenter.shared.show("请先登录后再创建歌单")
+                return
             }
+            Task {
+                do {
+                    _ = try await NetEaseAPI.shared.createPlaylist(name: name)
+                    ToastCenter.shared.show("歌单「\(name)」已创建")
+                    newPlaylistName = ""
+                    await auth.loadLibrary()
+                } catch {
+                    ToastCenter.shared.show("创建失败：\(error.localizedDescription)")
+                }
+            }
+        case .qq:
+            guard qqAuth.isLoggedIn else {
+                ToastCenter.shared.show("请先登录 QQ 音乐后再创建歌单")
+                return
+            }
+            Task {
+                do {
+                    let ok = try await QQMusicAPI.shared.createPlaylist(name: name)
+                    if ok {
+                        ToastCenter.shared.show("歌单「\(name)」已创建")
+                        newPlaylistName = ""
+                        await loadQQPlaylists()
+                    } else {
+                        ToastCenter.shared.show("创建失败，请确认已登录 QQ 音乐")
+                    }
+                } catch {
+                    ToastCenter.shared.show("创建失败：\(error.localizedDescription)")
+                }
+            }
+        case .kugou:
+            ToastCenter.shared.show("酷狗暂不支持创建歌单")
         }
     }
 
@@ -476,18 +545,37 @@ struct LibraryView: View {
 
     private func confirmDeletePlaylist() {
         guard let playlist = pendingDelete else { return }
-        Task {
-            do {
-                let ok = try await NetEaseAPI.shared.deletePlaylist(id: playlist.id)
-                if ok {
-                    ToastCenter.shared.show("已删除歌单「\(playlist.name)」")
-                    await auth.loadLibrary()
-                } else {
-                    ToastCenter.shared.show("删除失败，请稍后再试")
+        switch source {
+        case .netease:
+            Task {
+                do {
+                    let ok = try await NetEaseAPI.shared.deletePlaylist(id: playlist.id)
+                    if ok {
+                        ToastCenter.shared.show("已删除歌单「\(playlist.name)」")
+                        await auth.loadLibrary()
+                    } else {
+                        ToastCenter.shared.show("删除失败，请稍后再试")
+                    }
+                } catch {
+                    ToastCenter.shared.show("删除失败：\(error.localizedDescription)")
                 }
-            } catch {
-                ToastCenter.shared.show("删除失败：\(error.localizedDescription)")
             }
+        case .qq:
+            Task {
+                do {
+                    let ok = try await QQMusicAPI.shared.deletePlaylist(dirid: playlist.id)
+                    if ok {
+                        ToastCenter.shared.show("已删除歌单「\(playlist.name)」")
+                        await loadQQPlaylists()
+                    } else {
+                        ToastCenter.shared.show("删除失败，请确认已登录 QQ 音乐")
+                    }
+                } catch {
+                    ToastCenter.shared.show("删除失败：\(error.localizedDescription)")
+                }
+            }
+        case .kugou:
+            ToastCenter.shared.show("酷狗暂不支持删除歌单")
         }
     }
 

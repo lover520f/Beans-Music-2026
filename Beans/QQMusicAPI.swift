@@ -27,12 +27,12 @@ final class QQMusicAPI {
 
     // MARK: - 基础请求
 
-    private func get(_ urlString: String, referer: String = "https://y.qq.com/") async throws -> [String: Any] {
+    private func get(_ urlString: String, referer: String = "https://y.qq.com/", cookie: String = "") async throws -> [String: Any] {
         guard let url = URL(string: urlString) else { throw NetEaseError.unknown("请求地址无效") }
         var request = URLRequest(url: url)
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 QQMusic/9.0.5", forHTTPHeaderField: "User-Agent")
         request.setValue(referer, forHTTPHeaderField: "Referer")
-        request.setValue("uin=0; qqmusic_fromtag=66", forHTTPHeaderField: "Cookie")
+        request.setValue(cookie.isEmpty ? "uin=0; qqmusic_fromtag=66" : cookie, forHTTPHeaderField: "Cookie")
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else {
             throw NetEaseError.network
@@ -73,14 +73,14 @@ final class QQMusicAPI {
     }
 
     /// 表单 POST（fcg 老接口统一走这里，如 H5 评论接口）
-    private func postForm(_ urlString: String, body: [String: Any], referer: String = "https://y.qq.com/") async throws -> [String: Any] {
+    private func postForm(_ urlString: String, body: [String: Any], referer: String = "https://y.qq.com/", cookie: String = "") async throws -> [String: Any] {
         guard let url = URL(string: urlString) else { throw NetEaseError.unknown("请求地址无效") }
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 QQMusic/9.0.5", forHTTPHeaderField: "User-Agent")
         request.setValue(referer, forHTTPHeaderField: "Referer")
-        request.setValue("uin=0; qqmusic_fromtag=66", forHTTPHeaderField: "Cookie")
+        request.setValue(cookie.isEmpty ? "uin=0; qqmusic_fromtag=66" : cookie, forHTTPHeaderField: "Cookie")
         var comps = URLComponents()
         comps.queryItems = body.map { URLQueryItem(name: $0.key, value: "\($0.value)") }
         request.httpBody = comps.query?.data(using: .utf8)
@@ -288,6 +288,76 @@ final class QQMusicAPI {
         let data = json["data"] as? [String: Any] ?? [:]
         let hots = data["hotkey"] as? [[String: Any]] ?? []
         return hots.compactMap { $0["k"] as? String }.prefix(limit).map { $0 }
+    }
+
+    // MARK: - 歌单管理（创建 / 删除 / 我喜欢）
+
+    /// 创建歌单（create_playlist.fcg，需登录；code 0 成功 / 21 重名 / 1 未登录）
+    func createPlaylist(name: String) async throws -> Bool {
+        let qqAuth = QQMusicAuth.shared
+        guard qqAuth.isLoggedIn else { return false }
+        let gtk = qqAuth.gtk
+        let json = try await postForm("https://c.y.qq.com/splcloud/fcgi-bin/create_playlist.fcg?g_tk=\(gtk)", body: [
+            "loginUin": qqAuth.rawUin,
+            "hostUin": 0,
+            "format": "json",
+            "inCharset": "utf8",
+            "outCharset": "utf8",
+            "notice": 0,
+            "platform": "yqq",
+            "needNewCode": 0,
+            "g_tk": gtk,
+            "uin": qqAuth.rawUin,
+            "name": name,
+            "show": 1,
+            "formsender": 1,
+            "utf8": 1,
+            "qzreferrer": "https://y.qq.com/portal/profile.html#sub=other&tab=create&",
+        ], cookie: qqAuth.cookieHeader)
+        let code = json["code"] as? Int ?? -1
+        return code == 0
+    }
+
+    /// 删除歌单（fcg_fav_modsongdir.fcg，需登录；返回 JSONP，parseJSON 自动剥离）
+    func deletePlaylist(dirid: Int) async throws -> Bool {
+        let qqAuth = QQMusicAuth.shared
+        guard qqAuth.isLoggedIn else { return false }
+        let gtk = qqAuth.gtk
+        let json = try await postForm("https://c.y.qq.com/splcloud/fcgi-bin/fcg_fav_modsongdir.fcg?g_tk=\(gtk)", body: [
+            "loginUin": qqAuth.rawUin,
+            "hostUin": 0,
+            "format": "fs",
+            "inCharset": "GB2312",
+            "outCharset": "gb2312",
+            "notice": 0,
+            "platform": "yqq",
+            "needNewCode": 0,
+            "g_tk": gtk,
+            "uin": qqAuth.rawUin,
+            "delnum": 1,
+            "deldirids": dirid,
+            "forcedel": 1,
+            "formsender": 1,
+            "source": 103,
+        ], cookie: qqAuth.cookieHeader)
+        let code = json["code"] as? Int ?? -1
+        return code == 0
+    }
+
+    /// 我喜欢（红心）歌单歌曲列表（fcg_musiclist_getmyfav dirid=201 拿歌单 id，再拉歌单详情）
+    func favoriteSongs(limit: Int = 100) async throws -> [Song] {
+        let qqAuth = QQMusicAuth.shared
+        guard qqAuth.isLoggedIn else { return [] }
+        let gtk = qqAuth.gtk
+        let favURL = "https://c.y.qq.com/splcloud/fcgi-bin/fcg_musiclist_getmyfav.fcg?dirid=201&dirinfo=1&g_tk=\(gtk)&format=json&utf8=1"
+        let favJson = try await get(favURL, referer: "https://y.qq.com/n/yqq/playlist", cookie: qqAuth.cookieHeader)
+        let mapid = favJson["map"] as? Int ?? 0
+        guard mapid > 0 else { return [] }
+        let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=\(mapid)&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
+        let detailJson = try await get(detailURL, referer: "https://y.qq.com/", cookie: qqAuth.cookieHeader)
+        let cdlist = detailJson["cdlist"] as? [[String: Any]] ?? []
+        let songlist = cdlist.first?["songlist"] as? [[String: Any]] ?? []
+        return songlist.prefix(limit).compactMap { song(from: $0) }
     }
 
     // MARK: - 红心收藏

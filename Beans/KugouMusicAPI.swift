@@ -422,6 +422,33 @@ final class KugouMusicAPI {
         }
     }
 
+    /// 用户自建歌单（mobilecdn user/songlist，需登录 Cookie；未登录或接口异常时返回空，由 UI 提示）
+    func userPlaylists(userid: String, page: Int = 1, limit: Int = 30) async throws -> [Playlist] {
+        var comps = URLComponents(string: "http://mobilecdn.kugou.com/api/v3/user/songlist")!
+        comps.queryItems = [
+            URLQueryItem(name: "userid", value: userid),
+            URLQueryItem(name: "page", value: String(page)),
+            URLQueryItem(name: "pagesize", value: String(limit)),
+        ]
+        let kgAuth = KugouMusicAuth.shared
+        let data = try await get(comps.url!.absoluteString, referer: "https://m.kugou.com/", cookie: kgAuth.cookieHeader)
+        guard let obj = json(data) else {
+            throw NetEaseError.decoding("酷狗用户歌单解析失败")
+        }
+        var list: [[String: Any]] = []
+        if let arr = obj["data"] as? [[String: Any]] {
+            list = arr
+        } else if let d = obj["data"] as? [String: Any], let info = d["info"] as? [[String: Any]] {
+            list = info
+        }
+        return list.prefix(limit).compactMap { item in
+            guard let pid = item["specialid"] as? Int ?? Int(item["specialid"] as? String ?? "") else { return nil }
+            let name = decodeName(item["specialname"] as? String ?? "")
+            let count = item["songcount"] as? Int ?? 0
+            return Playlist(id: pid, name: name, coverURL: cover(item["imgurl"] as? String), trackCount: count, source: .kugou)
+        }
+    }
+
     /// 歌单内歌曲（爬取酷狗歌单页 global.data，仅供学习交流）
     func playlistSongs(pid: Int) async throws -> [Song] {
         let url = "http://www2.kugou.kugou.com/yueku/v9/special/single/\(pid)-6-1084.html"

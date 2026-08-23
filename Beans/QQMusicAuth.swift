@@ -44,6 +44,17 @@ final class QQMusicAuth: ObservableObject {
         return raw.replacingOccurrences(of: "o", with: "")
     }
 
+    /// 原始 uin（保留 o 前缀，歌单增删等写操作接口需要）
+    var rawUin: String {
+        cookies["uin"] ?? "0"
+    }
+
+    /// g_tk（写操作接口签名；由 qqmusic_key/p_skey/skey 计算，未登录时为 5381）
+    var gtk: Int {
+        let key = cookies["qqmusic_key"] ?? cookies["p_skey"] ?? cookies["skey"] ?? ""
+        return key.isEmpty ? 5381 : Self.hash5381(key)
+    }
+
     /// 播放接口 loginKey（优先 p_skey，其次 qqmusic_key / musickey）
     var loginKey: String {
         cookies["p_skey"] ?? cookies["qqmusic_key"] ?? cookies["musickey"] ?? ""

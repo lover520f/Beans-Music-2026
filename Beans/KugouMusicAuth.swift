@@ -43,6 +43,11 @@ final class KugouMusicAuth: ObservableObject {
         return generated
     }
 
+    /// 酷狗用户 ID（从 Cookie 解析，用户歌单接口需要）
+    var userID: String {
+        cookies["userid"] ?? cookies["KugouID"] ?? ""
+    }
+
     /// 发给 kugou.com 接口的 Cookie 串
     var cookieHeader: String {
         let order = ["mid", "kg_mid", "dfid", "kg_dfid", "username", "userid", "KugouID", "token", "vip_type", "vip", "VIP", "userhash"]
