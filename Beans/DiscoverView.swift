@@ -136,11 +136,7 @@ struct DiscoverView: View {
         }
         .padding(4)
         .background {
-            GlassEffectContainer {
-                Capsule()
-                    .fill(.clear)
-                    .glassEffect(.clear, in: Capsule())
-            }
+                        BeansGlass(shape: Capsule())
         }
         .clipShape(Capsule())
         .beansCardShadow(radius: 6, y: 2)
@@ -215,11 +211,7 @@ struct DiscoverView: View {
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
             .background {
-                GlassEffectContainer {
-                    RoundedRectangle(cornerRadius: 24, style: .continuous)
-                        .fill(.clear)
-                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                }
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: 24, style: .continuous))
             }
             .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
             .beansCardShadow(radius: 9, y: 3)
@@ -289,6 +281,17 @@ struct DiscoverView: View {
                         } label: {
                             VStack(alignment: .leading, spacing: 6) {
                                 CoverImage(url: song.coverURL, size: 108, cornerRadius: 16)
+                                    .overlay(alignment: .topLeading) {
+                                        if song.isVIP {
+                                            Text("VIP")
+                                                .font(BeansFont.appFont(9, .bold))
+                                                .foregroundStyle(.white)
+                                                .padding(.horizontal, 5)
+                                                .padding(.vertical, 1.5)
+                                                .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                                                .padding(6)
+                                        }
+                                    }
                                     .overlay(alignment: .bottomTrailing) {
                                         dailyPlayStateBadge(for: song)
                                     }
@@ -338,11 +341,7 @@ struct DiscoverView: View {
                         .padding(8)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .background {
-                            GlassEffectContainer {
-                                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                                    .fill(.clear)
-                                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                            }
+                                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
                         }
                     }
                     .buttonStyle(GlassPressButtonStyle(scale: 0.96))

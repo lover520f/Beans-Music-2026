@@ -84,11 +84,7 @@ struct QueueView: View {
         .padding(.vertical, 8)
         .contentShape(Rectangle())
         .background {
-            GlassEffectContainer {
-                RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(.clear)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-            }
+                        BeansGlass(shape: RoundedRectangle(cornerRadius: 16, style: .continuous))
         }
         .onTapGesture {
             if player.queue.indices.contains(index) {

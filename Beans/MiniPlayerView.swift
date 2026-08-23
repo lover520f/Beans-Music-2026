@@ -90,11 +90,7 @@ struct MiniPlayerView: View {
             .padding(.vertical, 8)
             .background {
                 // iOS 26 原生液态玻璃：背景 + 高光 + 描边三层
-                GlassEffectContainer {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(.clear)
-                        .glassEffect(.clear, in: .rect(cornerRadius: 22))
-                }
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .overlay {
                     LinearGradient(
                         colors: [.white.opacity(0.25), .clear, .white.opacity(0.05)],

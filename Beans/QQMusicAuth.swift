@@ -9,6 +9,8 @@ final class QQMusicAuth: ObservableObject {
 
     @Published private(set) var isLoggedIn = false
     @Published private(set) var nickname = ""
+    /// QQ 音乐会员标识：nil 无 / "VIP" / "SVIP"（登录后尽力拉取，失败不阻塞）
+    @Published private(set) var vipBadge: String?
 
     private var cookies: [String: String] = [:]
     private var qrsig = ""
@@ -16,6 +18,7 @@ final class QQMusicAuth: ObservableObject {
     private let defaults = UserDefaults.standard
     private let cookieKey = "beans.qqmusic.cookie.v1"
     private let nickKey = "beans.qqmusic.nickname.v1"
+    private let vipKey = "beans.qqmusic.vip.v1"
     private let session: URLSession
     private let redirectBlocker = NoRedirectDelegate()
 
@@ -29,6 +32,7 @@ final class QQMusicAuth: ObservableObject {
             cookies = saved
             isLoggedIn = true
             nickname = defaults.string(forKey: nickKey) ?? ""
+            vipBadge = defaults.string(forKey: vipKey)
         }
     }
 
@@ -59,8 +63,10 @@ final class QQMusicAuth: ObservableObject {
         qrsig = ""
         isLoggedIn = false
         nickname = ""
+        vipBadge = nil
         defaults.removeObject(forKey: cookieKey)
         defaults.removeObject(forKey: nickKey)
+        defaults.removeObject(forKey: vipKey)
     }
 
     // MARK: - 网页登录 / Cookie 导入
@@ -73,6 +79,8 @@ final class QQMusicAuth: ObservableObject {
         self.nickname = nickname ?? Self.fallbackNickname(dict)
         defaults.set(cookies, forKey: cookieKey)
         defaults.set(self.nickname, forKey: nickKey)
+        // 登录成功后异步刷新会员标识（失败静默降级）
+        Task { await self.fetchVIPStatus() }
     }
 
     /// Cookie 是否包含有效登录态（uin 非空且带任一有效凭证）
@@ -194,6 +202,7 @@ final class QQMusicAuth: ObservableObject {
             isLoggedIn = true
             defaults.set(cookies, forKey: cookieKey)
             defaults.set(nickname, forKey: nickKey)
+            Task { await self.fetchVIPStatus() }
             return .success(parsed.nickname)
         case "65", "68":
             return .expired
@@ -281,6 +290,89 @@ final class QQMusicAuth: ObservableObject {
         loginRequest.httpBody = body.data(using: .utf8)
         let (_, loginResponse) = try await session.data(for: loginRequest)
         collectCookies(from: loginResponse)
+    }
+
+    // MARK: - 会员状态
+
+    /// 拉取 QQ 音乐会员标识（逆向自 musicu.fcg music.member.getVipInfo，仅供学习交流）。
+    /// 携带登录 Cookie 请求，接口字段各家实现略有差异，这里做递归宽松解析：
+    /// - 命中 svip 相关字段且数值 > 0 -> SVIP
+    /// - 命中 vipType / vip_type 且数值 > 0 -> VIP
+    /// - 请求失败或字段缺失 -> nil（不阻塞登录，也不弹错误）
+    @MainActor
+    func fetchVIPStatus() async {
+        guard isLoggedIn, !uin.isEmpty, uin != "0" else {
+            if vipBadge != nil {
+                vipBadge = nil
+                defaults.removeObject(forKey: vipKey)
+            }
+            return
+        }
+        do {
+            let payload: [String: Any] = [
+                "comm": ["ct": 24, "cv": 0, "uin": uin],
+                "req_0": [
+                    "module": "music.member.getVipInfo",
+                    "method": "get_vip_info",
+                    "param": ["uin": uin]
+                ]
+            ]
+            let json = try await musicu(payload)
+            let badge = Self.parseVIPBadge(json)
+            if badge != vipBadge {
+                vipBadge = badge
+                defaults.set(badge ?? "", forKey: vipKey)
+            }
+        } catch {
+            // 尽力而为：接口波动不影响登录与播放
+        }
+    }
+
+    /// 递归扫描响应 JSON 中的会员字段（兼容不同返回结构）
+    private static func parseVIPBadge(_ json: [String: Any]) -> String? {
+        var vipLevel = 0
+        var svipFlag = false
+        func walk(_ value: Any) {
+            if let dict = value as? [String: Any] {
+                for (key, v) in dict {
+                    let lower = key.lowercased()
+                    if lower.contains("svip") {
+                        if let n = v as? Int, n > 0 { svipFlag = true }
+                        if let b = v as? Bool, b { svipFlag = true }
+                    } else if lower == "viptype" || lower == "vip_type" {
+                        if let n = v as? Int, n > 0 { vipLevel = max(vipLevel, n) }
+                    }
+                    walk(v)
+                }
+            } else if let arr = value as? [Any] {
+                arr.forEach(walk)
+            }
+        }
+        walk(json)
+        if svipFlag || vipLevel >= 11 { return "SVIP" }
+        if vipLevel > 0 { return "VIP" }
+        return nil
+    }
+
+    /// musicu.fcg 统一 POST（携带当前登录 Cookie）
+    private func musicu(_ payload: [String: Any]) async throws -> [String: Any] {
+        guard let body = try? JSONSerialization.data(withJSONObject: payload),
+              let url = URL(string: "https://u.y.qq.com/cgi-bin/musicu.fcg") else {
+            throw NetEaseError.unknown("请求参数错误")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(Self.ua, forHTTPHeaderField: "User-Agent")
+        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+        request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        request.httpBody = body
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            throw NetEaseError.network
+        }
+        return obj
     }
 
     // MARK: - 工具

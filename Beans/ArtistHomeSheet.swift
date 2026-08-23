@@ -175,11 +175,7 @@ struct ArtistHomeSheet: View {
                             .padding(6)
                             .frame(maxWidth: .infinity, alignment: .leading)
                             .background {
-                                GlassEffectContainer {
-                                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                        .fill(.clear)
-                                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                }
+                                                                BeansGlass(shape: RoundedRectangle(cornerRadius: 16, style: .continuous))
                             }
                         }
                         .buttonStyle(.plain)

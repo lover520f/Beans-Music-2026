@@ -287,8 +287,17 @@ struct NetEaseUser: Identifiable, Hashable, Codable {
     let uid: Int
     let nickname: String
     let avatarURL: URL?
+    /// 网易云会员类型：0 无会员；非 0 有 VIP；>= 11 为黑胶 SVIP（接口字段 profile.vipType）
+    let vipType: Int
 
     var id: Int { uid }
+
+    /// VIP 标识：nil 表示无会员
+    var vipBadge: String? {
+        if vipType >= 11 { return "SVIP" }
+        if vipType > 0 { return "VIP" }
+        return nil
+    }
 
     init?(json: [String: Any]) {
         guard let id = json["userId"] as? Int ?? (json["id"] as? Int) else { return nil }
@@ -296,6 +305,25 @@ struct NetEaseUser: Identifiable, Hashable, Codable {
         nickname = json["nickname"] as? String ?? ""
         let pic = json["avatarUrl"] as? String ?? ""
         avatarURL = pic.isEmpty ? nil : URL(string: pic)
+        vipType = json["vipType"] as? Int ?? 0
+    }
+
+    enum CodingKeys: String, CodingKey { case uid, nickname, avatarURL, vipType }
+
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        uid = try c.decode(Int.self, forKey: .uid)
+        nickname = try c.decode(String.self, forKey: .nickname)
+        avatarURL = try c.decodeIfPresent(URL.self, forKey: .avatarURL)
+        vipType = try c.decodeIfPresent(Int.self, forKey: .vipType) ?? 0
+    }
+
+    func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(uid, forKey: .uid)
+        try c.encode(nickname, forKey: .nickname)
+        try c.encodeIfPresent(avatarURL, forKey: .avatarURL)
+        try c.encode(vipType, forKey: .vipType)
     }
 }
 /// 听歌排行条目（网易云听歌记录）

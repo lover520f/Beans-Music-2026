@@ -123,11 +123,7 @@ struct PlaylistView: View {
         }
         .padding(14)
         .background {
-            GlassEffectContainer {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.clear)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            }
+                        BeansGlass(shape: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
     }
 

@@ -6,6 +6,8 @@ struct SleepTimerSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     private let options = [5, 15, 30, 45, 60, 90]
+    /// 自定义定时分钟数
+    @State private var customMinutes = 30
 
     var body: some View {
         let _ = theme.accent
@@ -43,6 +45,23 @@ struct SleepTimerSheet: View {
                         dismiss()
                     } label: {
                         Label("关闭定时", systemImage: "xmark.circle")
+                    }
+                }
+                Section("自定义时长") {
+                    Stepper(value: $customMinutes, in: 1...180, step: 1) {
+                        HStack {
+                            Text("自定义")
+                            Spacer()
+                            Text("\(customMinutes) 分钟")
+                                .foregroundStyle(Color.beansSecondary)
+                        }
+                    }
+                    Button {
+                        player.startSleepTimer(minutes: customMinutes)
+                        dismiss()
+                    } label: {
+                        Label("\(customMinutes) 分钟后关闭", systemImage: "timer")
+                            .foregroundStyle(Color.beansLabel)
                     }
                 }
             }

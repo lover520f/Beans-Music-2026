@@ -251,11 +251,7 @@ struct SearchView: View {
         .padding(.horizontal, 18)
         .padding(.vertical, 8)
         .background {
-            GlassEffectContainer {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(.clear)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            }
+                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
         .beansCardShadow(radius: 8, y: 3)
@@ -334,11 +330,7 @@ struct SearchView: View {
         }
         .padding(4)
         .background {
-            GlassEffectContainer {
-                Capsule()
-                    .fill(.clear)
-                    .glassEffect(.clear, in: Capsule())
-            }
+                        BeansGlass(shape: Capsule())
         }
         .clipShape(Capsule())
         .padding(.horizontal, 20)
@@ -445,11 +437,7 @@ struct SearchView: View {
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
                             .background {
-                                GlassEffectContainer {
-                                    RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                        .fill(.clear)
-                                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                }
+                                                                BeansGlass(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
                             }
                         }
                     }
@@ -515,11 +503,7 @@ struct SearchView: View {
                                 .padding(.vertical, 8)
                                 .contentShape(Rectangle())
                                 .background {
-                                    GlassEffectContainer {
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(.clear)
-                                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                    }
+                                                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
                                 }
                             }
                             .buttonStyle(GlassPressButtonStyle(scale: 0.97))
@@ -587,11 +571,7 @@ struct SearchView: View {
                                 .padding(.vertical, 8)
                                 .contentShape(Rectangle())
                                 .background {
-                                    GlassEffectContainer {
-                                        RoundedRectangle(cornerRadius: 14, style: .continuous)
-                                            .fill(.clear)
-                                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                    }
+                                                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
                                 }
                             }
                             .buttonStyle(GlassPressButtonStyle(scale: 0.97))

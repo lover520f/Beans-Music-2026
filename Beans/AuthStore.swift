@@ -38,6 +38,21 @@ final class AuthStore: ObservableObject {
         }
     }
 
+    /// 刷新账号资料（VIP 状态等），登录后保持最新会员标识
+    @MainActor
+    func refreshAccount() async {
+        guard let current = user else { return }
+        if let fresh = try? await NetEaseAPI.shared.account() {
+            user = fresh
+            if let data = try? JSONEncoder().encode(fresh) {
+                defaults.set(data, forKey: userKey)
+            }
+            if fresh.uid != current.uid {
+                isLoggedIn = true
+            }
+        }
+    }
+
     @MainActor
     func loadLibrary() async {
         guard let user else { return }

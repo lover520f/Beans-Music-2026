@@ -89,11 +89,7 @@ struct SongCell: View {
             rowContent
                 .padding(.horizontal, 10)
                 .background {
-                    GlassEffectContainer {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(.clear)
-                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    }
+                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 }
         } else {
             rowContent

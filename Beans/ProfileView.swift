@@ -83,7 +83,11 @@ struct ProfileView: View {
             }
             .scrollIndicators(.hidden)
         }
-        .task(id: auth.isLoggedIn) { await loadNetEaseRank() }
+        .task(id: auth.isLoggedIn) {
+            await loadNetEaseRank()
+            await auth.refreshAccount()
+            await qqAuth.fetchVIPStatus()
+        }
         .sheet(isPresented: $showHistory) {
             HistoryView()
                 .environmentObject(player)
@@ -107,10 +111,19 @@ struct ProfileView: View {
             SleepTimerSheet()
                 .environmentObject(player)
         }
-        .confirmationDialog("退出登录？", isPresented: $confirmLogout, titleVisibility: .visible) {
-            Button("退出登录", role: .destructive) {
-                player.clearHistory()
-                auth.logout()
+        .confirmationDialog("退出登录", isPresented: $confirmLogout, titleVisibility: .visible) {
+            if auth.isLoggedIn {
+                Button("退出网易云账号", role: .destructive) {
+                    player.clearHistory()
+                    auth.logout()
+                    ToastCenter.shared.show("已退出网易云账号")
+                }
+            }
+            if qqAuth.isLoggedIn {
+                Button("退出 QQ 音乐账号", role: .destructive) {
+                    qqAuth.logout()
+                    ToastCenter.shared.show("已退出 QQ 音乐")
+                }
             }
             Button("取消", role: .cancel) {}
         }
@@ -139,10 +152,15 @@ struct ProfileView: View {
                     .background(Color.beansGlassFill, in: Circle())
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(auth.user?.nickname ?? (auth.isLoggedIn ? "网易云已登录" : "免登录 · 点击登录"))
-                            .font(BeansFont.appFont(20, .bold))
-                            .foregroundStyle(Color.beansLabel)
-                            .lineLimit(1)
+                        HStack(spacing: 6) {
+                            Text(auth.user?.nickname ?? (auth.isLoggedIn ? "网易云已登录" : "免登录 · 点击登录"))
+                                .font(BeansFont.appFont(20, .bold))
+                                .foregroundStyle(Color.beansLabel)
+                                .lineLimit(1)
+                            if auth.isLoggedIn, let badge = auth.user?.vipBadge {
+                                VIPBadgeView(text: badge)
+                            }
+                        }
                         Text(accountStatusLine)
                             .font(BeansFont.appFont(12, .regular, .monospaced))
                             .foregroundStyle(Color.beansSecondary)
@@ -160,11 +178,7 @@ struct ProfileView: View {
         }
         .padding(16)
         .background {
-            GlassEffectContainer {
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.clear)
-                    .glassEffect(.clear, in: .rect(cornerRadius: 24))
-            }
+                        BeansGlass(shape: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .beansCardShadow(radius: 10, y: 4)
     }
@@ -272,11 +286,7 @@ struct ProfileView: View {
             }
             .padding(12)
             .background {
-                GlassEffectContainer {
-                    RoundedRectangle(cornerRadius: 18, style: .continuous)
-                        .fill(.clear)
-                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                }
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: 18, style: .continuous))
             }
             .contentShape(Rectangle())
         }
@@ -310,28 +320,20 @@ struct ProfileView: View {
             .frame(maxWidth: .infinity)
             .padding(16)
             .background {
-                GlassEffectContainer {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(.clear)
-                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                }
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
             .beansCardShadow(radius: 9, y: 3)
 
             Button(role: .destructive) {
                 confirmLogout = true
             } label: {
-                Text("退出网易云登录")
+                Text("退出登录")
                     .font(BeansFont.appFont(15, .semibold))
                     .foregroundStyle(Color.red)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 14)
                     .background {
-            GlassEffectContainer {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(.clear)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
+                        BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
             }
             .buttonStyle(.plain)
@@ -424,10 +426,15 @@ struct AccountHubSheet: View {
                     Text("网易云音乐")
                         .font(BeansFont.appFont(15, .semibold))
                         .foregroundStyle(Color.beansLabel)
-                    Text(auth.isLoggedIn ? (auth.user?.nickname ?? "已登录") : "未登录 · 扫码登录同步歌单")
-                        .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(auth.isLoggedIn ? (auth.user?.nickname ?? "已登录") : "未登录 · 扫码登录同步歌单")
+                            .font(BeansFont.appFont(12))
+                            .foregroundStyle(Color.beansSecondary)
+                            .lineLimit(1)
+                        if auth.isLoggedIn, let badge = auth.user?.vipBadge {
+                            VIPBadgeView(text: badge)
+                        }
+                    }
                 }
                 Spacer()
                 Text(auth.isLoggedIn ? "退出" : "登录")
@@ -439,11 +446,7 @@ struct AccountHubSheet: View {
             }
             .padding(14)
             .background {
-                GlassEffectContainer {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(.clear)
-                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                }
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
             .contentShape(Rectangle())
         }
@@ -471,10 +474,15 @@ struct AccountHubSheet: View {
                     Text("QQ 音乐")
                         .font(BeansFont.appFont(15, .semibold))
                         .foregroundStyle(Color.beansLabel)
-                    Text(qqAuth.isLoggedIn ? (qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname) : "未登录 · 网页 / 扫码 / Cookie 登录")
-                        .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
-                        .lineLimit(1)
+                    HStack(spacing: 6) {
+                        Text(qqAuth.isLoggedIn ? (qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname) : "未登录 · 网页 / 扫码 / Cookie 登录")
+                            .font(BeansFont.appFont(12))
+                            .foregroundStyle(Color.beansSecondary)
+                            .lineLimit(1)
+                        if qqAuth.isLoggedIn, let badge = qqAuth.vipBadge {
+                            VIPBadgeView(text: badge)
+                        }
+                    }
                 }
                 Spacer()
                 Text(qqAuth.isLoggedIn ? "退出" : "登录")
@@ -486,11 +494,7 @@ struct AccountHubSheet: View {
             }
             .padding(14)
             .background {
-                GlassEffectContainer {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(.clear)
-                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                }
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
             .contentShape(Rectangle())
         }
@@ -602,11 +606,7 @@ struct SettingsView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 13)
                 .background {
-                    GlassEffectContainer {
-                        RoundedRectangle(cornerRadius: 18, style: .continuous)
-                            .fill(.clear)
-                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 18, style: .continuous))
-                    }
+                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 18, style: .continuous))
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 18, style: .continuous))
                 .contentShape(Rectangle())
@@ -618,6 +618,16 @@ struct SettingsView: View {
                 Picker("主题模式", selection: $themeModeRaw) {
                     ForEach(BeansThemeMode.allCases) { mode in
                         Text(mode.title).tag(mode.rawValue)
+                    }
+                }
+                .pickerStyle(.segmented)
+
+                Picker("玻璃材质", selection: Binding(
+                    get: { theme.fxStyle },
+                    set: { theme.setFXStyle($0) }
+                )) {
+                    ForEach(BeansFXStyle.allCases, id: \.self) { style in
+                        Text(style.title).tag(style)
                     }
                 }
                 .pickerStyle(.segmented)
@@ -814,11 +824,7 @@ struct SettingsView: View {
             }
             .padding(16)
             .background {
-            GlassEffectContainer {
-                RoundedRectangle(cornerRadius: 22, style: .continuous)
-                    .fill(.clear)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            }
+                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
             .beansCardShadow(radius: 9, y: 3)
             }
@@ -895,11 +901,7 @@ struct SettingsView: View {
             }
             .padding(16)
             .background {
-                GlassEffectContainer {
-                    RoundedRectangle(cornerRadius: 22, style: .continuous)
-                        .fill(.clear)
-                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                }
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
             .beansCardShadow(radius: 9, y: 3)
         }
@@ -1023,11 +1025,7 @@ struct NetEaseRankSheet: View {
                                 .padding(.vertical, 8)
                                 .contentShape(Rectangle())
                                 .background {
-                                    GlassEffectContainer {
-                                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                                            .fill(.clear)
-                                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                    }
+                                                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 16, style: .continuous))
                                 }
                             }
                             .listRowBackground(Color.clear)

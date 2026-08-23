@@ -257,11 +257,7 @@ struct PlayerView: View {
                     .foregroundStyle(palette.text)
                     .frame(width: 38, height: 38)
                     .background {
-                        GlassEffectContainer {
-                            Circle()
-                                .fill(.clear)
-                                .glassEffect(.clear, in: Circle())
-                        }
+                                                BeansGlass(shape: Circle())
                     }
                     .clipShape(Circle())
             }
@@ -299,11 +295,7 @@ struct PlayerView: View {
                     .foregroundStyle(favorites.isLiked(song) ? Color(red: 0.95, green: 0.33, blue: 0.42) : palette.text)
                     .frame(width: 38, height: 38)
                     .background {
-                        GlassEffectContainer {
-                            Circle()
-                                .fill(.clear)
-                                .glassEffect(.clear, in: Circle())
-                        }
+                                                BeansGlass(shape: Circle())
                     }
                     .clipShape(Circle())
             }
@@ -363,11 +355,7 @@ struct PlayerView: View {
                     .foregroundStyle(palette.text)
                     .frame(width: 38, height: 38)
                     .background {
-                        GlassEffectContainer {
-                            Circle()
-                                .fill(.clear)
-                                .glassEffect(.clear, in: Circle())
-                        }
+                                                BeansGlass(shape: Circle())
                     }
                     .clipShape(Circle())
             }
@@ -427,11 +415,7 @@ struct PlayerView: View {
                                 .blur(radius: 40)
                                 .scaleEffect(1.0)
                             // 液态玻璃托盘（微浮动）
-                            GlassEffectContainer {
-                                RoundedRectangle(cornerRadius: min(30, size * 0.10), style: .continuous)
-                                    .fill(.clear)
-                                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: min(30, size * 0.10), style: .continuous))
-                            }
+                                                        BeansGlass(shape: RoundedRectangle(cornerRadius: min(30, size * 0.10), style: .continuous))
                             .frame(width: size * 1.10, height: size * 1.10)
                             .shadow(color: .black.opacity(0.28), radius: 26, y: 12)
                             .offset(y: 0)
@@ -627,11 +611,7 @@ struct PlayerView: View {
                         .foregroundStyle(palette.secondary)
                         .frame(width: 36, height: 36)
                         .background {
-                            GlassEffectContainer {
-                                Circle()
-                                    .fill(.clear)
-                                    .glassEffect(.clear, in: Circle())
-                            }
+                                                        BeansGlass(shape: Circle())
                         }
                         .clipShape(Circle())
                 }
@@ -681,11 +661,7 @@ struct PlayerView: View {
                     .padding(.horizontal, 26)
                     .padding(.vertical, 10)
                     .background {
-                        GlassEffectContainer {
-                            Capsule()
-                                .fill(.clear)
-                                .glassEffect(.clear, in: Capsule())
-                        }
+                                                BeansGlass(shape: Capsule())
                     }
             }
             .buttonStyle(GlassPressButtonStyle())
@@ -820,11 +796,7 @@ struct PlayerView: View {
                 .foregroundStyle(player.playMode == .shuffle ? palette.accent : palette.secondary)
                 .frame(width: 30, height: 30)
                 .background {
-                    GlassEffectContainer {
-                        Circle()
-                            .fill(.clear)
-                            .glassEffect(.clear, in: Circle())
-                    }
+                                        BeansGlass(shape: Circle())
                 }
                 .clipShape(Circle())
         }
@@ -842,11 +814,7 @@ struct PlayerView: View {
                 .foregroundStyle(palette.secondary)
                 .frame(width: 30, height: 30)
                 .background {
-                    GlassEffectContainer {
-                        Circle()
-                            .fill(.clear)
-                            .glassEffect(.clear, in: Circle())
-                    }
+                                        BeansGlass(shape: Circle())
                 }
                 .clipShape(Circle())
         }
@@ -863,11 +831,7 @@ struct PlayerView: View {
                 .foregroundStyle(accent ? palette.accent : palette.text)
                 .frame(width: 40, height: 40)
                 .background {
-                    GlassEffectContainer {
-                        Circle()
-                            .fill(.clear)
-                            .glassEffect(.clear, in: Circle())
-                    }
+                                        BeansGlass(shape: Circle())
                 }
                 .clipShape(Circle())
         }
@@ -888,11 +852,7 @@ struct PlayerView: View {
                 .animation(.spring(response: 0.32, dampingFraction: 0.6), value: player.isPlaying)
                 .frame(width: 52, height: 52)
                 .background {
-                    GlassEffectContainer {
-                        Circle()
-                            .fill(.clear)
-                            .glassEffect(.clear, in: Circle())
-                    }
+                                        BeansGlass(shape: Circle())
                     .overlay {
                         Circle().fill(
                             LinearGradient(

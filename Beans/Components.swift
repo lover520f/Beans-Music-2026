@@ -118,19 +118,57 @@ struct WallpaperImage: View {
     }
 }
 
+// MARK: - 全局玻璃材质容器（跟随设置：液态玻璃 / 磨砂玻璃）
+
+struct BeansGlass<S: Shape>: View {
+    @AppStorage("beans.fxStyle") private var fxStyleRaw = BeansFXStyle.liquid.rawValue
+
+    let shape: S
+
+    private var isLiquid: Bool {
+        (BeansFXStyle(rawValue: fxStyleRaw) ?? .liquid) == .liquid
+    }
+
+    var body: some View {
+        if isLiquid {
+            GlassEffectContainer {
+                shape
+                    .fill(.clear)
+                    .glassEffect(.clear, in: shape)
+            }
+        } else {
+            shape
+                .fill(.ultraThinMaterial)
+        }
+    }
+}
+
 // MARK: - 玻璃卡片（清透版）
 
 struct GlassCard<Content: View>: View {
     var cornerRadius: CGFloat = 24
+    @AppStorage("beans.fxStyle") private var fxStyleRaw = BeansFXStyle.liquid.rawValue
     @ViewBuilder var content: () -> Content
 
+    private var isLiquid: Bool {
+        (BeansFXStyle(rawValue: fxStyleRaw) ?? .liquid) == .liquid
+    }
+
     var body: some View {
-        GlassEffectContainer {
+        if isLiquid {
+            GlassEffectContainer {
+                content()
+                    .padding(16)
+                    .glassEffect(.clear, in: .rect(cornerRadius: cornerRadius))
+            }
+            .beansCardShadow(radius: 9, y: 3)
+        } else {
             content()
                 .padding(16)
-                .glassEffect(.clear, in: .rect(cornerRadius: cornerRadius))
+                .background(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.ultraThinMaterial))
+                .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                .beansCardShadow(radius: 9, y: 3)
         }
-        .beansCardShadow(radius: 9, y: 3)
     }
 }
 
@@ -195,6 +233,21 @@ struct CoverImage: View {
     }
 }
 
+// MARK: - 会员标识小标（SVIP 金色 / VIP 红色）
+
+struct VIPBadgeView: View {
+    let text: String
+
+    var body: some View {
+        Text(text)
+            .font(BeansFont.appFont(9, .bold))
+            .foregroundStyle(.white)
+            .padding(.horizontal, 5)
+            .padding(.vertical, 1.5)
+            .background(Capsule().fill(text == "SVIP" ? Color(red: 0.85, green: 0.62, blue: 0.18) : Color(red: 0.93, green: 0.25, blue: 0.22)))
+    }
+}
+
 // MARK: - 玻璃图标按钮（清透 + 按压动效）
 
 struct GlassIconButton: View {
@@ -212,7 +265,7 @@ struct GlassIconButton: View {
                 .foregroundStyle(active ? Color.beansAmber : Color.beansLabel)
                 .frame(width: size, height: size)
                 .background {
-                    Circle().fill(.ultraThinMaterial)
+                    BeansGlass(shape: Circle())
                 }
                 .clipShape(Circle())
                 .contentShape(Circle())

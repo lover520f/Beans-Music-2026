@@ -160,11 +160,7 @@ struct LibraryView: View {
                 }
                 .padding(.vertical, 6)
                 .background {
-                    GlassEffectContainer {
-                        RoundedRectangle(cornerRadius: 24, style: .continuous)
-                            .fill(.clear)
-                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-                    }
+                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 24, style: .continuous))
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
                 .beansCardShadow(radius: 9, y: 3)
@@ -195,11 +191,7 @@ struct LibraryView: View {
             .padding(8)
             .frame(maxWidth: .infinity)
             .background {
-                GlassEffectContainer {
-                    RoundedRectangle(cornerRadius: 20, style: .continuous)
-                        .fill(.clear)
-                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-                }
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
         }
         .buttonStyle(.plain)
@@ -224,11 +216,7 @@ struct LibraryView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
                 .background {
-                    GlassEffectContainer {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(.clear)
-                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    }
+                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
                 .beansCardShadow(radius: 8, y: 3)
             }
@@ -265,11 +253,7 @@ struct LibraryView: View {
         }
         .padding(4)
         .background {
-            GlassEffectContainer {
-                Capsule()
-                    .fill(.clear)
-                    .glassEffect(.clear, in: Capsule())
-            }
+                        BeansGlass(shape: Capsule())
         }
         .clipShape(Capsule())
         .beansCardShadow(radius: 6, y: 2)
@@ -325,11 +309,7 @@ struct LibraryView: View {
                 }
                 .padding(.vertical, 6)
                 .background {
-                    GlassEffectContainer {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(.clear)
-                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    }
+                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
                 .beansCardShadow(radius: 8, y: 3)
@@ -355,11 +335,7 @@ struct LibraryView: View {
                 .padding(.horizontal, 14)
                 .padding(.vertical, 6)
                 .background {
-                    GlassEffectContainer {
-                        RoundedRectangle(cornerRadius: 22, style: .continuous)
-                            .fill(.clear)
-                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                    }
+                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
                 }
                 .beansCardShadow(radius: 8, y: 3)
             }
