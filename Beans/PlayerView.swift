@@ -744,24 +744,28 @@ struct PlayerView: View {
     // MARK: - 合并控制行（循环 / 上一曲 / 播放暂停 / 下一曲 / 播放列表 平行排列，播放键居中）
 
     private var deckRow: some View {
-        // 单行均匀排布：循环模式 | 上一曲 | 播放暂停 | 下一曲 | 播放列表
-        HStack(spacing: 0) {
-            modeButton
-            Spacer(minLength: 12)
-            deckButton(icon: "backward.fill", expand: false) {
-                BeansHaptics.tap()
-                player.previous()
+        ZStack {
+            // 两侧对称：循环模式 / 播放列表
+            HStack {
+                modeButton
+                Spacer(minLength: 0)
+                queueButton
             }
-            playButton
-            deckButton(icon: "forward.fill", expand: false) {
-                BeansHaptics.tap()
-                player.next()
+            // 中间主控制组：上一曲 / 播放暂停 / 下一曲 真正居中
+            HStack(spacing: 26) {
+                deckButton(icon: "backward.fill", expand: false) {
+                    BeansHaptics.tap()
+                    player.previous()
+                }
+                playButton
+                deckButton(icon: "forward.fill", expand: false) {
+                    BeansHaptics.tap()
+                    player.next()
+                }
             }
-            Spacer(minLength: 12)
-            queueButton
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 20)
+        .padding(.horizontal, 28)
         .simultaneousGesture(
             // 上滑控制行呼出评论区（进度条区域保留拖动，不误触）
             DragGesture(minimumDistance: 25)
