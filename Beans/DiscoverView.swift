@@ -215,7 +215,7 @@ struct DiscoverView: View {
                     }
                 } else {
                     ForEach(Array(kugouTopLists.prefix(6).enumerated()), id: \.element.id) { index, info in
-                        rankRow(index: index, name: info.name, subtitle: "酷狗榜单", coverURL: info.coverURL) {
+                        rankRow(index: index, name: info.name, subtitle: "酷狗音乐榜单", coverURL: info.coverURL) {
                             BeansHaptics.tap()
                             selectedKugouTopList = info
                         }

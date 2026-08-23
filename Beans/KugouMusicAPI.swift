@@ -118,6 +118,8 @@ final class KugouMusicAPI {
         let fee = (privilege?["pay_type"] as? Int) ?? payType
         var img = item["imgUrl"] as? String ?? ""
         if img.isEmpty, let c = item["cover"] as? String { img = c }
+        // mobilecdn 搜索结果封面在 trans_param.union_cover（imgUrl/cover 常为空）
+        if img.isEmpty, let tp = item["trans_param"] as? [String: Any], let c = tp["union_cover"] as? String { img = c }
         return Song(
             id: stableID(hash: hash),
             name: name.isEmpty ? (item["filename"] as? String ?? "") : name,
@@ -350,12 +352,14 @@ final class KugouMusicAPI {
         let albumID = item["album_id"] as? Int ?? 0
         let duration = Double(item["timelength_128"] as? Int ?? 0) / 1000.0
         let payType = (item["pay_type_128"] as? Int) ?? (item["pay_type"] as? Int) ?? 0
+        // kmr 排行接口封面在 album_sizable_cover（含 {size} 模板）
+        let img = item["album_sizable_cover"] as? String ?? ""
         return Song(
             id: stableID(hash: hash),
             name: decodeName(name),
             artists: decodeName(artists),
             album: "",
-            coverURL: nil,
+            coverURL: cover(img),
             duration: duration,
             source: .kugou,
             qqMid: nil,
@@ -418,7 +422,8 @@ final class KugouMusicAPI {
             let albumID = item["album_id"] as? Int ?? 0
             let duration = Double(item["duration"] as? Int ?? 0) / 1000.0
             let vip = item["vip"] as? Int ?? 0
-            let coverURL = cover((item["cover"] as? String) ?? (item["imgUrl"] as? String))
+            var coverURL = cover((item["cover"] as? String) ?? (item["imgUrl"] as? String))
+            if coverURL == nil, let tp = item["trans_param"] as? [String: Any], let c = tp["union_cover"] as? String { coverURL = cover(c) }
             songs.append(Song(
                 id: stableID(hash: hash),
                 name: name,

@@ -80,7 +80,7 @@ struct KugouWebLoginPanel: View {
     var body: some View {
         let _ = theme.accent
         VStack(spacing: 10) {
-            Text("在下方网页右上角点「登录」，用手机酷狗 App 扫码或账号密码登录，完成后自动同步")
+            Text("在下方网页右上角点「登录」，支持手机号 / 扫码 / 账号密码登录，完成后自动同步")
                 .font(BeansFont.appFont(12))
                 .foregroundStyle(Color.beansSecondary)
                 .multilineTextAlignment(.center)
@@ -151,7 +151,7 @@ struct KugouWebLoginPanel: View {
             syncing = false
             let auth = KugouMusicAuth.shared
             guard !dict.isEmpty else {
-                message = "未检测到有效登录态，请先在网页中完成酷狗登录"
+                message = "未检测到有效登录态，请先在网页中完成酷狗音乐登录"
                 return
             }
             auth.importCookies(dict, nickname: nil)
@@ -202,7 +202,7 @@ struct KugouCookieImportPanel: View {
     var body: some View {
         let _ = theme.accent
         VStack(spacing: 12) {
-            Text("电脑浏览器打开 https://www.kugou.com 登录酷狗后，按 F12 → Network → 刷新页面，点任意请求，复制 Request Headers 里的整段 Cookie 粘贴到下方")
+            Text("电脑浏览器打开 https://www.kugou.com 登录酷狗音乐后，按 F12 → Network → 刷新页面，点任意请求，复制 Request Headers 里的整段 Cookie 粘贴到下方")
                 .font(BeansFont.appFont(12))
                 .foregroundStyle(Color.beansSecondary)
                 .multilineTextAlignment(.center)
@@ -276,6 +276,8 @@ struct KugouWebView: UIViewRepresentable {
         webView.navigationDelegate = context.coordinator
         webView.isOpaque = false
         webView.backgroundColor = .clear
+        // 桌面 UA：www.kugou.com 才会返回 PC 完整页（右上角登录入口，支持手机号 / 扫码）
+        webView.customUserAgent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
         if let url = URL(string: "https://www.kugou.com/") {
             webView.load(URLRequest(url: url))
         }

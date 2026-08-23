@@ -120,7 +120,7 @@ final class KugouMusicAuth: ObservableObject {
     /// 昵称兜底：优先 username，其次 userid，最后固定文案
     static func fallbackNickname(_ dict: [String: String]) -> String {
         if let name = dict["username"], !name.isEmpty { return name }
-        if let uid = dict["userid"], !uid.isEmpty, uid != "0" { return "酷狗用户 \(uid)" }
+        if let uid = dict["userid"], !uid.isEmpty, uid != "0" { return "酷狗音乐用户 \(uid)" }
         return "酷狗音乐用户"
     }
 

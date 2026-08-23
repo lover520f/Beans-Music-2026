@@ -360,11 +360,11 @@ struct LibraryView: View {
     /// 酷狗歌单广场（无需登录）
     private var kugouPlaylistsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "酷狗歌单", trailing: kugouPlaylists.isEmpty ? nil : "\(kugouPlaylists.count) 个") {}
+            SectionHeader(title: "酷狗音乐歌单", trailing: kugouPlaylists.isEmpty ? nil : "\(kugouPlaylists.count) 个") {}
             if kugouLoading {
                 LoadingStateView()
             } else if kugouPlaylists.isEmpty {
-                EmptyStateView(icon: "music.note.list", text: "暂未加载到酷狗歌单")
+                EmptyStateView(icon: "music.note.list", text: "暂未加载到酷狗音乐歌单")
             } else {
                 VStack(spacing: 0) {
                     ForEach(kugouPlaylists) { playlist in
@@ -408,9 +408,9 @@ struct LibraryView: View {
     /// 酷狗红心收藏（本地持久化）
     private var kugouFavoritesSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "酷狗收藏", trailing: favorites.kugouFavoriteSongs.isEmpty ? nil : "\(favorites.kugouFavoriteSongs.count) 首") {}
+            SectionHeader(title: "酷狗音乐收藏", trailing: favorites.kugouFavoriteSongs.isEmpty ? nil : "\(favorites.kugouFavoriteSongs.count) 首") {}
             if favorites.kugouFavoriteSongs.isEmpty {
-                EmptyStateView(icon: "heart", text: "还没有收藏的酷狗歌曲\n在播放器点击红心即可收藏")
+                EmptyStateView(icon: "heart", text: "还没有收藏的酷狗音乐歌曲\n在播放器点击红心即可收藏")
             } else {
                 VStack(spacing: 0) {
                     ForEach(Array(favorites.kugouFavoriteSongs.enumerated()), id: \.element.id) { index, song in

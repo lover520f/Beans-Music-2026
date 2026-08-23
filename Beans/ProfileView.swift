@@ -9,7 +9,6 @@ struct ProfileView: View {
     @AppStorage("beans.themeMode") private var themeModeRaw = BeansThemeMode.system.rawValue
 
     @State private var showHistory = false
-    @State private var confirmLogout = false
     @State private var weekRecord: [PlayRecordItem] = []
     @State private var allRecord: [PlayRecordItem] = []
 
@@ -38,7 +37,7 @@ struct ProfileView: View {
             parts.append("网易云 UID \(auth.user?.uid ?? 0)")
         }
         if kugouAuth.isLoggedIn {
-            parts.append("酷狗已登录")
+            parts.append("酷狗音乐已登录")
         }
         if qqAuth.isLoggedIn {
             parts.append(qqAuth.nickname.isEmpty ? "QQ 已登录" : "QQ \(qqAuth.nickname)")
@@ -115,28 +114,6 @@ struct ProfileView: View {
             SleepTimerSheet()
                 .environmentObject(player)
         }
-        .confirmationDialog("退出登录", isPresented: $confirmLogout, titleVisibility: .visible) {
-            if auth.isLoggedIn {
-                Button("退出网易云账号", role: .destructive) {
-                    player.clearHistory()
-                    auth.logout()
-                    ToastCenter.shared.show("已退出网易云账号")
-                }
-            }
-            if qqAuth.isLoggedIn {
-                Button("退出 QQ 音乐账号", role: .destructive) {
-                    qqAuth.logout()
-                    ToastCenter.shared.show("已退出 QQ 音乐")
-                }
-            }
-            if kugouAuth.isLoggedIn {
-                Button("退出酷狗音乐账号", role: .destructive) {
-                    kugouAuth.logout()
-                    ToastCenter.shared.show("已退出酷狗音乐")
-                }
-            }
-            Button("取消", role: .cancel) {}
-        }
     }
 
     private var userCard: some View {
@@ -185,12 +162,52 @@ struct ProfileView: View {
             }
             .buttonStyle(.plain)
 
+            if auth.isLoggedIn || qqAuth.isLoggedIn || kugouAuth.isLoggedIn {
+                platformStatusRow
+            }
         }
         .padding(16)
         .background {
                         BeansGlass(shape: RoundedRectangle(cornerRadius: 24, style: .continuous))
         }
         .beansCardShadow(radius: 10, y: 4)
+    }
+
+    /// 每个登录平台单独展示登录成功状态（网易云 / QQ 音乐 / 酷狗音乐）
+    private var platformStatusRow: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if auth.isLoggedIn {
+                platformChip(icon: "cloud.fill", name: "网易云", status: auth.user?.nickname ?? "已登录", badge: auth.user?.vipBadge)
+            }
+            if qqAuth.isLoggedIn {
+                platformChip(icon: "play.rectangle.fill", name: "QQ 音乐", status: qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname, badge: qqAuth.vipBadge)
+            }
+            if kugouAuth.isLoggedIn {
+                platformChip(icon: "music.note", name: "酷狗音乐", status: kugouAuth.nickname.isEmpty ? "已登录" : kugouAuth.nickname, badge: kugouAuth.vipBadge)
+            }
+        }
+        .padding(.top, 2)
+    }
+
+    private func platformChip(icon: String, name: String, status: String, badge: String?) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.beansAmber)
+            Text(name)
+                .font(BeansFont.appFont(12, .semibold))
+                .foregroundStyle(Color.beansLabel)
+            Text(status)
+                .font(BeansFont.appFont(11))
+                .foregroundStyle(Color.beansSecondary)
+                .lineLimit(1)
+            if let badge {
+                VIPBadgeView(text: badge)
+            }
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 6)
+        .background(.ultraThinMaterial, in: Capsule())
     }
 
 
@@ -263,7 +280,7 @@ struct ProfileView: View {
                 featureCell(icon: "moon.zzz.fill", title: "定时关闭", subtitle: "播放到点自动停止") {
                     showSleepTimer = true
                 }
-                featureCell(icon: qqAuth.isLoggedIn || kugouAuth.isLoggedIn || auth.isLoggedIn ? "checkmark.seal.fill" : "globe", title: "账号与登录", subtitle: qqAuth.isLoggedIn || kugouAuth.isLoggedIn || auth.isLoggedIn ? accountStatusLine : "统一登录网易云 / QQ 音乐 / 酷狗") {
+                featureCell(icon: qqAuth.isLoggedIn || kugouAuth.isLoggedIn || auth.isLoggedIn ? "checkmark.seal.fill" : "globe", title: "账号与登录", subtitle: qqAuth.isLoggedIn || kugouAuth.isLoggedIn || auth.isLoggedIn ? accountStatusLine : "统一登录网易云 / QQ 音乐 / 酷狗音乐") {
                     BeansHaptics.tap()
                     showAccountHub = true
                 }
@@ -333,20 +350,6 @@ struct ProfileView: View {
                                 BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
             .beansCardShadow(radius: 9, y: 3)
-
-            Button(role: .destructive) {
-                confirmLogout = true
-            } label: {
-                Text("退出登录")
-                    .font(BeansFont.appFont(15, .semibold))
-                    .foregroundStyle(Color.red)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background {
-                        BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
-        }
-            }
-            .buttonStyle(.plain)
         }
     }
 }
@@ -537,13 +540,11 @@ struct AccountHubSheet: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(.white.opacity(0.06))
                         .frame(width: 48, height: 48)
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 10, style: .continuous)
-                            .fill(LinearGradient(colors: [Color(red: 0.05, green: 0.55, blue: 0.95), Color(red: 0.05, green: 0.35, blue: 0.85)], startPoint: .topLeading, endPoint: .bottomTrailing))
-                        Image(systemName: "music.note")
-                            .font(.system(size: 20, weight: .bold))
-                            .foregroundStyle(.white)
-                    }
+                    Image("BrandKugou")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 56, height: 28)
+                        .clipShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text("酷狗音乐")
@@ -997,7 +998,7 @@ struct SettingsView: View {
             VStack(spacing: 10) {
                 unblockSourceToggle(id: "pyncmd", icon: "bolt.fill", title: "GD 音乐台", subtitle: "按网易云 ID 取高音质地址")
                 unblockSourceToggle(id: "kuwo", icon: "music.note", title: "酷我音源", subtitle: "酷我搜索 + 双直链兜底")
-                unblockSourceToggle(id: "kugou", icon: "music.note.list", title: "酷狗音源", subtitle: "酷狗搜索 + 播放直链")
+                unblockSourceToggle(id: "kugou", icon: "music.note.list", title: "酷狗音乐音源", subtitle: "酷狗音乐搜索 + 播放直链")
                 unblockSourceToggle(id: "bodian", icon: "waveform.badge.plus", title: "波点音源", subtitle: "波点签名取流（Splayer 解锁插件）")
 
                 Divider().overlay(Color.beansSecondary.opacity(0.15))
@@ -1067,7 +1068,10 @@ struct SettingsView: View {
     private func unblockSourceToggle(id: String, icon: String, title: String, subtitle: String) -> some View {
         Toggle(isOn: Binding(
             get: { unblockStore.isEnabled(id) },
-            set: { unblockStore.setBuiltin(id, enabled: $0) }
+            set: {
+                unblockStore.setBuiltin(id, enabled: $0)
+                ToastCenter.shared.show("部分音源开关需重启 App 后完全生效")
+            }
         )) {
             HStack(spacing: 10) {
                 Image(systemName: icon)
