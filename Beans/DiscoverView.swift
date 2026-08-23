@@ -439,7 +439,7 @@ struct KugouTopListDetailView: View {
                 } else {
                     List {
                         Section {
-                            ForEach(Array(tracks.enumerated()), id: .element.id) { index, song in
+                            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, song in
                                 SongCell(song: song, glassRow: true) {
                                     player.play(songs: tracks, startAt: index)
                                 }
