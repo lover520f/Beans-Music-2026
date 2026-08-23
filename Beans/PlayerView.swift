@@ -14,6 +14,7 @@ struct PlayerView: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var player: PlayerManager
     @EnvironmentObject private var auth: AuthStore
+    @EnvironmentObject private var favorites: FavoritesStore
     @Environment(\.dismiss) private var dismiss
     @Environment(\.colorScheme) private var colorScheme
 
@@ -153,7 +154,6 @@ struct PlayerView: View {
             dominantColor = nil
             await loadLyrics()
             await extractCoverPalette()
-            player.analyzeClimaxIfNeeded()
         }
         .sheet(isPresented: $showQueue) { QueueView().environmentObject(player) }
         .sheet(isPresented: $showSleepTimer) { SleepTimerSheet().environmentObject(player) }
@@ -282,6 +282,32 @@ struct PlayerView: View {
             }
 
             Spacer(minLength: 0)
+            Button {
+                BeansHaptics.tap()
+                if let song {
+                    Task {
+                        if await favorites.toggle(song) {
+                            ToastCenter.shared.show(favorites.isLiked(song) ? "已收藏" : "已取消收藏")
+                        } else {
+                            ToastCenter.shared.show("收藏失败，请稍后再试")
+                        }
+                    }
+                }
+            } label: {
+                Image(systemName: favorites.isLiked(song) ? "heart.fill" : "heart")
+                    .font(.system(size: 15, weight: .semibold))
+                    .foregroundStyle(favorites.isLiked(song) ? Color(red: 0.95, green: 0.33, blue: 0.42) : palette.text)
+                    .frame(width: 38, height: 38)
+                    .background {
+                        GlassEffectContainer {
+                            Circle()
+                                .fill(.clear)
+                                .glassEffect(.clear, in: Circle())
+                        }
+                    }
+                    .clipShape(Circle())
+            }
+            .buttonStyle(GlassPressButtonStyle())
 
             Menu {
                 Menu {
@@ -465,11 +491,72 @@ struct PlayerView: View {
             }
             .padding(.horizontal, 36)
 
+
+            // 封面下歌词阅览（固定高度预留，歌词加载后布局不跳动）
+            lyricPreviewBox
+
             Spacer(minLength: 2)
         }
         .padding(.bottom, deckInset)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
     }
+
+    /// 封面下歌词阅览：最多 4 行，跟随当前播放行自动滚动预览
+    private var lyricPreviewBox: some View {
+        let rows = lyricPreviewRows
+        return VStack(spacing: 3) {
+            if rows.isEmpty {
+                Text("暂无歌词，点击封面查看完整歌词")
+                    .font(BeansFont.appFont(12))
+                    .foregroundStyle(palette.secondary.opacity(0.75))
+                    .lineLimit(1)
+                    .frame(maxWidth: .infinity)
+            } else {
+                ForEach(Array(rows.enumerated()), id: \.offset) { index, item in
+                    HStack(spacing: 6) {
+                        Text(item.isCurrent ? "●" : "·")
+                            .font(BeansFont.appFont(8))
+                            .foregroundStyle(item.isCurrent ? palette.accent : palette.secondary.opacity(0.5))
+                        Text(item.text)
+                            .font(BeansFont.appFont(12, item.isCurrent ? .semibold : .regular))
+                            .foregroundStyle(item.isCurrent ? palette.text : palette.secondary.opacity(0.8))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .frame(maxWidth: .infinity)
+                }
+            }
+        }
+        .frame(height: 4 * 18 + 3 * 3)
+        .padding(.horizontal, 40)
+        .contentShape(Rectangle())
+        .onTapGesture { toggleLyrics() }
+    }
+
+    /// 歌词预览行数据：当前行前后各取几行，最多 4 行
+    private struct LyricPreviewRow {
+        let text: String
+        let isCurrent: Bool
+    }
+
+    private var lyricPreviewRows: [LyricPreviewRow] {
+        guard !lyrics.isEmpty else { return [] }
+        var rows: [LyricPreviewRow] = []
+        if let idx = currentIndex {
+            let start = max(0, idx - 1)
+            for i in start..<min(lyrics.count, start + 4) {
+                let text = lyrics[i].text
+                rows.append(LyricPreviewRow(text: text.isEmpty ? " " : text, isCurrent: i == idx))
+            }
+        } else {
+            for i in 0..<min(4, lyrics.count) {
+                let text = lyrics[i].text
+                rows.append(LyricPreviewRow(text: text.isEmpty ? " " : text, isCurrent: i == 0))
+            }
+        }
+        return rows
+    }
+
 
     /// 歌词模式：左上小封面 + 歌名信息条 + 居中歌词（自动布局，歌词可滚动到底部透过底栏玻璃）
     private var lyricsPanel: some View {
@@ -632,31 +719,11 @@ struct PlayerView: View {
         return parts.isEmpty ? "未知歌曲" : parts.joined(separator: " · ")
     }
 
-    /// 高潮提示时间点（秒）：优先使用 PeakEnergy 能量分析结果（后台检测并缓存），
-    /// 未完成或失败时回退到「歌词行最密集的 20 秒窗口中心 / 全曲 68%」启发式
-    private var climaxTime: Double? {
-        let total = player.duration
-        guard total > 1 else { return nil }
-        if let energy = player.energyClimaxTime, energy > 1, energy < total { return energy }
-        guard !lyrics.isEmpty else { return total * 0.68 }
-        let times = lyrics.map { $0.time }.filter { $0 >= 0 && $0 <= total }
-        guard !times.isEmpty else { return total * 0.68 }
-        let window: Double = 20
-        var bestTime = times[0]
-        var bestCount = 0
-        for t in times {
-            var count = 0
-            for u in times where u >= t && u < t + window { count += 1 }
-            if count > bestCount { bestCount = count; bestTime = t }
-        }
-        return min(max(bestTime + window / 2, 0), total)
-    }
-
     // MARK: - 进度区块（可点按 / 拖动的进度条 + 当前时间 / 总时长 + ±15 秒）
 
     private var progressBlock: some View {
         VStack(spacing: 2) {
-            SeekBar(accent: palette.accent, track: palette.secondary.opacity(0.3), climaxTime: climaxTime)
+            SeekBar(accent: palette.accent, track: palette.secondary.opacity(0.3))
             HStack(spacing: 6) {
                 seekPillButton("gobackward.15") { player.seekBy(-15) }
                 Text(beansTimeString(player.progress))
@@ -915,8 +982,6 @@ struct SeekBar: View {
     @EnvironmentObject private var player: PlayerManager
     let accent: Color
     let track: Color
-    /// 高潮提示点（秒），nil 不显示
-    var climaxTime: Double? = nil
 
     @State private var scrubbing = false
     @State private var scrubValue: Double = 0
@@ -961,18 +1026,6 @@ struct SeekBar: View {
                         .clipShape(Capsule())
                         .padding(.horizontal, 2)
                     }
-                // 高潮提示点：小圆点标记高潮段，仅提示不影响拖动
-                if let climax = climaxTime, total > 1 {
-                    let cx = min(max(width * (climax / total), 9), width - 9)
-                    Circle()
-                        .fill(accent)
-                        .frame(width: 7, height: 7)
-                        .overlay {
-                            Circle().strokeBorder(.white.opacity(0.6), lineWidth: 0.8)
-                        }
-                        .shadow(color: .black.opacity(0.18), radius: 2, y: 0.5)
-                        .offset(x: cx - 3.5)
-                }
                 // 滑块：原生小圆点（白色 + 细描边）
                 Circle()
                     .fill(.white)
@@ -1160,7 +1213,7 @@ struct LyricsSection: View {
         let translationText = (isCurrent && showTranslation) ? line.translation : nil
 
         return VStack(spacing: 3) {
-            Text(line.text.isEmpty ? "♪" : line.text)
+            Text(line.text.isEmpty ? " " : line.text)
                 .font(lineFont)
                 .foregroundStyle(lineStyle)
                 // 双层光晕：内层亮、外层宽，发光更明显

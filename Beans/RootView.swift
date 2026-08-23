@@ -32,6 +32,7 @@ struct RootView: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var player: PlayerManager
+    @EnvironmentObject private var favorites: FavoritesStore
     @AppStorage("beans.themeMode") private var themeModeRaw = BeansThemeMode.system.rawValue
 
     @State private var selection: RootTab = .discover
@@ -78,6 +79,7 @@ struct RootView: View {
         .preferredColorScheme(themeMode.colorScheme)
         .fullScreenCover(isPresented: $showPlayer) {
             PlayerView()
+                .environmentObject(favorites)
                 .environmentObject(player)
                 .environmentObject(auth)
         }

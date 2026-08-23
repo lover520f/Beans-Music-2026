@@ -155,6 +155,26 @@ struct DiscoverView: View {
         }
     }
 
+
+    /// 每日推荐封面右下角播放状态：当前播放中显示动态指示器，暂停显示暂停，其余显示播放
+    @ViewBuilder
+    private func dailyPlayStateBadge(for song: Song) -> some View {
+        let isCurrent = player.currentSong?.identityKey == song.identityKey
+        ZStack {
+            if isCurrent && player.isPlaying {
+                NowPlayingIndicator()
+                    .frame(width: 24, height: 24)
+                    .background(.black.opacity(0.45), in: Circle())
+            } else {
+                Image(systemName: isCurrent ? "pause.fill" : "play.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(.white)
+                    .frame(width: 24, height: 24)
+                    .background(.black.opacity(0.45), in: Circle())
+            }
+        }
+        .padding(7)
+    }
     // MARK: - 排行榜（竖排行列表）
 
     private var topListsSection: some View {
@@ -257,12 +277,7 @@ struct DiscoverView: View {
                             VStack(alignment: .leading, spacing: 6) {
                                 CoverImage(url: song.coverURL, size: 108, cornerRadius: 16)
                                     .overlay(alignment: .bottomTrailing) {
-                                        Image(systemName: "play.fill")
-                                            .font(.system(size: 10, weight: .bold))
-                                            .foregroundStyle(.white)
-                                            .frame(width: 24, height: 24)
-                                            .background(.black.opacity(0.45), in: Circle())
-                                            .padding(7)
+                                        dailyPlayStateBadge(for: song)
                                     }
                                 Text(song.name)
                                     .font(BeansFont.appFont(12, .medium))

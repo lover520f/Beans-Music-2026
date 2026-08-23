@@ -32,6 +32,8 @@ final class PlayerManager: NSObject, ObservableObject {
     @Published var isPlaying = false
     @Published var isBuffering = false
     @Published var loadFailed = false
+    /// 切歌代次：防止旧歌的 URL 解析任务覆盖新歌（快速切歌时）
+    private var loadGeneration = 0
     @Published var progress: Double = 0
     @Published var duration: Double = 0
     @Published var playMode: PlayMode = .sequential
@@ -40,7 +42,6 @@ final class PlayerManager: NSObject, ObservableObject {
     @Published var sleepTimerRemaining: Int = 0
     @Published var history: [Song] = []
     @Published var playCounts: [String: Int] = [:]
-    @Published var energyClimaxTime: Double?
 
     private var player: AVPlayer?
     private var timeObserver: Any?
@@ -300,12 +301,15 @@ final class PlayerManager: NSObject, ObservableObject {
 
     private func loadCurrent() {
         guard let song = currentSong else { return }
+        loadGeneration += 1
+        let generation = loadGeneration
+        // 切歌立即暂停旧音频，避免新歌加载期间旧歌继续播放造成“切歌卡住”感
+        player?.pause()
         duration = song.duration
         progress = 0
         isPlaying = false
         isBuffering = true
         loadFailed = false
-        energyClimaxTime = nil
         pushHistory(song)
         Task {
             var urlString: String?
@@ -327,20 +331,26 @@ final class PlayerManager: NSObject, ObservableObject {
             }
             if let resolved = resolvedThirdParty {
                 // 第三方音源只用于播放，不打扰用户（无需提示用了哪个音源）
-                await MainActor.run { self.setupPlayer(url: resolved.url) }
+                await MainActor.run {
+                    guard generation == self.loadGeneration else { return }
+                    self.setupPlayer(url: resolved.url)
+                }
                 return
             }
             guard let urlString, let url = URL(string: urlString) else {
                 await MainActor.run {
+                    guard generation == self.loadGeneration else { return }
                     self.isBuffering = false
                     self.loadFailed = true
                 }
                 return
             }
-            await MainActor.run { self.setupPlayer(url: url) }
+            await MainActor.run {
+                guard generation == self.loadGeneration else { return }
+                self.setupPlayer(url: url)
+            }
         }
     }
-
 
     /// 网易云播放地址解析：按设置音质取 URL，VIP/灰色歌曲交给第三方解锁（借鉴 Kumone）
     private func neteaseResolve(song: Song, quality: BeansAudioQuality, enableUnblock: Bool) async -> (String?, UnblockService.Resolved?) {
@@ -424,20 +434,6 @@ final class PlayerManager: NSObject, ObservableObject {
         return results.first
     }
 
-    /// 高潮点能量分析（PeakEnergy）：播放器页面可见时按需调用，结果按歌曲缓存，失败自动回退启发式
-    func analyzeClimaxIfNeeded() {
-        guard energyClimaxTime == nil, let song = currentSong else { return }
-        let key = song.identityKey
-        guard let asset = player?.currentItem?.asset as? AVURLAsset else { return }
-        let url = asset.url
-        Task {
-            let time = await ClimaxAnalyzer.analyze(url: url, key: key)
-            await MainActor.run {
-                guard self.currentSong?.identityKey == key else { return }
-                self.energyClimaxTime = time
-            }
-        }
-    }
 
     private func setupPlayer(url: URL) {
         configureAudioSession()

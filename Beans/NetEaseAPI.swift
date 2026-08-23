@@ -426,7 +426,7 @@ final class NetEaseAPI {
     }
 
     func like(id: Int, liked: Bool) async throws -> Bool {
-        let json = try await request("/api/song/like", payload: ["alg": "itembased", "time": 3, "id": "\(id)", "like": liked], crypto: "weapi")
+        let json = try await request("/api/song/like?t=\(liked)", payload: ["alg": "itembased", "trackId": id, "like": liked, "time": "3"], crypto: "weapi")
         return (json["code"] as? Int) == 200
     }
 
@@ -522,7 +522,7 @@ final class NetEaseAPI {
     }
 
     func deletePlaylist(id: Int) async throws -> Bool {
-        let json = try await request("/api/playlist/delete", payload: ["pid": id], crypto: "weapi")
+        let json = try await request("/api/playlist/remove", payload: ["ids": "[" + String(id) + "]"], crypto: "weapi")
         return (json["code"] as? Int) == 200
     }
 }
@@ -544,4 +544,3 @@ enum NetEaseError: LocalizedError {
         }
     }
 }
-

@@ -247,6 +247,35 @@ final class QQMusicAPI {
         return hots.compactMap { $0["k"] as? String }.prefix(limit).map { $0 }
     }
 
+    // MARK: - 红心收藏
+
+    /// 红心 / 取消红心（musicu.fcg music.srfDissong do_dissong_op，借鉴 qqmusicapi 逆向实现）
+    func like(songmid: String, liked: Bool) async throws -> Bool {
+        let qqAuth = QQMusicAuth.shared
+        let payload: [String: Any] = [
+            "comm": [
+                "ct": 24,
+                "cv": 0,
+                "uin": qqAuth.isLoggedIn ? qqAuth.uin : "0",
+                "g_tk": 5381,
+                "platform": "yqq",
+                "format": "json",
+            ],
+            "req_0": [
+                "module": "music.srfDissong",
+                "method": "do_dissong_op",
+                "param": [
+                    "songmid": [songmid],
+                    "op": liked ? 1 : 2,
+                ],
+            ],
+        ]
+        let json = try await musicu(payload, cookie: qqAuth.isLoggedIn ? qqAuth.cookieHeader : "")
+        let req = json["req_0"] as? [String: Any]
+        let code = req?["code"] as? Int ?? -1
+        return code == 0
+    }
+
     // MARK: - 播放 / 歌词
 
     /// 指定音质获取播放地址（br: M800=320kbps 高质量 / M500=128kbps 低质量），下载用

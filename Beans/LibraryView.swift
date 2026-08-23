@@ -4,6 +4,7 @@ struct LibraryView: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
     @EnvironmentObject private var player: PlayerManager
+    @EnvironmentObject private var favorites: FavoritesStore
 
     @State private var showHistory = false
     @State private var selectedPlaylist: Playlist?
@@ -11,6 +12,7 @@ struct LibraryView: View {
     @State private var newPlaylistName = ""
     @State private var pendingDelete: Playlist?
     @State private var showDeleteConfirm = false
+    @State private var source: SearchProvider = .netease
 
     var body: some View {
         let _ = theme.accent
@@ -22,7 +24,8 @@ struct LibraryView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 24) {
                     header
-                    playlistsSection
+                    providerPicker
+                    if source == .netease { playlistsSection } else { qqFavoritesSection }
                     historySection
                 }
                 .padding(.horizontal, 16)
@@ -63,7 +66,7 @@ struct LibraryView: View {
                     Text("音乐库")
                         .font(BeansFont.appFont(30, .bold))
                         .foregroundStyle(Color.beansLabel)
-                    Text("\(auth.playlists.count) 个歌单 · 本地收藏")
+                    Text(source == .netease ? "\(auth.playlists.count) 个歌单 · 本地收藏" : "\(favorites.qqFavoriteSongs.count) 首 QQ 收藏")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
                 }
@@ -75,7 +78,11 @@ struct LibraryView: View {
             }
             // 统计胶囊行
             HStack(spacing: 10) {
-                statPill(icon: "square.stack.fill", value: "\(auth.playlists.count)", label: "歌单")
+                if source == .netease {
+                    statPill(icon: "square.stack.fill", value: "\(auth.playlists.count)", label: "歌单")
+                } else {
+                    statPill(icon: "heart.fill", value: "\(favorites.qqFavoriteSongs.count)", label: "收藏")
+                }
                 statPill(icon: "clock.arrow.circlepath", value: "\(player.history.count)", label: "最近播放")
             }
         }
@@ -241,6 +248,75 @@ struct LibraryView: View {
                     ForEach(player.history.prefix(5)) { song in
                         SongCell(song: song) {
                             playFromHistory(song)
+                        }
+                        Divider().overlay(Color.beansSecondary.opacity(0.15))
+                    }
+                }
+                .padding(.horizontal, 14)
+                .padding(.vertical, 6)
+                .background {
+                    GlassEffectContainer {
+                        RoundedRectangle(cornerRadius: 22, style: .continuous)
+                            .fill(.clear)
+                            .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                    }
+                }
+                .beansCardShadow(radius: 8, y: 3)
+            }
+        }
+    }
+
+    /// 平台选择（网易云 / QQ音乐，样式与主页一致）
+    private var providerPicker: some View {
+        HStack(spacing: 4) {
+            ForEach(SearchProvider.allCases) { p in
+                Button {
+                    BeansHaptics.tap()
+                    if source != p { source = p }
+                } label: {
+                    HStack(spacing: 6) {
+                        Image(systemName: p.icon)
+                            .font(.system(size: 11, weight: .semibold))
+                        Text(p.rawValue)
+                            .font(BeansFont.appFont(13, .semibold))
+                    }
+                    .foregroundStyle(source == p ? Color.white : Color.beansSecondary)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 9)
+                    .background {
+                        if source == p {
+                            Capsule().fill(p.tint)
+                        } else {
+                            Capsule().fill(.clear)
+                        }
+                    }
+                }
+                .buttonStyle(.plain)
+            }
+        }
+        .padding(4)
+        .background {
+            GlassEffectContainer {
+                Capsule()
+                    .fill(.clear)
+                    .glassEffect(.clear, in: Capsule())
+            }
+        }
+        .clipShape(Capsule())
+        .beansCardShadow(radius: 6, y: 2)
+    }
+
+    /// QQ 音乐收藏（红心歌曲，本地持久化 + 云端尽力同步）
+    private var qqFavoritesSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "QQ 收藏", trailing: favorites.qqFavoriteSongs.isEmpty ? nil : "\(favorites.qqFavoriteSongs.count) 首") {}
+            if favorites.qqFavoriteSongs.isEmpty {
+                EmptyStateView(icon: "heart", text: "还没有收藏的 QQ 歌曲\n在播放器点击红心即可收藏")
+            } else {
+                VStack(spacing: 0) {
+                    ForEach(Array(favorites.qqFavoriteSongs.enumerated()), id: \.element.id) { index, song in
+                        SongCell(song: song) {
+                            player.play(songs: favorites.qqFavoriteSongs, startAt: index)
                         }
                         Divider().overlay(Color.beansSecondary.opacity(0.15))
                     }
