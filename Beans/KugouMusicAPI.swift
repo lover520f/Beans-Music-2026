@@ -313,6 +313,8 @@ final class KugouMusicAPI {
         }
         return list.compactMap { item in
             guard let id = item["rankid"] as? Int else { return nil }
+            // 过滤掉封面字段缺失、一直转圈加载的榜单（中国原创音乐榜 rankid 108338）
+            if id == 108338 { return nil }
             let name = item["rankname"] as? String ?? ""
             // 部分榜单（如中国原创音乐榜）album_img_9/banner_9 为空，封面在 img_9 / imgurl
             let img = (item["album_img_9"] as? String)

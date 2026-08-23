@@ -176,41 +176,66 @@ final class QQMusicAPI {
         return songs
     }
 
-    /// 搜索歌手（musicu search_type=1，本机实测可用）
+    /// 搜索歌手（musicu search_type=1 为主，字段 singerName/singerMID；musicu 被风控返回 2001 时用 smartbox_new 兜底）
     func searchArtists(keyword: String, limit: Int = 30) async throws -> [Artist] {
-        let json = try await musicu(musicuSearchPayload(keyword: keyword, limit: limit, type: .artist))
-        let list = nestedArray(json, path: ["req_1", "data", "body", "singer", "list"])
-        var artists: [Artist] = []
-        for item in list {
-            let name = item["name"] as? String ?? (item["title"] as? String ?? "")
-            guard !name.isEmpty else { continue }
-            let mid = item["mid"] as? String
-            let numericID = item["id"] as? Int ?? 0
-            artists.append(Artist(
-                id: mid ?? "qq-\(numericID)-\(name)",
-                name: name,
-                coverURL: Self.photoURL(mid),
-                source: .qq
-            ))
+        if let json = try? await musicu(musicuSearchPayload(keyword: keyword, limit: limit, type: .artist)) {
+            let list = nestedArray(json, path: ["req_1", "data", "body", "singer", "list"])
+            var artists: [Artist] = []
+            for item in list {
+                let name = item["singerName"] as? String ?? (item["name"] as? String ?? (item["title"] as? String ?? ""))
+                guard !name.isEmpty else { continue }
+                let mid = item["singerMID"] as? String ?? (item["mid"] as? String)
+                let numericID = item["singerID"] as? Int ?? (item["id"] as? Int ?? 0)
+                artists.append(Artist(
+                    id: mid ?? "qq-\(numericID)-\(name)",
+                    name: name,
+                    coverURL: Self.photoURL(mid),
+                    source: .qq
+                ))
+            }
+            if !artists.isEmpty { return artists }
         }
-        return artists
+        // 兜底：smartbox_new.fcg 联想接口（含歌手/专辑，数据中心与移动网络均可用）
+        if let encoded = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
+           let url = URL(string: "https://c.y.qq.com/splcloud/fcgi-bin/smartbox_new.fcg?format=json&s_from=pc_header&type=1&key=\(encoded)"),
+           let json = try? await get(url.absoluteString) {
+            let singer = (json["data"] as? [String: Any])?["singer"] as? [String: Any] ?? [:]
+            let list = singer["itemlist"] as? [[String: Any]] ?? []
+            var artists: [Artist] = []
+            for item in list.prefix(limit) {
+                let name = item["name"] as? String ?? ""
+                guard !name.isEmpty else { continue }
+                let mid = item["mid"] as? String
+                let numericID = item["id"] as? String ?? ""
+                var pic = item["pic"] as? String ?? ""
+                if pic.hasPrefix("http://") { pic = "https://" + pic.dropFirst(7) }
+                artists.append(Artist(
+                    id: mid ?? "qq-\(numericID)-\(name)",
+                    name: name,
+                    coverURL: pic.isEmpty ? Self.photoURL(mid) : URL(string: pic),
+                    source: .qq
+                ))
+            }
+            if !artists.isEmpty { return artists }
+        }
+        return []
     }
 
-    /// 搜索专辑（musicu search_type=2 为主；空结果时用 client_search_cp t=8 兜底）
+    /// 搜索专辑（client_search_cp t=8 为主，与歌曲搜索同源、数据中心/移动网络均可用；musicu search_type=2 常被风控返回 2001 作为次选）
     func searchAlbums(keyword: String, limit: Int = 30) async throws -> [Album] {
-        let json = try await musicu(musicuSearchPayload(keyword: keyword, limit: limit, type: .album))
-        let list = nestedArray(json, path: ["req_1", "data", "body", "album", "list"])
-        if !list.isEmpty {
-            return parseAlbumItems(list)
-        }
-        // 兜底：client_search_cp t=8
-        if let url = clientSearchURL(keyword: keyword, limit: limit, type: 8) {
-            let fallback = try? await get(url.absoluteString, referer: "https://y.qq.com/portal/player.html")
-            let data = fallback?["data"] as? [String: Any] ?? [:]
+        if let url = clientSearchURL(keyword: keyword, limit: limit, type: 8),
+           let json = try? await get(url.absoluteString, referer: "https://y.qq.com/portal/player.html") {
+            let data = json["data"] as? [String: Any] ?? [:]
             let album = data["album"] as? [String: Any] ?? [:]
-            let fallbackList = album["list"] as? [[String: Any]] ?? []
-            if !fallbackList.isEmpty {
-                return parseAlbumItems(fallbackList)
+            let list = album["list"] as? [[String: Any]] ?? []
+            if !list.isEmpty {
+                return parseAlbumItems(list)
+            }
+        }
+        if let json = try? await musicu(musicuSearchPayload(keyword: keyword, limit: limit, type: .album)) {
+            let list = nestedArray(json, path: ["req_1", "data", "body", "album", "list"])
+            if !list.isEmpty {
+                return parseAlbumItems(list)
             }
         }
         return []
