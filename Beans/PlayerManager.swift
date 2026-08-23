@@ -119,10 +119,7 @@ final class PlayerManager: NSObject, ObservableObject {
 
     func previous() {
         guard !queue.isEmpty else { return }
-        if progress > 3 {
-            seek(to: 0)
-            return
-        }
+        // 直接切换到上一首（不再做“播放超过 3 秒先重头播放”的判断）
         if playMode == .shuffle {
             orderPosition = (orderPosition - 1 + playOrder.count) % playOrder.count
             currentIndex = playOrder[orderPosition]

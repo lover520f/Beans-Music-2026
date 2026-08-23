@@ -377,18 +377,25 @@ final class QQMusicAPI {
 
     // MARK: - 评论区 / 排行榜 / 推荐 / 歌单
 
-    /// QQ 音乐评论（fcg_global_comment_h5；topid 必须用数字 songid 并带 cid/reqtype，用 songmid 会返回空）
-    func comments(songID: Int, limit: Int = 25) async throws -> [SongComment] {
+    /// QQ 音乐评论分页（fcg_global_comment_h5；topid 必须用数字 songid 并带 cid/reqtype，用 songmid 会返回空）
+    /// pagenum 从 0 开始；热评只在第一页返回，翻页只取普通评论
+    struct QQCommentPage {
+        let comments: [SongComment]
+        let total: Int
+    }
+
+    func comments(songID: Int, limit: Int = 25, pagenum: Int = 0) async throws -> QQCommentPage {
         let json = try await postForm("https://c.y.qq.com/base/fcgi-bin/fcg_global_comment_h5.fcg?format=json&cid=205360772&reqtype=2", body: [
             "biztype": 1,
             "topid": songID,
             "LoginUin": 0,
             "cmd": 8,
-            "pagenum": 0,
+            "pagenum": max(pagenum, 0),
             "pagesize": min(max(limit, 1), 25)
         ])
-        let hot = ((json["hot_comment"] as? [String: Any])?["commentlist"] as? [[String: Any]]) ?? []
+        let hot = pagenum == 0 ? (((json["hot_comment"] as? [String: Any])?["commentlist"] as? [[String: Any]]) ?? []) : []
         let normal = ((json["comment"] as? [String: Any])?["commentlist"] as? [[String: Any]]) ?? []
+        let commentTotal = ((json["comment"] as? [String: Any])?["commenttotal"] as? Int) ?? 0
         var seen = Set<String>()
         var result: [SongComment] = []
         for item in hot + normal {
@@ -415,7 +422,7 @@ final class QQMusicAPI {
                 isHot: true
             ))
         }
-        return result
+        return QQCommentPage(comments: result, total: commentTotal)
     }
 
     /// QQ 评论表情解码（[em]eXXXXXX[/em] → 对应 Unicode 表情）

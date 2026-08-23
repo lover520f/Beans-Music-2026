@@ -21,11 +21,15 @@ struct CommentsSheet: View {
 
     @State private var page: NetEaseAPI.SongCommentPage?
     @State private var qqComments: [SongComment] = []
+    @State private var qqTotal = 0
+    @State private var qqPageNum = 0
     @State private var loading = true
     @State private var errorMessage: String?
     @State private var offset = 0
 
     private let limit = 30
+    /// QQ 音乐每页条数（接口单页上限 25）
+    private let qqPageSize = 25
 
     var body: some View {
         let _ = theme.accent
@@ -90,12 +94,20 @@ struct CommentsSheet: View {
             offset = 0
             page = nil
             qqComments = []
+            qqTotal = 0
+            qqPageNum = 0
             loading = true
         }
         errorMessage = nil
         do {
             if song.source == .qq {
-                qqComments = try await QQMusicAPI.shared.comments(songID: song.id)
+                let result = try await QQMusicAPI.shared.comments(songID: song.id, limit: qqPageSize, pagenum: qqPageNum)
+                if reset {
+                    qqComments = result.comments
+                } else {
+                    qqComments.append(contentsOf: result.comments)
+                }
+                qqTotal = result.total
             } else {
                 let result = try await NetEaseAPI.shared.songComments(id: song.id, limit: limit, offset: offset)
                 if reset {
@@ -112,7 +124,7 @@ struct CommentsSheet: View {
         }
     }
 
-    /// QQ 音乐评论列表
+    /// QQ 音乐评论列表（分页加载更多）
     private var qqCommentList: some View {
         Group {
             if qqComments.isEmpty {
@@ -120,7 +132,9 @@ struct CommentsSheet: View {
             } else {
                 List {
                     Section {
-                        Text("《\(song.name)》 · QQ 音乐 \(qqComments.count) 条评论")
+                        Text(qqTotal > 0
+                            ? "《\(song.name)》 · QQ 音乐 \(qqTotal) 条评论"
+                            : "《\(song.name)》 · QQ 音乐 \(qqComments.count) 条评论")
                             .font(BeansFont.appFont(12))
                             .foregroundStyle(Color.beansSecondary)
                     }
@@ -129,9 +143,27 @@ struct CommentsSheet: View {
                             CommentRow(comment: comment)
                         }
                     }
+                    if qqTotal <= 0 || qqComments.count < qqTotal {
+                        Section {
+                            Button {
+                                Task { await loadQQMore() }
+                            } label: {
+                                Text("加载更多")
+                                    .font(BeansFont.appFont(14, .semibold))
+                                    .foregroundStyle(Color.beansAmber)
+                                    .frame(maxWidth: .infinity)
+                            }
+                        }
+                    }
                 }
             }
         }
+    }
+
+    /// QQ 评论翻页
+    private func loadQQMore() async {
+        qqPageNum += 1
+        await load(reset: false)
     }
 
     private func loadMore() async {

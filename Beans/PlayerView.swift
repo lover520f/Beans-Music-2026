@@ -22,7 +22,6 @@ struct PlayerView: View {
     @State private var showLyrics = false
     @State private var showQueue = false
     @State private var showSleepTimer = false
-    @State private var showSimi = false
     @State private var showAddToPlaylist = false
     @State private var showComments = false
     @State private var showDownloadPicker = false
@@ -157,7 +156,6 @@ struct PlayerView: View {
         }
         .sheet(isPresented: $showQueue) { QueueView().environmentObject(player) }
         .sheet(isPresented: $showSleepTimer) { SleepTimerSheet().environmentObject(player) }
-        .sheet(isPresented: $showSimi) { SimiSongsSheet().environmentObject(player).environmentObject(auth) }
         .sheet(isPresented: $showAddToPlaylist) {
             if let song {
                 AddToPlaylistSheet(song: song).environmentObject(auth)
@@ -322,11 +320,6 @@ struct PlayerView: View {
                     showSleepTimer = true
                 } label: {
                     Label(player.sleepTimerRemaining > 0 ? "定时关闭（进行中）" : "定时关闭", systemImage: "moon.zzz")
-                }
-                Button {
-                    showSimi = true
-                } label: {
-                    Label("相似歌曲", systemImage: "sparkles")
                 }
                 Button {
                     showAddToPlaylist = true
@@ -751,28 +744,24 @@ struct PlayerView: View {
     // MARK: - 合并控制行（循环 / 上一曲 / 播放暂停 / 下一曲 / 播放列表 平行排列，播放键居中）
 
     private var deckRow: some View {
-        ZStack {
-            // 两侧对称：循环模式 / 播放列表
-            HStack {
-                modeButton
-                Spacer(minLength: 0)
-                queueButton
+        // 单行均匀排布：循环模式 | 上一曲 | 播放暂停 | 下一曲 | 播放列表
+        HStack(spacing: 0) {
+            modeButton
+            Spacer(minLength: 12)
+            deckButton(icon: "backward.fill", expand: false) {
+                BeansHaptics.tap()
+                player.previous()
             }
-            // 中间主控制组：上一曲 / 播放暂停 / 下一曲 真正居中
-            HStack(spacing: 26) {
-                deckButton(icon: "backward.fill", expand: false) {
-                    BeansHaptics.tap()
-                    player.previous()
-                }
-                playButton
-                deckButton(icon: "forward.fill", expand: false) {
-                    BeansHaptics.tap()
-                    player.next()
-                }
+            playButton
+            deckButton(icon: "forward.fill", expand: false) {
+                BeansHaptics.tap()
+                player.next()
             }
+            Spacer(minLength: 12)
+            queueButton
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 28)
+        .padding(.horizontal, 20)
         .simultaneousGesture(
             // 上滑控制行呼出评论区（进度条区域保留拖动，不误触）
             DragGesture(minimumDistance: 25)
@@ -869,7 +858,6 @@ struct PlayerView: View {
                 .shadow(color: palette.accent.opacity(0.4), radius: 14, y: 7)
         }
         .buttonStyle(GlassPressButtonStyle(scale: 0.9))
-        .frame(maxWidth: .infinity)
     }
 
 
