@@ -452,6 +452,20 @@ final class NetEaseAPI {
         return list.compactMap(Playlist.init(json:))
     }
 
+    /// 精品歌单（官方歌单广场默认内容，网易云编辑精选；对应 music.163.com/discover/playlist 的「精品歌单」）
+    func highQualityPlaylists(cat: String = "全部", limit: Int = 18) async throws -> [Playlist] {
+        let json = try await request("/api/playlist/highquality/list", payload: ["cat": cat, "limit": limit, "offset": 0, "total": true], crypto: "weapi")
+        let list = json["playlists"] as? [[String: Any]] ?? []
+        return list.compactMap(Playlist.init(json:))
+    }
+
+    /// 官方歌单分类（官网 discover/playlist 的分类标签；失败返回空数组，调用方回落内置分类）
+    func playlistCatlist() async -> [String] {
+        guard let json = try? await request("/api/playlist/catlist", payload: [:], crypto: "weapi") else { return [] }
+        let sub = json["sub"] as? [[String: Any]] ?? []
+        return sub.compactMap { $0["name"] as? String }
+    }
+
     func personalizedPlaylists(limit: Int = 20) async throws -> [Playlist] {
         let json = try await request("/api/personalized/playlist", payload: ["limit": limit, "n": limit], crypto: "weapi")
         let list = json["result"] as? [[String: Any]] ?? []

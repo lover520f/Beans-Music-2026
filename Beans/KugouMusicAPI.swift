@@ -314,7 +314,12 @@ final class KugouMusicAPI {
         return list.compactMap { item in
             guard let id = item["rankid"] as? Int else { return nil }
             let name = item["rankname"] as? String ?? ""
-            let img = (item["album_img_9"] as? String) ?? (item["banner_9"] as? String) ?? ""
+            // 部分榜单（如中国原创音乐榜）album_img_9/banner_9 为空，封面在 img_9 / imgurl
+            let img = (item["album_img_9"] as? String)
+                ?? (item["banner_9"] as? String)
+                ?? (item["img_9"] as? String)
+                ?? (item["imgurl"] as? String)
+                ?? ""
             return KugouTopInfo(id: id, name: name, coverURL: cover(img))
         }
     }

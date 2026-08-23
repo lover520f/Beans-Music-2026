@@ -23,6 +23,10 @@ struct DiscoverView: View {
     @State private var selectedKugouTopList: KugouMusicAPI.KugouTopInfo?
     /// 排行榜是否展开（收起时只显示前几个，用户可自主展开）
     @State private var ranksExpanded = false
+    /// 网易云歌单广场当前分类（「全部」展示官方精品歌单）
+    @State private var neteaseCat = "全部"
+    /// 官方歌单分类列表
+    @State private var playlistCats: [String] = []
 
     var body: some View {
         let _ = theme.accent
@@ -376,11 +380,49 @@ struct DiscoverView: View {
         }
     }
 
-    // MARK: - 歌单广场（双列网格）
+    // MARK: - 歌单广场（官方分类 + 双列网格）
+
+    /// 官方歌单分类：全部 + 热门分类（接口失败时用内置兜底）
+    private var catChips: [String] {
+        if playlistCats.isEmpty {
+            return ["全部", "华语", "流行", "经典", "摇滚", "民谣", "电子", "影视原声", "ACG", "怀旧", "欧美", "日韩", "粤语", "古风", "轻音乐", "治愈", "学习", "运动", "夜晚"]
+        }
+        return ["全部"] + Array(playlistCats.prefix(18))
+    }
 
     private var personalizedSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "歌单广场")
+            if source == .netease {
+                // 官方分类标签：点击切换分类（「全部」为官方精品歌单）
+                ScrollView(.horizontal, showsIndicators: false) {
+                    HStack(spacing: 8) {
+                        ForEach(catChips, id: \.self) { cat in
+                            Button {
+                                BeansHaptics.tap()
+                                guard cat != neteaseCat else { return }
+                                neteaseCat = cat
+                                Task { await loadPlaylists(cat: cat) }
+                            } label: {
+                                Text(cat)
+                                    .font(BeansFont.appFont(12, .medium))
+                                    .foregroundStyle(neteaseCat == cat ? Color.white : Color.beansSecondary)
+                                    .padding(.horizontal, 12)
+                                    .padding(.vertical, 6)
+                                    .background {
+                                        if neteaseCat == cat {
+                                            Capsule().fill(Color.beansAmber)
+                                        } else {
+                                            Capsule().fill(.ultraThinMaterial)
+                                        }
+                                    }
+                            }
+                            .buttonStyle(.plain)
+                        }
+                    }
+                    .padding(.vertical, 2)
+                }
+            }
             LazyVGrid(columns: [GridItem(.flexible(), spacing: 12), GridItem(.flexible(), spacing: 12)], spacing: 12) {
                 ForEach(personalized) { playlist in
                     Button {
@@ -415,7 +457,9 @@ struct DiscoverView: View {
 
     private func load(force: Bool = false) async {
         let cache = DiscoverCache.shared
-        if let cached = cache.cached(for: source), !force {
+        // 网易云非「全部」分类的歌单不缓存（切换分类即重新拉取）
+        let cacheable = neteaseCat == "全部" || source != .netease
+        if let cached = cache.cached(for: source), !force, cacheable {
             apply(cached)
             loading = false
             errorMessage = nil
@@ -429,7 +473,7 @@ struct DiscoverView: View {
         do {
             let snapshot = try await fetchSnapshot(for: source)
             apply(snapshot)
-            if !snapshot.isEmpty {
+            if cacheable, !snapshot.isEmpty {
                 cache.save(snapshot, for: source)
             }
             loading = false
@@ -439,6 +483,20 @@ struct DiscoverView: View {
             if !hasAnyData {
                 errorMessage = error.localizedDescription
             }
+        }
+    }
+
+    /// 网易云歌单广场：切换官方分类时单独拉取（不写缓存）
+    private func loadPlaylists(cat: String) async {
+        guard source == .netease else { return }
+        do {
+            let pp = cat == "全部"
+                ? try await NetEaseAPI.shared.highQualityPlaylists(limit: 18)
+                : try await NetEaseAPI.shared.playlistSquare(cat: cat, order: "hot", limit: 18)
+            personalized = pp
+            errorMessage = nil
+        } catch {
+            // 分类拉取失败：保留现有歌单，不打断用户
         }
     }
 
@@ -465,11 +523,16 @@ struct DiscoverView: View {
         case .netease:
             async let a = NetEaseAPI.shared.topLists()
             async let b = NetEaseAPI.shared.dailyRecommend()
-            async let c = NetEaseAPI.shared.playlistSquare(limit: 10)
-            let (tl, dr, pp) = try await (a, b, c)
+            // 「全部」展示官方精品歌单，其他分类展示该分类热门歌单
+            async let c = neteaseCat == "全部"
+                ? NetEaseAPI.shared.highQualityPlaylists(limit: 18)
+                : NetEaseAPI.shared.playlistSquare(cat: neteaseCat, order: "hot", limit: 18)
+            async let d = NetEaseAPI.shared.playlistCatlist()
+            let (tl, dr, pp, cats) = try await (a, b, c, d)
             snapshot.topLists = tl
             snapshot.dailySongs = dr
             snapshot.personalized = pp
+            if !cats.isEmpty { playlistCats = cats }
         }
         return snapshot
     }
