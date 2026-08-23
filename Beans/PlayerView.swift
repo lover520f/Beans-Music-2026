@@ -539,10 +539,28 @@ struct PlayerView: View {
         let isCurrent: Bool
     }
 
+    /// 当前歌词行索引（二分查找，与歌词面板一致）
+    private var previewCurrentIndex: Int? {
+        guard !lyrics.isEmpty else { return nil }
+        var low = 0
+        var high = lyrics.count - 1
+        var answer: Int?
+        while low <= high {
+            let mid = (low + high) / 2
+            if lyrics[mid].time <= player.progress {
+                answer = mid
+                low = mid + 1
+            } else {
+                high = mid - 1
+            }
+        }
+        return answer
+    }
+
     private var lyricPreviewRows: [LyricPreviewRow] {
         guard !lyrics.isEmpty else { return [] }
         var rows: [LyricPreviewRow] = []
-        if let idx = currentIndex {
+        if let idx = previewCurrentIndex {
             let start = max(0, idx - 1)
             for i in start..<min(lyrics.count, start + 4) {
                 let text = lyrics[i].text
@@ -1623,3 +1641,4 @@ struct PlayerSettingsSheet: View {
         .presentationDragIndicator(.visible)
     }
 }
+
