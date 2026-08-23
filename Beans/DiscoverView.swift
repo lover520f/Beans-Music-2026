@@ -45,7 +45,7 @@ struct DiscoverView: View {
                         if !dailySongs.isEmpty {
                             dailySection.sectionEntrance(delay: 0)
                         }
-                        if !topLists.isEmpty {
+                        if hasRankData {
                             topListsSection.sectionEntrance(delay: 0.08)
                         }
                         if !personalized.isEmpty {
@@ -207,6 +207,15 @@ struct DiscoverView: View {
 
     private var displayedRankCount: Int {
         ranksExpanded ? visibleRankCount : min(visibleRankCount, collapsedRankLimit)
+    }
+
+    /// 当前平台是否有排行榜数据（网易云用 topLists，QQ / 酷狗用各自的数组）
+    private var hasRankData: Bool {
+        switch source {
+        case .netease: return !topLists.isEmpty
+        case .qq: return !qqTopLists.isEmpty
+        case .kugou: return !kugouTopLists.isEmpty
+        }
     }
 
     // MARK: - 排行榜（竖排行列表）
@@ -420,7 +429,9 @@ struct DiscoverView: View {
         do {
             let snapshot = try await fetchSnapshot(for: source)
             apply(snapshot)
-            cache.save(snapshot, for: source)
+            if !snapshot.isEmpty {
+                cache.save(snapshot, for: source)
+            }
             loading = false
             errorMessage = nil
         } catch {
