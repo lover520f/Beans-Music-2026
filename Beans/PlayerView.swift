@@ -366,8 +366,8 @@ struct PlayerView: View {
             .buttonStyle(GlassPressButtonStyle())
         }
         .padding(.horizontal, 20)
-        .padding(.top, 4)
-        .padding(.bottom, 2)
+        .padding(.top, 2)
+        .padding(.bottom, 1)
     }
 
     // MARK: - 中间内容区（专辑 / 歌词 两模式独立视图，自动布局居中）
@@ -613,7 +613,7 @@ struct PlayerView: View {
                     Image(systemName: "chevron.down")
                         .font(.system(size: 13, weight: .semibold))
                         .foregroundStyle(palette.secondary)
-                        .frame(width: 36, height: 36)
+                        .frame(width: 34, height: 34)
                         .background {
                                                         BeansGlass(shape: Circle())
                         }
@@ -622,8 +622,8 @@ struct PlayerView: View {
                 .buttonStyle(GlassPressButtonStyle())
             }
             .padding(.horizontal, 20)
-            .padding(.top, 6)
-            .padding(.bottom, 4)
+            .padding(.top, 4)
+            .padding(.bottom, 3)
 
             // 歌词视口截止到底栏上方：当前行在可见区居中（26 版风格，无渐隐遮挡）
             Group {
@@ -698,16 +698,16 @@ struct PlayerView: View {
 
     /// 底部控制栏估算高度（单行控制后降低，给歌词视口更多空间）
     /// 底部控制栏预留高度（越小歌词视口越大；需 >= 控制栏实际高度避免遮挡）
-    private let deckInset: CGFloat = 112
+    private let deckInset: CGFloat = 98
 
     private func controlDeck(bottomInset: CGFloat) -> some View {
-        VStack(spacing: 2) {
+        VStack(spacing: 0) {
             progressBlock
             deckRow
         }
         .padding(.horizontal, 24)
-        .padding(.top, 2)
-        .padding(.bottom, 2 + bottomInset)
+        .padding(.top, 0)
+        .padding(.bottom, bottomInset)
         .frame(maxWidth: .infinity)
         // 底部控件直接悬浮在模糊背景上：单行控制 + 底部进度条，歌词视口更大
     }
@@ -747,7 +747,7 @@ struct PlayerView: View {
             Image(systemName: icon)
                 .font(.system(size: 11, weight: .semibold))
                 .foregroundStyle(palette.secondary)
-                .frame(width: 30, height: 24)
+                .frame(width: 30, height: 22)
                 .contentShape(Rectangle())
         }
         .buttonStyle(GlassPressButtonStyle())
@@ -764,7 +764,7 @@ struct PlayerView: View {
                 queueButton
             }
             // 中间主控制组：上一曲 / 播放暂停 / 下一曲 真正居中
-            HStack(spacing: 20) {
+            HStack(spacing: 16) {
                 deckButton(icon: "backward.fill", expand: false) {
                     BeansHaptics.tap()
                     player.previous()
@@ -777,7 +777,7 @@ struct PlayerView: View {
             }
         }
         .frame(maxWidth: .infinity)
-        .padding(.horizontal, 28)
+        .padding(.horizontal, 24)
         .simultaneousGesture(
             // 上滑控制行呼出评论区（进度条区域保留拖动，不误触）
             DragGesture(minimumDistance: 25)
@@ -799,7 +799,7 @@ struct PlayerView: View {
             Image(systemName: player.playMode.icon)
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(player.playMode == .shuffle ? palette.accent : palette.secondary)
-                .frame(width: 26, height: 26)
+                .frame(width: 24, height: 24)
                 .background {
                                         BeansGlass(shape: Circle())
                 }
@@ -817,7 +817,7 @@ struct PlayerView: View {
             Image(systemName: "list.bullet")
                 .font(.system(size: 12, weight: .semibold))
                 .foregroundStyle(palette.secondary)
-                .frame(width: 26, height: 26)
+                .frame(width: 24, height: 24)
                 .background {
                                         BeansGlass(shape: Circle())
                 }
@@ -834,7 +834,7 @@ struct PlayerView: View {
             Image(systemName: icon)
                 .font(.system(size: 17, weight: .medium))
                 .foregroundStyle(accent ? palette.accent : palette.text)
-                .frame(width: 36, height: 36)
+                .frame(width: 34, height: 34)
                 .background {
                                         BeansGlass(shape: Circle())
                 }
@@ -855,7 +855,7 @@ struct PlayerView: View {
                 .contentTransition(.symbolEffect(.replace))
                 .scaleEffect(player.isPlaying ? 1.0 : 0.88)
                 .animation(.spring(response: 0.32, dampingFraction: 0.6), value: player.isPlaying)
-                .frame(width: 48, height: 48)
+                .frame(width: 44, height: 44)
                 .background {
                                         BeansGlass(shape: Circle())
                     .overlay {
@@ -1062,7 +1062,7 @@ struct SeekBar: View {
                     .offset(x: thumbX - (scrubbing ? 10 : 7))
                     .animation(.spring(response: 0.25, dampingFraction: 0.7), value: scrubbing)
             }
-            .frame(width: width, height: 30)
+            .frame(width: width, height: 26)
             .contentShape(Rectangle())
             .gesture(
                 DragGesture(minimumDistance: 0)
@@ -1077,7 +1077,7 @@ struct SeekBar: View {
                     }
             )
         }
-        .frame(height: 30)
+        .frame(height: 26)
     }
 }
 

@@ -311,7 +311,8 @@ final class PlayerManager: NSObject, ObservableObject {
         Task {
             var urlString: String?
             var resolvedThirdParty: UnblockService.Resolved?
-            let enableUnblock = defaults.object(forKey: "beans.enableUnblock") as? Bool ?? true
+            // 版权受限歌手（周杰伦）禁用第三方音源兜底：官方拿不到完整音源就提示，绝不用翻唱顶替
+            let enableUnblock = (defaults.object(forKey: "beans.enableUnblock") as? Bool ?? true) && !shouldLockOfficialOnly(song)
             let quality = BeansAudioQuality.current
             if song.source == .qq, let mid = song.qqMid {
                 // VIP 歌曲：vkey 未登录只会返回试听片段，直接走网易云同名兜底（免费听 VIP）
@@ -344,6 +345,9 @@ final class PlayerManager: NSObject, ObservableObject {
                     guard generation == self.loadGeneration else { return }
                     self.isBuffering = false
                     self.loadFailed = true
+                    if self.shouldLockOfficialOnly(song) {
+                        ToastCenter.shared.show("《\(song.name)》受版权保护，仅支持官方会员音源，已停止播放翻唱版本")
+                    }
                 }
                 return
             }
@@ -445,6 +449,11 @@ final class PlayerManager: NSObject, ObservableObject {
             )
         }
         return (urlString, resolved)
+    }
+
+    /// 版权受限歌手名单：这些歌手的歌曲禁用第三方音源兜底（第三方搜索会误匹配翻唱，如周杰伦）
+    private func shouldLockOfficialOnly(_ song: Song) -> Bool {
+        song.artists.contains("周杰伦")
     }
 
     /// 在网易云按 歌名+歌手 匹配同名歌曲（QQ vkey 失败时的免费播放兜底）
