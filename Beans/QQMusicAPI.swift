@@ -113,6 +113,12 @@ final class QQMusicAPI {
         return URL(string: "https://y.gtimg.cn/music/photo_new/T002R\(size)M000\(mid).jpg")
     }
 
+    /// 歌手头像（T001 歌手模板；T002 专辑模板对歌手 mid 会 404，搜索歌手必须用 T001）
+    private static func singerPhotoURL(_ mid: String?, size: String = "300x300") -> URL? {
+        guard let mid, !mid.isEmpty else { return nil }
+        return URL(string: "https://y.gtimg.cn/music/photo_new/T001R\(size)M000\(mid).jpg")
+    }
+
     private func musicuSearchPayload(keyword: String, limit: Int, type: QQSearchType) -> [String: Any] {
         [
             "comm": ["ct": 19, "cv": 1859, "uin": "0", "format": "json"],
@@ -191,7 +197,7 @@ final class QQMusicAPI {
                 artists.append(Artist(
                     id: mid ?? "qq-\(numericID)-\(name)",
                     name: name,
-                    coverURL: Self.photoURL(mid),
+                    coverURL: Self.singerPhotoURL(mid),
                     source: .qq
                 ))
             }
@@ -214,7 +220,7 @@ final class QQMusicAPI {
                 artists.append(Artist(
                     id: mid ?? "qq-\(numericID)-\(name)",
                     name: name,
-                    coverURL: pic.isEmpty ? Self.photoURL(mid) : URL(string: pic),
+                    coverURL: pic.isEmpty ? Self.singerPhotoURL(mid) : URL(string: pic),
                     source: .qq
                 ))
             }

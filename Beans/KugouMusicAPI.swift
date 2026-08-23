@@ -424,13 +424,16 @@ final class KugouMusicAPI {
 
     /// 用户自建歌单（mobilecdn user/songlist，需登录 Cookie；未登录或接口异常时返回空，由 UI 提示）
     func userPlaylists(userid: String, page: Int = 1, limit: Int = 30) async throws -> [Playlist] {
+        let kgAuth = KugouMusicAuth.shared
         var comps = URLComponents(string: "http://mobilecdn.kugou.com/api/v3/user/songlist")!
         comps.queryItems = [
             URLQueryItem(name: "userid", value: userid),
             URLQueryItem(name: "page", value: String(page)),
             URLQueryItem(name: "pagesize", value: String(limit)),
+            URLQueryItem(name: "plat", value: "0"),
+            URLQueryItem(name: "version", value: "9100"),
+            URLQueryItem(name: "mid", value: kgAuth.mid),
         ]
-        let kgAuth = KugouMusicAuth.shared
         let data = try await get(comps.url!.absoluteString, referer: "https://m.kugou.com/", cookie: kgAuth.cookieHeader)
         guard let obj = json(data) else {
             throw NetEaseError.decoding("酷狗用户歌单解析失败")

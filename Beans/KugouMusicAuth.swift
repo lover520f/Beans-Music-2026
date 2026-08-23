@@ -43,9 +43,12 @@ final class KugouMusicAuth: ObservableObject {
         return generated
     }
 
-    /// 酷狗用户 ID（从 Cookie 解析，用户歌单接口需要）
+    /// 酷狗用户 ID（从 Cookie 多键解析，用户歌单接口需要）
     var userID: String {
-        cookies["userid"] ?? cookies["KugouID"] ?? ""
+        for key in ["userid", "KugouID", "user_id"] {
+            if let v = cookies[key], !v.isEmpty { return v }
+        }
+        return ""
     }
 
     /// 发给 kugou.com 接口的 Cookie 串
