@@ -312,14 +312,32 @@ final class PlayerManager: NSObject, ObservableObject {
             var resolvedThirdParty: UnblockService.Resolved?
             if song.source == .qq, let mid = song.qqMid {
                 urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
-                // QQ vkey 拿不到播放地址（未登录或接口受限）时，用第三方音源兜底（neteaseID=0 跳过 pyncmd）
+                // QQ vkey 拿不到播放地址（未登录或接口受限）时：
+                // 1) 先在网易云按 歌名+歌手 匹配同名歌曲，走网易云地址或 pyncmd 解锁（免费听 VIP）
+                // 2) 仍未拿到再用酷我/酷狗按关键字兜底
                 if urlString == nil {
-                    resolvedThirdParty = await UnblockService.resolve(
-                        name: song.name,
-                        artists: song.artists,
-                        durationMS: Int(song.duration * 1000),
-                        neteaseID: 0
-                    )
+                    if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000)) {
+                        let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [matched.id])
+                        let info = infos?[matched.id]
+                        if let u = info?.url {
+                            urlString = u
+                        } else if info?.freeTrial == true || info == nil {
+                            resolvedThirdParty = await UnblockService.resolve(
+                                name: matched.name,
+                                artists: matched.artists,
+                                durationMS: Int(matched.duration * 1000),
+                                neteaseID: matched.id
+                            )
+                        }
+                    }
+                    if urlString == nil && resolvedThirdParty == nil {
+                        resolvedThirdParty = await UnblockService.resolve(
+                            name: song.name,
+                            artists: song.artists,
+                            durationMS: Int(song.duration * 1000),
+                            neteaseID: 0
+                        )
+                    }
                 }
             } else {
                 let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [song.id])
@@ -351,6 +369,28 @@ final class PlayerManager: NSObject, ObservableObject {
         }
     }
 
+
+    /// 在网易云按 歌名+歌手 匹配同名歌曲（QQ vkey 失败时的免费播放兜底）
+    private func matchNetEaseSong(name: String, artists: String, durationMS: Int) async -> Song? {
+        let keyword = ([name, artists].filter { !$0.isEmpty }).joined(separator: " ")
+        guard !keyword.isEmpty,
+              let results = try? await NetEaseAPI.shared.search(keyword: keyword, limit: 8),
+              !results.isEmpty else { return nil }
+        let target = Double(durationMS) / 1000.0
+        let artistTokens = artists.lowercased().split(whereSeparator: { $0 == " " || $0 == "/" || $0 == "&" }).map(String.init)
+        // 优先：歌手匹配 + 时长接近
+        if let hit = results.first(where: { song in
+            let durOK = abs(song.duration - target) < 12
+            let artistOK = artistTokens.contains { !$0.isEmpty && song.artists.lowercased().contains($0) }
+            return durOK && artistOK
+        }) { return hit }
+        // 其次：仅时长接近
+        if let hit = results.min(by: { abs($0.duration - target) < abs($1.duration - target) }),
+           abs(hit.duration - target) < 20 {
+            return hit
+        }
+        return results.first
+    }
 
     /// 高潮点能量分析（PeakEnergy）：播放器页面可见时按需调用，结果按歌曲缓存，失败自动回退启发式
     func analyzeClimaxIfNeeded() {

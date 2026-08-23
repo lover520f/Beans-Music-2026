@@ -10,17 +10,15 @@ struct ProfileView: View {
 
     @State private var showHistory = false
     @State private var confirmLogout = false
-    @State private var showQQLogin = false
-    @State private var showLogin = false
-    @State private var confirmQQLogout = false
-    @State private var bgImageItem: PhotosPickerItem?
-    @State private var appearanceExpanded = false
     @State private var weekRecord: [PlayRecordItem] = []
     @State private var allRecord: [PlayRecordItem] = []
 
     @State private var showNetEaseRank = false
-    @State private var showFontImporter = false
     @State private var showSleepTimer = false
+    /// 统一账号登录面板（网易云 + QQ 音乐整合）
+    @State private var showAccountHub = false
+    /// 设置页（外观 + 歌词翻译等）
+    @State private var showSettings = false
     @ObservedObject private var qqAuth = QQMusicAuth.shared
 
     private var themeMode: BeansThemeMode {
@@ -30,7 +28,40 @@ struct ProfileView: View {
     private var appVersionText: String {
         let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
         let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? "1"
-        return "Beans · \\(ver) (\\(build))"
+        return "Beans · \(ver) (\(build))"
+    }
+
+    /// 两个平台登录状态的合并提示
+    private var accountStatusLine: String {
+        var parts: [String] = []
+        if auth.isLoggedIn {
+            parts.append("网易云 UID \(auth.user?.uid ?? 0)")
+        }
+        if qqAuth.isLoggedIn {
+            parts.append(qqAuth.nickname.isEmpty ? "QQ 已登录" : "QQ \(qqAuth.nickname)")
+        }
+        if parts.isEmpty { return "登录后可同步网易云歌单 / 播放 QQ 歌曲" }
+        return parts.joined(separator: " · ")
+    }
+
+    /// 顶部标题 + 右上角设置齿轮
+    private var header: some View {
+        HStack(alignment: .center) {
+            VStack(alignment: .leading, spacing: 6) {
+                Text("我的")
+                    .font(BeansFont.appFont(30, .bold))
+                    .foregroundStyle(Color.beansLabel)
+                Text("网易云 / QQ 音乐账号与外观设置")
+                    .font(BeansFont.appFont(13))
+                    .foregroundStyle(Color.beansSecondary)
+            }
+            Spacer()
+            GlassIconButton(systemName: "gearshape.fill") {
+                BeansHaptics.tap()
+                showSettings = true
+            }
+        }
+        .padding(.top, 8)
     }
 
     var body: some View {
@@ -42,9 +73,9 @@ struct ProfileView: View {
             TabBarAppearanceConfigurator()
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
+                    header
                     userCard
                     featuresGrid
-                    settingsSection
                     aboutSection
                 }
                 .padding(.horizontal, 16)
@@ -52,15 +83,6 @@ struct ProfileView: View {
                 .padding(.bottom, 190)
             }
             .scrollIndicators(.hidden)
-        }
-        .onChange(of: bgImageItem) { _, item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self), !data.isEmpty {
-                    theme.addWallpaper(data)
-                    BeansHaptics.success()
-                }
-            }
         }
         .task(id: auth.isLoggedIn) { await loadNetEaseRank() }
         .sheet(isPresented: $showHistory) {
@@ -73,13 +95,13 @@ struct ProfileView: View {
                 .environmentObject(player)
                 .environmentObject(auth)
         }
-        .sheet(isPresented: $showLogin) {
-            LoginView()
+        .sheet(isPresented: $showAccountHub) {
+            AccountHubSheet()
                 .environmentObject(auth)
                 .environmentObject(theme)
         }
-        .sheet(isPresented: $showQQLogin) {
-            QQLoginSheet()
+        .sheet(isPresented: $showSettings) {
+            SettingsView()
                 .environmentObject(theme)
         }
         .sheet(isPresented: $showSleepTimer) {
@@ -93,45 +115,14 @@ struct ProfileView: View {
             }
             Button("取消", role: .cancel) {}
         }
-        .confirmationDialog("退出 QQ 音乐？", isPresented: $confirmQQLogout, titleVisibility: .visible) {
-            Button("退出登录", role: .destructive) {
-                qqAuth.logout()
-                ToastCenter.shared.show("已退出 QQ 音乐")
-            }
-            Button("取消", role: .cancel) {}
-        }
-        // 字体导入改用 UIDocumentPicker（asCopy 由系统直接复制到沙盒），避免 fileImporter 点选无反应/安全作用域读取失败
-        .fullScreenCover(isPresented: $showFontImporter) {
-            FontDocumentPicker { url in
-                installFont(from: url)
-            }
-            .ignoresSafeArea()
-        }
-    }
-
-    /// 校验扩展名并安装字体（asCopy 返回的 URL 已在沙盒内，可直接读取）
-    private func installFont(from url: URL) {
-        let ext = url.pathExtension.lowercased()
-        guard ["ttf", "otf", "ttc"].contains(ext) else {
-            ToastCenter.shared.show("请选择 ttf / otf 字体文件")
-            return
-        }
-        if let name = FontManager.install(from: url) {
-            BeansHaptics.success()
-            ToastCenter.shared.show("字体已应用：\(name)")
-        } else {
-            ToastCenter.shared.show("字体安装失败，请使用 ttf / otf 文件")
-        }
     }
 
     private var userCard: some View {
         VStack(spacing: 16) {
             Button {
                 BeansHaptics.tap()
-                // 免登录使用：未登录时点击进入网易云登录（可选，用于同步歌单）
-                if !auth.isLoggedIn {
-                    showLogin = true
-                }
+                // 统一账号面板：网易云 + QQ 音乐登录整合在一起
+                showAccountHub = true
             } label: {
                 HStack(spacing: 14) {
                     // 头像：主题渐变描边环
@@ -149,21 +140,19 @@ struct ProfileView: View {
                     .background(Color.beansGlassFill, in: Circle())
 
                     VStack(alignment: .leading, spacing: 4) {
-                        Text(auth.user?.nickname ?? (auth.isLoggedIn ? "未登录" : "免登录 · 点击登录"))
+                        Text(auth.user?.nickname ?? (auth.isLoggedIn ? "网易云已登录" : "免登录 · 点击登录"))
                             .font(BeansFont.appFont(20, .bold))
                             .foregroundStyle(Color.beansLabel)
                             .lineLimit(1)
-                        Text(auth.isLoggedIn ? "UID \(auth.user?.uid ?? 0)" : "登录后可同步网易云歌单")
+                        Text(accountStatusLine)
                             .font(BeansFont.appFont(12, .regular, .monospaced))
                             .foregroundStyle(Color.beansSecondary)
                             .lineLimit(1)
                     }
                     Spacer()
-                    if !auth.isLoggedIn {
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundStyle(Color.beansSecondary)
-                    }
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 13, weight: .semibold))
+                        .foregroundStyle(Color.beansSecondary.opacity(0.7))
                 }
                 .contentShape(Rectangle())
             }
@@ -251,13 +240,9 @@ struct ProfileView: View {
                 featureCell(icon: "moon.zzz.fill", title: "定时关闭", subtitle: "播放到点自动停止") {
                     showSleepTimer = true
                 }
-                featureCell(icon: qqAuth.isLoggedIn ? "checkmark.seal.fill" : "globe", title: "QQ 音乐", subtitle: qqAuth.isLoggedIn ? (qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname) : "登录后播放 QQ 歌曲") {
+                featureCell(icon: qqAuth.isLoggedIn || auth.isLoggedIn ? "checkmark.seal.fill" : "globe", title: "账号与登录", subtitle: qqAuth.isLoggedIn || auth.isLoggedIn ? accountStatusLine : "统一登录网易云 / QQ 音乐") {
                     BeansHaptics.tap()
-                    if qqAuth.isLoggedIn {
-                        confirmQQLogout = true
-                    } else {
-                        showQQLogin = true
-                    }
+                    showAccountHub = true
                 }
             }
         }
@@ -299,7 +284,292 @@ struct ProfileView: View {
         .buttonStyle(GlassPressButtonStyle(scale: 0.97))
     }
 
-    private var settingsSection: some View {
+    /// 加载网易云听歌排行（本周 + 所有时间）
+    private func loadNetEaseRank() async {
+        guard let user = auth.user, auth.isLoggedIn else { return }
+
+        async let w = try? NetEaseAPI.shared.playRecord(uid: user.uid, type: 1)
+        async let a = try? NetEaseAPI.shared.playRecord(uid: user.uid, type: 0)
+        let (wr, ar) = await (w, a)
+        weekRecord = wr?.items ?? []
+        allRecord = ar?.items ?? []
+
+    }
+
+    private var aboutSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            SectionHeader(title: "关于")
+            VStack(spacing: 8) {
+                Label(appVersionText, systemImage: "beats.headphones")
+                    .font(BeansFont.appFont(14, .semibold))
+                    .foregroundStyle(Color.beansLabel)
+                Text("网易云第三方客户端 · 数据来源网易云音乐")
+                    .font(BeansFont.appFont(12))
+                    .foregroundStyle(Color.beansSecondary)
+                    .multilineTextAlignment(.center)
+            }
+            .frame(maxWidth: .infinity)
+            .padding(16)
+            .background {
+                GlassEffectContainer {
+                    RoundedRectangle(cornerRadius: 22, style: .continuous)
+                        .fill(.clear)
+                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+            }
+            .beansCardShadow(radius: 9, y: 3)
+
+            Button(role: .destructive) {
+                confirmLogout = true
+            } label: {
+                Text("退出网易云登录")
+                    .font(BeansFont.appFont(15, .semibold))
+                    .foregroundStyle(Color.red)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 14)
+                    .background {
+            GlassEffectContainer {
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(.clear)
+                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+        }
+            }
+            .buttonStyle(.plain)
+        }
+    }
+}
+
+// MARK: - 统一账号登录面板（网易云 + QQ 音乐整合）
+
+struct AccountHubSheet: View {
+    @EnvironmentObject private var theme: ThemeStore
+    @EnvironmentObject private var auth: AuthStore
+    @ObservedObject private var qqAuth = QQMusicAuth.shared
+    @Environment(\.dismiss) private var dismiss
+
+    @State private var showNeteaseLogin = false
+    @State private var showQQLogin = false
+    @State private var confirmNeteaseLogout = false
+    @State private var confirmQQLogout = false
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                GlassBackdrop()
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 14) {
+                        SectionHeader(title: "账号")
+                        neteaseCard
+                        qqCard
+                        Text("网易云登录可同步歌单、收藏与听歌排行；QQ 音乐登录可播放更多 QQ 歌曲")
+                            .font(BeansFont.appFont(11))
+                            .foregroundStyle(Color.beansSecondary)
+                            .padding(.horizontal, 4)
+                    }
+                    .padding(16)
+                }
+                .scrollIndicators(.hidden)
+            }
+            .navigationTitle("账号登录")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .sheet(isPresented: $showNeteaseLogin) {
+            LoginView()
+                .environmentObject(auth)
+                .environmentObject(theme)
+        }
+        .sheet(isPresented: $showQQLogin) {
+            QQLoginSheet()
+                .environmentObject(theme)
+        }
+        .confirmationDialog("退出网易云登录？", isPresented: $confirmNeteaseLogout, titleVisibility: .visible) {
+            Button("退出登录", role: .destructive) {
+                auth.logout()
+                ToastCenter.shared.show("已退出网易云账号")
+            }
+            Button("取消", role: .cancel) {}
+        }
+        .confirmationDialog("退出 QQ 音乐？", isPresented: $confirmQQLogout, titleVisibility: .visible) {
+            Button("退出登录", role: .destructive) {
+                qqAuth.logout()
+                ToastCenter.shared.show("已退出 QQ 音乐")
+            }
+            Button("取消", role: .cancel) {}
+        }
+    }
+
+    /// 网易云账号卡片
+    private var neteaseCard: some View {
+        Button {
+            BeansHaptics.tap()
+            if auth.isLoggedIn { confirmNeteaseLogout = true } else { showNeteaseLogin = true }
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(Color(red: 0.93, green: 0.25, blue: 0.22))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "music.note")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("网易云音乐")
+                        .font(BeansFont.appFont(15, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    Text(auth.isLoggedIn ? (auth.user?.nickname ?? "已登录") : "未登录 · 扫码登录同步歌单")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansSecondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Text(auth.isLoggedIn ? "退出" : "登录")
+                    .font(BeansFont.appFont(13, .medium))
+                    .foregroundStyle(auth.isLoggedIn ? Color.red : Color.beansAmber)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+            .padding(14)
+            .background {
+                GlassEffectContainer {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(.clear)
+                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
+    }
+
+    /// QQ 音乐账号卡片
+    private var qqCard: some View {
+        Button {
+            BeansHaptics.tap()
+            if qqAuth.isLoggedIn { confirmQQLogout = true } else { showQQLogin = true }
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(LinearGradient(colors: [Color(red: 0.20, green: 0.55, blue: 0.95), Color(red: 0.38, green: 0.68, blue: 1.0)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                        .frame(width: 44, height: 44)
+                    Image(systemName: "bubble.left.and.bubble.right.fill")
+                        .font(.system(size: 20))
+                        .foregroundStyle(.white)
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("QQ 音乐")
+                        .font(BeansFont.appFont(15, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    Text(qqAuth.isLoggedIn ? (qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname) : "未登录 · 网页 / 扫码 / Cookie 登录")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansSecondary)
+                        .lineLimit(1)
+                }
+                Spacer()
+                Text(qqAuth.isLoggedIn ? "退出" : "登录")
+                    .font(BeansFont.appFont(13, .medium))
+                    .foregroundStyle(qqAuth.isLoggedIn ? Color.red : Color.beansAmber)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+            .padding(14)
+            .background {
+                GlassEffectContainer {
+                    RoundedRectangle(cornerRadius: 20, style: .continuous)
+                        .fill(.clear)
+                        .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
+    }
+}
+
+// MARK: - 设置页（外观 + 歌词翻译，从「我的」右上角齿轮进入）
+
+struct SettingsView: View {
+    @EnvironmentObject private var theme: ThemeStore
+    @Environment(\.dismiss) private var dismiss
+    @AppStorage("beans.themeMode") private var themeModeRaw = BeansThemeMode.system.rawValue
+    /// 显示歌词翻译（借鉴 Kumone：网易云 tlyric）
+    @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
+
+    @State private var appearanceExpanded = true
+    @State private var bgImageItem: PhotosPickerItem?
+    @State private var showFontImporter = false
+
+    private var themeMode: BeansThemeMode {
+        BeansThemeMode(rawValue: themeModeRaw) ?? .system
+    }
+
+    var body: some View {
+        NavigationStack {
+            ZStack {
+                GlassBackdrop(customColor: theme.backgroundSyncAll ? theme.customBackground : nil)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 22) {
+                        appearanceSection
+                        playbackSection
+                        footerNote
+                    }
+                    .padding(.horizontal, 16)
+                    .padding(.top, 8)
+                    .padding(.bottom, 40)
+                }
+                .scrollIndicators(.hidden)
+            }
+            .navigationTitle("设置")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .onChange(of: bgImageItem) { _, item in
+            guard let item else { return }
+            Task {
+                if let data = try? await item.loadTransferable(type: Data.self), !data.isEmpty {
+                    theme.addWallpaper(data)
+                    BeansHaptics.success()
+                }
+            }
+        }
+        .fullScreenCover(isPresented: $showFontImporter) {
+            FontDocumentPicker { url in
+                installFont(from: url)
+            }
+            .ignoresSafeArea()
+        }
+    }
+
+    /// 校验扩展名并安装字体（asCopy 返回的 URL 已在沙盒内，可直接读取）
+    private func installFont(from url: URL) {
+        let ext = url.pathExtension.lowercased()
+        guard ["ttf", "otf", "ttc"].contains(ext) else {
+            ToastCenter.shared.show("请选择 ttf / otf 字体文件")
+            return
+        }
+        if let name = FontManager.install(from: url) {
+            BeansHaptics.success()
+            ToastCenter.shared.show("字体已应用：\(name)")
+        } else {
+            ToastCenter.shared.show("字体安装失败，请使用 ttf / otf 文件")
+        }
+    }
+
+    /// 外观设置（原「我的」页外观折叠内容）
+    private var appearanceSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "外观")
             // 主题模式：液态玻璃行，点击展开 / 收起全部外观设置
@@ -548,59 +818,30 @@ struct ProfileView: View {
         }
     }
 
-    private func row(icon: String, title: String, value: String, action: @escaping () -> Void) -> some View {
-        Button {
-            action()
-        } label: {
-            HStack(spacing: 12) {
-                Image(systemName: icon)
-                    .font(.system(size: 15))
-                    .foregroundStyle(Color.beansAmber)
-                    .frame(width: 28)
-                Text(title)
-                    .font(BeansFont.appFont(15))
-                    .foregroundStyle(Color.beansLabel)
-                Spacer()
-                if !value.isEmpty {
-                    Text(value)
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+    /// 播放与歌词设置（借鉴 Kumone：显示歌词翻译）
+    private var playbackSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "播放与歌词")
+            VStack(spacing: 14) {
+                Toggle(isOn: $lyricTranslation) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "character.bubble.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("显示歌词翻译")
+                                .font(BeansFont.appFont(15))
+                                .foregroundStyle(Color.beansLabel)
+                            Text("当前播放歌词下方显示译文（网易云 tlyric）")
+                                .font(BeansFont.appFont(11))
+                                .foregroundStyle(Color.beansSecondary)
+                        }
+                    }
                 }
-                Image(systemName: "chevron.right")
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                .toggleStyle(.switch)
+                .tint(Color.beansAmber)
             }
-            .padding(.vertical, 14)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
-    }
-
-    /// 加载网易云听歌排行（本周 + 所有时间）
-    private func loadNetEaseRank() async {
-        guard let user = auth.user, auth.isLoggedIn else { return }
-
-        async let w = try? NetEaseAPI.shared.playRecord(uid: user.uid, type: 1)
-        async let a = try? NetEaseAPI.shared.playRecord(uid: user.uid, type: 0)
-        let (wr, ar) = await (w, a)
-        weekRecord = wr?.items ?? []
-        allRecord = ar?.items ?? []
-
-    }
-
-    private var aboutSection: some View {
-        VStack(alignment: .leading, spacing: 10) {
-            SectionHeader(title: "关于")
-            VStack(spacing: 8) {
-                Label(appVersionText, systemImage: "beats.headphones")
-                    .font(BeansFont.appFont(14, .semibold))
-                    .foregroundStyle(Color.beansLabel)
-                Text("仅供学习交流，纯 AI 实现此应用\n接入网易云音乐、QQ 音乐等公开接口，请勿用于商业用途")
-                    .font(BeansFont.appFont(12))
-                    .foregroundStyle(Color.beansSecondary)
-                    .multilineTextAlignment(.center)
-            }
-            .frame(maxWidth: .infinity)
             .padding(16)
             .background {
                 GlassEffectContainer {
@@ -610,24 +851,69 @@ struct ProfileView: View {
                 }
             }
             .beansCardShadow(radius: 9, y: 3)
-
-            Button(role: .destructive) {
-                confirmLogout = true
-            } label: {
-                Text("退出登录")
-                    .font(BeansFont.appFont(15, .semibold))
-                    .foregroundStyle(Color.red)
-                    .frame(maxWidth: .infinity)
-                    .padding(.vertical, 14)
-                    .background {
-            GlassEffectContainer {
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .fill(.clear)
-                    .glassEffect(.clear, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
         }
+    }
+
+    private var footerNote: some View {
+        VStack(spacing: 6) {
+            Text("Beans · 仅供学习交流，纯 AI 实现此应用")
+                .font(BeansFont.appFont(11))
+                .foregroundStyle(Color.beansSecondary.opacity(0.7))
+            Text("接入网易云音乐、QQ 音乐等公开接口")
+                .font(BeansFont.appFont(11))
+                .foregroundStyle(Color.beansSecondary.opacity(0.7))
+        }
+        .frame(maxWidth: .infinity)
+        .padding(.top, 4)
+    }
+
+    /// 壁纸格子：点击应用为当前背景；使用中的壁纸显示主题色边框+勾选；右上角删除
+    private func wallpaperCell(path: String) -> some View {
+        let isActive = path == theme.backgroundImagePath
+        return ZStack(alignment: .topTrailing) {
+            Button {
+                BeansHaptics.tap()
+                theme.applyWallpaper(at: path)
+            } label: {
+                Group {
+                    if let img = UIImage(contentsOfFile: path) {
+                        Image(uiImage: img)
+                            .resizable()
+                            .scaledToFill()
+                    } else {
+                        Color.beansGlassFill
+                    }
+                }
+                .frame(height: 108)
+                .frame(maxWidth: .infinity)
+                .clipShape(RoundedRectangle(cornerRadius: 14, style: .continuous))
+                .overlay(alignment: .bottomTrailing) {
+                    if isActive {
+                        Image(systemName: "checkmark.circle.fill")
+                            .font(.system(size: 18))
+                            .foregroundStyle(Color.beansAmber)
+                            .background(Circle().fill(.ultraThinMaterial))
+                            .padding(5)
+                    }
+                }
             }
             .buttonStyle(.plain)
+
+            Button {
+                BeansHaptics.medium()
+                theme.deleteWallpaper(at: path)
+            } label: {
+                Image(systemName: "xmark.circle.fill")
+                    .font(.system(size: 16, weight: .semibold))
+                    .foregroundStyle(Color.beansSecondary)
+                    .frame(width: 28, height: 28)
+                    .background(Circle().fill(.ultraThinMaterial))
+                    .clipShape(Circle())
+                    .contentShape(Circle())
+                    .padding(6)
+            }
+            .buttonStyle(.plain)
+            .zIndex(2)
         }
     }
 }

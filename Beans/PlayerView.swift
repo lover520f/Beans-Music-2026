@@ -46,6 +46,8 @@ struct PlayerView: View {
     @AppStorage("beans.playerFlowOn") private var playerFlowOn = true
     @AppStorage("beans.playerFlowSpeed") private var playerFlowSpeed = 1
     @AppStorage("beans.playerBreath") private var playerBreath = 0.6
+    /// 显示歌词翻译（借鉴 Kumone：网易云 tlyric）
+    @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
 
     private var song: Song? { player.currentSong }
     private let rateOptions: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -470,7 +472,7 @@ struct PlayerView: View {
                             .foregroundStyle(.white)
                             .padding(.horizontal, 6)
                             .padding(.vertical, 2)
-                            .background(Capsule().fill(Color.beansAmber))
+                            .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
                             .shadow(color: palette.accent.opacity(0.45), radius: 6)
                     }
                 }
@@ -520,7 +522,7 @@ struct PlayerView: View {
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 1.5)
-                                .background(Capsule().fill(Color.beansAmber))
+                                .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
                         }
                     }
                     Text(song?.artists ?? "")
@@ -561,7 +563,7 @@ struct PlayerView: View {
                 if lyrics.isEmpty {
                     emptyLyricsView
                 } else {
-                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius) { line in
+                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation) { line in
                         BeansHaptics.tap()
                         player.seek(to: line.time)
                     }
@@ -901,14 +903,15 @@ struct PlayerView: View {
     private func loadLyrics() async {
         lyrics = []
         guard let song else { return }
-        var raw: String?
         if song.source == .qq, let mid = song.qqMid {
-            raw = try? await QQMusicAPI.shared.lyric(songmid: mid)
+            if let raw = try? await QQMusicAPI.shared.lyric(songmid: mid) {
+                lyrics = LyricParser.parse(raw)
+            }
         } else {
-            raw = try? await NetEaseAPI.shared.lyric(id: song.id)
+            if let (lrc, tlyric) = try? await NetEaseAPI.shared.lyricWithTranslation(id: song.id) {
+                lyrics = LyricParser.parse(lrc ?? "", translationRaw: tlyric)
+            }
         }
-        guard let raw else { return }
-        lyrics = LyricParser.parse(raw)
     }
 
     /// 一次性提取当前封面主色，带动整个播放器配色动态变化（失败时保持主题回退色，不影响任何功能）
@@ -1034,6 +1037,8 @@ struct LyricsSection: View {
     var baseFontSize: CGFloat = 17
     var lineSpacing: CGFloat = 24
     var glowRadius: CGFloat = 9
+    /// 显示歌词翻译（当前行下方小字）
+    var showTranslation: Bool = false
     let onTapLine: (LyricLine) -> Void
 
     /// 长按歌词进入多选复制模式（可多选 / 全选复制）
@@ -1145,28 +1150,42 @@ struct LyricsSection: View {
         let glowColor = isCurrent ? (gradientStart ?? accent) : accent
 
         let lineFont: Font = BeansFont.appFont(size)
+        // 翻译行：仅当前行展示（借鉴 Kumone 的歌词翻译显示）
+        let translationText = (isCurrent && showTranslation) ? line.translation : nil
 
-        return Text(line.text.isEmpty ? "♪" : line.text)
-            .font(lineFont)
-            .foregroundStyle(lineStyle)
-            // 双层光晕：内层亮、外层宽，发光更明显
-            .shadow(
-                color: isCurrent ? glowColor.opacity(glowRadius > 0 ? 0.9 : 0) : .clear,
-                radius: isCurrent ? glowRadius * 0.45 : 0
-            )
-            .shadow(
-                color: isCurrent ? glowColor.opacity(glowRadius > 0 ? 0.55 : 0) : .clear,
-                radius: isCurrent ? glowRadius : 0
-            )
-            .blur(radius: blurRadius)
-            .opacity(max(opacity, 0.15))
-            .scaleEffect(isCurrent ? 1.05 : 1)
-            .multilineTextAlignment(.center)
-            .lineLimit(nil)
-            .fixedSize(horizontal: false, vertical: true)
-            .frame(maxWidth: .infinity, alignment: .center)
-            .padding(.horizontal, 36)
-            .animation(.easeInOut(duration: 0.25), value: currentIndex)
+        return VStack(spacing: 3) {
+            Text(line.text.isEmpty ? "♪" : line.text)
+                .font(lineFont)
+                .foregroundStyle(lineStyle)
+                // 双层光晕：内层亮、外层宽，发光更明显
+                .shadow(
+                    color: isCurrent ? glowColor.opacity(glowRadius > 0 ? 0.9 : 0) : .clear,
+                    radius: isCurrent ? glowRadius * 0.45 : 0
+                )
+                .shadow(
+                    color: isCurrent ? glowColor.opacity(glowRadius > 0 ? 0.55 : 0) : .clear,
+                    radius: isCurrent ? glowRadius : 0
+                )
+                .blur(radius: blurRadius)
+                .opacity(max(opacity, 0.15))
+                .scaleEffect(isCurrent ? 1.05 : 1)
+                .multilineTextAlignment(.center)
+                .lineLimit(nil)
+                .fixedSize(horizontal: false, vertical: true)
+            if let translationText, !translationText.isEmpty {
+                Text(translationText)
+                    .font(BeansFont.appFont(size * 0.68, .regular))
+                    .foregroundStyle(secondary.opacity(isCurrent ? 0.9 : 0.45))
+                    .multilineTextAlignment(.center)
+                    .lineLimit(nil)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .blur(radius: blurRadius * 0.5)
+                    .opacity(max(opacity, 0.2))
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .center)
+        .padding(.horizontal, 36)
+        .animation(.easeInOut(duration: 0.25), value: currentIndex)
     }
 
     private func toggleSelect(_ index: Int) {

@@ -184,16 +184,37 @@ struct LyricLine: Identifiable, Hashable {
     let id: UUID
     let time: Double
     let text: String
+    /// 歌词翻译（网易云 tlyric，可空）
+    var translation: String?
 
-    init(time: Double, text: String) {
+    init(time: Double, text: String, translation: String? = nil) {
         self.id = UUID()
         self.time = time
         self.text = text
+        self.translation = translation
     }
 }
 
 enum LyricParser {
-    static func parse(_ raw: String) -> [LyricLine] {
+    /// 解析歌词；可选传入翻译歌词（网易云 tlyric），按时间戳合并到对应行
+    static func parse(_ raw: String, translationRaw: String? = nil) -> [LyricLine] {
+        var lines = parseCore(raw)
+        if let translationRaw, !translationRaw.isEmpty {
+            let trans = parseCore(translationRaw)
+            var byTime: [Double: String] = [:]
+            for t in trans where !t.text.isEmpty {
+                byTime[t.time] = t.text
+            }
+            for i in lines.indices {
+                if let tr = byTime[lines[i].time], !tr.isEmpty {
+                    lines[i].translation = tr
+                }
+            }
+        }
+        return lines
+    }
+
+    private static func parseCore(_ raw: String) -> [LyricLine] {
         var lines: [LyricLine] = []
         for line in raw.components(separatedBy: .newlines) {
             parseTimes(in: line).forEach { time in

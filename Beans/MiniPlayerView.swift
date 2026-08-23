@@ -51,7 +51,7 @@ struct MiniPlayerView: View {
                                 .foregroundStyle(.white)
                                 .padding(.horizontal, 4)
                                 .padding(.vertical, 1.5)
-                                .background(Capsule().fill(Color.beansAmber))
+                                .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
                         }
                     }
                     Text(currentLyricLine?.text ?? player.currentSong?.artists ?? "")
