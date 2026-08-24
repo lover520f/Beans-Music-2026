@@ -45,9 +45,13 @@ struct PlayerView: View {
     /// 播放器氛围：背景流动开关 / 速度 / 呼吸光晕强度
     @AppStorage("beans.playerBreath") private var playerBreath = 0.6
     /// 显示歌词翻译（借鉴 Kumone：网易云 tlyric）
-    @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
+    @AppStorage("beans.lyricTranslation") private var lyricTranslation = true
     /// 进度条样式：0 流光 / 1 辉光 / 2 极光 / 3 波浪
     @AppStorage("beans.progressBarStyle") private var progressBarStyle = 0
+    /// 底部布局自由调整：开关 + 各组件 x/y/z 数据 + 当前选中组件
+    @AppStorage("beans.playerLayoutMode") private var layoutMode = false
+    @State private var layoutData: [String: PlayerLayoutEntry] = PlayerLayoutStore.load()
+    @State private var layoutPart: PlayerLayoutPart = .progress
 
     private var song: Song? { player.currentSong }
     private let rateOptions: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -149,12 +153,24 @@ struct PlayerView: View {
                 controlDeck(bottomInset: geo.safeAreaInsets.bottom)
                     .frame(maxWidth: .infinity)
                     .frame(maxHeight: .infinity, alignment: .bottom)
+
+                // 布局编辑工具栏：组件选择 + X/Y/Z 滑杆 + 恢复默认 + 完成
+                if layoutMode {
+                    layoutToolbar
+                        .frame(maxWidth: .infinity)
+                        .frame(maxHeight: .infinity, alignment: .top)
+                        .padding(.top, 10)
+                        .transition(.opacity)
+                }
             }
         }
         .task(id: song?.identityKey) {
             dominantColor = nil
             await loadLyrics()
             await extractCoverPalette()
+        }
+        .onChange(of: layoutData) { _, newValue in
+            PlayerLayoutStore.save(newValue)
         }
         .sheet(isPresented: $showQueue) { QueueView().environmentObject(player) }
         .sheet(isPresented: $showSleepTimer) { SleepTimerSheet().environmentObject(player) }
@@ -684,7 +700,9 @@ struct PlayerView: View {
     private func controlDeck(bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
             progressBlock
+                .modifier(Layoutable(part: .progress, enabled: layoutMode, data: $layoutData))
             deckRow
+                .modifier(Layoutable(part: .controls, enabled: layoutMode, data: $layoutData))
             deckGrabber
         }
         .padding(.horizontal, 24)
@@ -870,6 +888,83 @@ struct PlayerView: View {
         .buttonStyle(GlassPressButtonStyle(scale: 0.9))
     }
 
+
+    // MARK: - 底部布局自由调整工具栏（x / y / z + 恢复默认）
+
+    /// 当前选中组件的绑定（滑杆读写）
+    private var selectedLayoutEntry: Binding<PlayerLayoutEntry> {
+        Binding(
+            get: { layoutData[layoutPart.rawValue] ?? PlayerLayoutEntry() },
+            set: { layoutData[layoutPart.rawValue] = $0 }
+        )
+    }
+
+    private var layoutToolbar: some View {
+        VStack(spacing: 10) {
+            HStack {
+                Text("布局调整")
+                    .font(BeansFont.appFont(15, .bold))
+                Spacer()
+                Button {
+                    BeansHaptics.select()
+                    withAnimation(.spring(duration: 0.3)) { layoutMode = false }
+                } label: {
+                    Text("完成")
+                        .font(BeansFont.appFont(13, .semibold))
+                        .foregroundStyle(Color.beansAmber)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
+                        .background(.ultraThinMaterial, in: Capsule())
+                }
+                .buttonStyle(.plain)
+            }
+            Picker("组件", selection: $layoutPart) {
+                ForEach(PlayerLayoutPart.allCases) { part in
+                    Text(part.rawValue).tag(part)
+                }
+            }
+            .pickerStyle(.segmented)
+            layoutSlider("X", value: selectedLayoutEntry.x, range: -140...140)
+            layoutSlider("Y", value: selectedLayoutEntry.y, range: -300...300)
+            layoutSlider("Z 层级", value: selectedLayoutEntry.z, range: 0...10, step: 1)
+            HStack(spacing: 10) {
+                Button {
+                    layoutData = [:]
+                    PlayerLayoutStore.save(layoutData)
+                    BeansHaptics.success()
+                } label: {
+                    Label("恢复默认", systemImage: "arrow.counterclockwise")
+                        .font(BeansFont.appFont(13, .medium))
+                        .foregroundStyle(Color.beansAmber)
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Text("编辑模式：拖动组件到任意位置")
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(palette.secondary)
+            }
+        }
+        .padding(14)
+        .background {
+            BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        }
+        .padding(.horizontal, 12)
+    }
+
+    private func layoutSlider(_ title: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>, step: CGFloat = 1) -> some View {
+        HStack(spacing: 10) {
+            Text(title)
+                .font(BeansFont.appFont(12, .medium))
+                .foregroundStyle(palette.secondary)
+                .frame(width: 56, alignment: .leading)
+            Slider(value: value, in: range, step: step)
+                .tint(Color.beansAmber)
+            Text(String(format: "%.0f", value.wrappedValue))
+                .font(BeansFont.appFont(11, .regular, .monospaced))
+                .foregroundStyle(palette.secondary)
+                .frame(width: 34, alignment: .trailing)
+        }
+    }
 
     // MARK: - 分享
 
@@ -1180,23 +1275,35 @@ private struct WaveBar: View {
 
     var body: some View {
         ZStack(alignment: .leading) {
-            // 未播放波形（暗色）
+            // 辉光底层光晕（已播放段模糊扩散，辉光渐变氛围）
             WaveShape(phase: phase)
-                .stroke(track.opacity(0.5), style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
+                .stroke(accent.opacity(0.5), style: StrokeStyle(lineWidth: 5, lineCap: .round))
+                .blur(radius: 8)
                 .frame(width: width, height: 16)
-            // 已播放波形（渐变高亮 + 发光，裁剪到当前进度）
+                .frame(width: max(0, width * CGFloat(ratio)), alignment: .leading)
+                .clipped()
+            // 未播放波形（暗色渐变轨道）
             WaveShape(phase: phase)
                 .stroke(
-                    LinearGradient(colors: [accent, accent.opacity(0.65), .white.opacity(0.9)],
+                    LinearGradient(colors: [accent.opacity(0.25), track.opacity(0.45), accent.opacity(0.15)],
                                    startPoint: .leading, endPoint: .trailing),
-                    style: StrokeStyle(lineWidth: 3.4, lineCap: .round)
+                    style: StrokeStyle(lineWidth: 2.6, lineCap: .round)
                 )
-                .shadow(color: accent.opacity(0.75), radius: 4)
+                .frame(width: width, height: 16)
+            // 已播放波形（辉光渐变高亮：白→主色→淡，双阴影辉光）
+            WaveShape(phase: phase)
+                .stroke(
+                    LinearGradient(colors: [.white.opacity(0.95), accent, accent.opacity(0.6)],
+                                   startPoint: .leading, endPoint: .trailing),
+                    style: StrokeStyle(lineWidth: 3.6, lineCap: .round)
+                )
+                .shadow(color: accent.opacity(0.8), radius: 6, y: 1)
+                .shadow(color: accent.opacity(0.45), radius: 14)
                 .frame(width: width, height: 16)
                 .frame(width: max(0, width * CGFloat(ratio)), alignment: .leading)
                 .clipped()
         }
-        .frame(height: 18)
+        .frame(height: 20)
         .onAppear {
             if phase == 0 { phase = 1 }
         }
@@ -1502,7 +1609,8 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricGradStart") private var gradStartRaw = ""
     @AppStorage("beans.lyricGradEnd") private var gradEndRaw = ""
     @AppStorage("beans.lyricGradMode") private var gradMode = 0
-    @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
+    @AppStorage("beans.lyricTranslation") private var lyricTranslation = true
+    @AppStorage("beans.playerLayoutMode") private var layoutMode = false
     @Environment(\.dismiss) private var dismiss
 
     /// 预设按钮：点击应用渐变起止色 + 发光强度
@@ -1729,6 +1837,13 @@ struct PlayerSettingsSheet: View {
                     }
                     .font(BeansFont.appFont(13))
                     .foregroundStyle(Color.beansAmber)
+                }
+                Section("底部布局") {
+                    Toggle("自定义布局", isOn: $layoutMode)
+                        .tint(Color.beansAmber)
+                    Text("开启后可在播放页自由拖动底部组件位置，并调整 X / Y / Z 层级（设置里可随时恢复默认）")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansSecondary)
                 }
                 Section("歌词翻译") {
                     Toggle("显示歌词翻译", isOn: $lyricTranslation)

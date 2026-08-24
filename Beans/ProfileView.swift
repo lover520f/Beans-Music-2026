@@ -626,8 +626,6 @@ struct SettingsView: View {
     @EnvironmentObject private var theme: ThemeStore
     @Environment(\.dismiss) private var dismiss
     @AppStorage("beans.themeMode") private var themeModeRaw = BeansThemeMode.system.rawValue
-    /// 显示歌词翻译（借鉴 Kumone：网易云 tlyric）
-    @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
     /// 音质等级（借鉴 Kumone）
     @AppStorage("beans.audioQuality") private var audioQualityRaw = BeansAudioQuality.exhigh.rawValue
     /// 免费听歌 / 灰色歌曲解锁总开关（默认关闭，用户手动开启）
@@ -960,7 +958,7 @@ struct SettingsView: View {
     /// 播放与歌词设置（借鉴 Kumone：音质 / 免费听歌 / 显示歌词翻译）
     private var playbackSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "播放与歌词")
+            SectionHeader(title: "播放设置")
             VStack(spacing: 14) {
                 VStack(alignment: .leading, spacing: 6) {
                     HStack(spacing: 12) {
@@ -1004,26 +1002,6 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .tint(Color.beansAmber)
 
-                Divider().overlay(Color.beansSecondary.opacity(0.15))
-
-                Toggle(isOn: $lyricTranslation) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "character.bubble.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color.beansAmber)
-                            .frame(width: 28)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("显示歌词翻译")
-                                .font(BeansFont.appFont(15))
-                                .foregroundStyle(Color.beansLabel)
-                            Text("当前播放歌词下方显示译文（网易云 tlyric）")
-                                .font(BeansFont.appFont(11))
-                                .foregroundStyle(Color.beansSecondary)
-                        }
-                    }
-                }
-                .toggleStyle(.switch)
-                .tint(Color.beansAmber)
             }
             .padding(16)
             .background {
