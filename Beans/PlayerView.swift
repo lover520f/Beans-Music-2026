@@ -47,6 +47,11 @@ struct PlayerView: View {
     @AppStorage("beans.playerBreath") private var playerBreath = 0.6
     /// 显示歌词翻译（借鉴 Kumone：网易云 tlyric）
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
+    /// 旋律可视化：默认开启；样式/颜色在播放器设置中调整
+    @AppStorage("beans.visualizerEnabled") private var visualizerEnabled = true
+    @AppStorage("beans.visualizerStyle") private var visualizerStyle = 0
+    @AppStorage("beans.visualizerColorMode") private var visualizerColorMode = 0
+    @AppStorage("beans.visualizerColorRaw") private var visualizerColorRaw = ""
 
     private var song: Song? { player.currentSong }
     private let rateOptions: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -169,7 +174,11 @@ struct PlayerView: View {
         }
         .sheet(isPresented: $showPlayerSettings) {
             PlayerSettingsSheet(
-                breath: $playerBreath
+                breath: $playerBreath,
+                visualizerEnabled: $visualizerEnabled,
+                visualizerStyle: $visualizerStyle,
+                visualizerColorMode: $visualizerColorMode,
+                visualizerColorRaw: $visualizerColorRaw
             )
         }
         .sheet(isPresented: $showShare) {
@@ -341,6 +350,9 @@ struct PlayerView: View {
                     showShare = true
                 } label: {
                     Label("分享歌曲", systemImage: "square.and.arrow.up")
+                }
+                Toggle(isOn: $visualizerEnabled) {
+                    Label("旋律可视化", systemImage: "waveform")
                 }
                 Divider()
                 Button {
@@ -697,19 +709,74 @@ struct PlayerView: View {
     // MARK: - 底部控制栏（普通材质圆角面板：进度 / 主控制 / 工具行）
 
     /// 底部控制栏估算高度（单行控制后降低，给歌词视口更多空间）
-    /// 底部控制栏预留高度（越小歌词视口越大；需 >= 控制栏实际高度避免遮挡）
-    private let deckInset: CGFloat = 98
+    /// 底部控制栏预留高度（越小歌词视口越大；需 >= 控制栏实际高度避免遮挡；可视化开启时控制栏更高）
+    private var deckInset: CGFloat { visualizerEnabled ? 136 : 116 }
 
     private func controlDeck(bottomInset: CGFloat) -> some View {
         VStack(spacing: 0) {
+            if visualizerEnabled {
+                visualizerBar
+                    .padding(.horizontal, 2)
+                    .padding(.bottom, 2)
+            }
             progressBlock
             deckRow
+            deckGrabber
         }
         .padding(.horizontal, 24)
         .padding(.top, 0)
         .padding(.bottom, bottomInset)
         .frame(maxWidth: .infinity)
-        // 底部控件直接悬浮在模糊背景上：单行控制 + 底部进度条，歌词视口更大
+        // 底部控件直接悬浮在模糊背景上：旋律可视化 + 进度 + 单行控制 + 指示线，歌词视口更大
+    }
+
+    /// 旋律可视化条（默认开启，紧贴进度条上方；样式/颜色在播放器设置中调整）
+    private var visualizerBar: some View {
+        VisualizerBar(
+            accent: visualizerAccent,
+            dim: visualizerDim,
+            progress: visualizerProgress,
+            isPlaying: player.isPlaying,
+            style: visualizerStyle
+        )
+    }
+
+    private var visualizerProgress: Double {
+        let total = max(player.duration, 1)
+        return min(max(player.progress / total, 0), 1)
+    }
+
+    /// 旋律颜色：默认跟随封面主色（与进度条/歌词同步），可自定义
+    private var visualizerAccent: Color {
+        if visualizerColorMode == 1, visualizerColorRaw.hasPrefix("#"), let c = Color(hex: visualizerColorRaw) { return c }
+        return palette.accent
+    }
+
+    private var visualizerDim: Color {
+        if visualizerColorMode == 1, visualizerColorRaw.hasPrefix("#"), let c = Color(hex: visualizerColorRaw) { return c.opacity(0.35) }
+        return palette.secondary.opacity(0.75)
+    }
+
+    /// 底部指示线：只有在指示线附近上滑才呼出评论区（避免误触控制按钮）
+    private var deckGrabber: some View {
+        Capsule()
+            .fill(palette.secondary.opacity(0.5))
+            .frame(width: 40, height: 5)
+            .overlay {
+                Capsule().strokeBorder(.white.opacity(0.25), lineWidth: 0.5)
+            }
+            .padding(.top, 6)
+            .padding(.bottom, 8)
+            .contentShape(Rectangle())
+            .gesture(
+                DragGesture(minimumDistance: 25)
+                    .onEnded { value in
+                        if value.translation.height < -50, song != nil {
+                            BeansHaptics.medium()
+                            showComments = true
+                        }
+                    }
+            )
     }
 
     private var subtitle: String {
@@ -778,16 +845,6 @@ struct PlayerView: View {
         }
         .frame(maxWidth: .infinity)
         .padding(.horizontal, 24)
-        .simultaneousGesture(
-            // 上滑控制行呼出评论区（进度条区域保留拖动，不误触）
-            DragGesture(minimumDistance: 25)
-                .onEnded { value in
-                    if value.translation.height < -50, song != nil {
-                        BeansHaptics.medium()
-                        showComments = true
-                    }
-                }
-        )
     }
 
     /// 循环 / 随机播放按钮（随机模式高亮）
@@ -1612,11 +1669,46 @@ struct LyricPreset {
 
 struct PlayerSettingsSheet: View {
     @Binding var breath: Double
+    @Binding var visualizerEnabled: Bool
+    @Binding var visualizerStyle: Int
+    @Binding var visualizerColorMode: Int
+    @Binding var visualizerColorRaw: String
     @Environment(\.dismiss) private var dismiss
+
+    /// 旋律可视化自定义颜色（色盘选色写入 hex）
+    private var visualizerColorBinding: Binding<Color> {
+        Binding(
+            get: {
+                if visualizerColorRaw.hasPrefix("#"), let c = Color(hex: visualizerColorRaw) { return c }
+                return Color(red: 0.98, green: 0.55, blue: 0.2)
+            },
+            set: { visualizerColorRaw = "#" + UIColor($0).hexString }
+        )
+    }
 
     var body: some View {
         NavigationStack {
             Form {
+                Section("旋律可视化") {
+                    Toggle("启用旋律可视化", isOn: $visualizerEnabled)
+                    Picker("样式", selection: $visualizerStyle) {
+                        Text("柱状").tag(0)
+                        Text("圆点").tag(1)
+                        Text("波形").tag(2)
+                    }
+                    .pickerStyle(.segmented)
+                    Picker("颜色", selection: $visualizerColorMode) {
+                        Text("跟随封面").tag(0)
+                        Text("自定义").tag(1)
+                    }
+                    .pickerStyle(.segmented)
+                    if visualizerColorMode == 1 {
+                        ColorPicker("旋律颜色", selection: visualizerColorBinding, supportsOpacity: false)
+                    }
+                    Text("默认跟随封面主色，与进度条/歌词同步；已播放部分高亮，随旋律波动")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansSecondary)
+                }
                 Section("背景光晕强度") {
                     HStack(spacing: 12) {
                         Image(systemName: "circle.lefthalf.filled")
@@ -1644,7 +1736,7 @@ struct PlayerSettingsSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(380)])
+        .presentationDetents([.height(560)])
         .presentationDragIndicator(.visible)
     }
 }
@@ -1652,6 +1744,67 @@ struct PlayerSettingsSheet: View {
 
 
 
+
+// MARK: - 旋律可视化条（随播放进度高亮，随旋律波动；样式：柱状 / 圆点 / 波形）
+
+struct VisualizerBar: View {
+    let accent: Color
+    let dim: Color
+    let progress: Double
+    let isPlaying: Bool
+    let style: Int
+
+    private let barCount = 24
+
+    var body: some View {
+        // 播放时约 12fps 波动；暂停时冻结动画，降低功耗
+        TimelineView(.animation(minimumInterval: 0.08, paused: !isPlaying)) { context in
+            let time = context.date.timeIntervalSinceReferenceDate
+            GeometryReader { geo in
+                let gap: CGFloat = 3
+                let totalGap = gap * CGFloat(barCount - 1)
+                let barW = max(2, (geo.size.width - totalGap) / CGFloat(barCount))
+                HStack(alignment: .center, spacing: gap) {
+                    ForEach(0..<barCount, id: \.self) { i in
+                        barItem(index: i, time: time, barW: barW)
+                    }
+                }
+            }
+            .frame(height: style == 1 ? 18 : 20)
+        }
+        .allowsHitTesting(false)
+    }
+
+    @ViewBuilder
+    private func barItem(index: Int, time: TimeInterval, barW: CGFloat) -> some View {
+        // 已播放部分（进度条同步）：高亮强调色；未播放：暗色
+        let played = Double(index) / Double(barCount - 1) <= progress
+        let base: CGFloat = isPlaying
+            ? CGFloat(5 + abs(sin(time * 2.4 + Double(index) * 0.72)) * 11 + abs(sin(time * 5.1 + Double(index) * 1.7)) * 4)
+            : 7
+        switch style {
+        case 1:
+            // 圆点样式
+            Circle()
+                .fill(played ? accent : dim)
+                .frame(width: base, height: base)
+                .shadow(color: played ? accent.opacity(0.5) : .clear, radius: 3)
+        case 2:
+            // 波形样式（中心对称三线）
+            VStack(spacing: 2) {
+                Capsule().fill(played ? accent : dim).frame(width: max(barW, 3), height: max(2, base * 0.42))
+                Capsule().fill(played ? accent.opacity(0.8) : dim.opacity(0.7)).frame(width: max(barW, 3), height: max(2, base * 0.3))
+                Capsule().fill(played ? accent : dim).frame(width: max(barW, 3), height: max(2, base * 0.42))
+            }
+        default:
+            // 柱状样式
+            Capsule()
+                .fill(played ? accent : dim)
+                .frame(width: max(barW, 2.5), height: base)
+                .shadow(color: played ? accent.opacity(0.45) : .clear, radius: 3)
+        }
+    }
+}
 
 // MARK: - 原生系统分享面板（UIActivityViewController 封装，直接调系统自带分享）
 
