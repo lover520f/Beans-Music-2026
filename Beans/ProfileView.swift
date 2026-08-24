@@ -1038,6 +1038,7 @@ struct SettingsView: View {
                 unblockSourceToggle(id: "pyncmd", icon: "bolt.fill", title: "GD 音乐台", subtitle: "按网易云 ID 取高音质地址")
                 unblockSourceToggle(id: "kuwo", icon: "music.note", title: "酷我音源", subtitle: "酷我搜索 + 双直链兜底")
                 unblockSourceToggle(id: "bodian", icon: "waveform.badge.plus", title: "波点音源", subtitle: "波点签名取流（Splayer 解锁插件）")
+                unblockSourceToggle(id: "migu", icon: "circle.grid.cross", title: "咪咕音源", subtitle: "周杰伦等版权歌曲官方 CDN 直链（仅内置清单）")
 
                 Divider().overlay(Color.beansComment.opacity(0.15))
 

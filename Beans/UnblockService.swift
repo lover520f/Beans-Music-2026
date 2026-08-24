@@ -47,10 +47,10 @@ enum UnblockService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !keyword.isEmpty else { return nil }
 
-        // 咪咕直连：官方正版 CDN 直链，仅命中内置清单（歌名+歌手+时长三重校验），严格模式优先使用
-        if strict, let r = miguDirect(name: name, artists: artists, durationMS: durationMS) { return r }
-
         let store = UnblockSourceStore.shared
+        // 咪咕直连：官方正版 CDN 直链，仅命中内置清单（歌名+歌手+时长三重校验），严格模式优先使用；
+        // 受「咪咕音源」开关控制，与其他第三方音源一致（全部关闭时不使用任何第三方音源）
+        if strict, store.isEnabled("migu"), let r = miguDirect(name: name, artists: artists, durationMS: durationMS) { return r }
         // pyncmd 只支持网易云 id；QQ 歌曲（neteaseID = 0）直接跳过
         if neteaseID > 0, store.isEnabled("pyncmd"), let r = await pyncmd(neteaseID: neteaseID) { return r }
         if store.isEnabled("kuwo"), let r = await kuwo(keyword: keyword, durationMS: durationMS, artists: artists, strict: strict, songName: name) { return r }

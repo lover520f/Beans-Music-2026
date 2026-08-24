@@ -360,7 +360,20 @@ final class PlayerManager: NSObject, ObservableObject {
                     self.isBuffering = false
                     self.loadFailed = true
                     if self.shouldLockOfficialOnly(song) {
-                        ToastCenter.shared.show("《\(song.name)》未找到原唱音源（官方受限），已停止播放，拒绝翻唱版本")
+                        // 版权受限歌手（周杰伦）：官方接口只给试听，必须靠第三方音源取完整原唱
+                        if !enableUnblock {
+                            ToastCenter.shared.show("《\(song.name)》为版权受限歌曲：官方接口仅提供试听，请先在「我的 → 设置」开启「免费听歌」并启用至少一个第三方音源")
+                        } else {
+                            ToastCenter.shared.show("《\(song.name)》未找到原唱音源（官方受限）：已开启免费听歌但可用音源均未命中，请检查「第三方音源」开关")
+                        }
+                    } else if song.isVIP {
+                        if !enableUnblock {
+                            ToastCenter.shared.show("《\(song.name)》为 VIP 歌曲：请先在「我的 → 设置」开启「免费听歌」后重试")
+                        } else {
+                            ToastCenter.shared.show("《\(song.name)》VIP 音源解析失败，请重试或检查第三方音源开关")
+                        }
+                    } else {
+                        ToastCenter.shared.show("《\(song.name)》播放失败，请重试")
                     }
                 }
                 return

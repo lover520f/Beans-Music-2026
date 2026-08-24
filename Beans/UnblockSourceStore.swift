@@ -49,7 +49,7 @@ final class UnblockSourceStore: ObservableObject {
     }
 
     /// 内置源顺序：pyncmd → kuwo → bodian
-    static let builtinOrder = ["pyncmd", "kuwo", "bodian"]
+    static let builtinOrder = ["pyncmd", "kuwo", "bodian", "migu"]
 
     private let defaults = UserDefaults.standard
     private let builtinKey = "beans.unblock.builtin.v2"
