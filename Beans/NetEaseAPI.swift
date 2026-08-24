@@ -246,6 +246,7 @@ final class NetEaseAPI {
             case 404: throw NetEaseError.unknown("手机号未注册")
             case 603: throw NetEaseError.unknown("手机号已注册")
             case 509: throw NetEaseError.unknown("验证码发送过于频繁，请稍后再试")
+            case 462, -462: throw NetEaseError.unknown("验证码发送失败：操作过于频繁或账号触发风控，请稍后再试或改用扫码登录")
             default:
                 let message = json["message"] as? String ?? ""
                 throw NetEaseError.unknown("发送验证码失败（\(code)）\(message)")
@@ -286,7 +287,7 @@ final class NetEaseAPI {
                 throw NetEaseError.unknown("密码错误")
             case 502:
                 throw NetEaseError.unknown("验证码错误")
-            case 509:
+            case 509, 462, -462:
                 throw NetEaseError.needsCaptcha
             case 503, 507:
                 throw NetEaseError.unknown("服务繁忙，请稍后重试")

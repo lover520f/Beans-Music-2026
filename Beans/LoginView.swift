@@ -409,9 +409,14 @@ struct LoginView: View {
                 await MainActor.run {
                     phoneBusy = false
                     if let ne = error as? NetEaseError, case .needsCaptcha = ne {
-                        useCaptcha = true
-                        captcha = ""
-                        phoneError = "该账号需要短信验证码，请使用验证码登录"
+                        if useCaptcha {
+                            captcha = ""
+                            phoneError = "登录未成功：可能是验证码错误或账号触发风控，请重新获取验证码后重试，或改用扫码登录"
+                        } else {
+                            useCaptcha = true
+                            captcha = ""
+                            phoneError = "该账号需要短信验证码，请使用验证码登录"
+                        }
                     } else {
                         phoneError = error.localizedDescription
                     }
