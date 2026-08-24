@@ -360,7 +360,7 @@ struct ProfileView: View {
         }
     }
 
-    /// 版权声明（默认折叠，可展开查看全部）
+    /// 版权声明（默认折叠，可展开查看）
     private var copyrightDisclosure: some View {
         DisclosureGroup {
             VStack(alignment: .leading, spacing: 10) {
@@ -380,7 +380,7 @@ struct ProfileView: View {
                     .font(.system(size: 14))
                     .foregroundStyle(Color.beansAmber)
                     .frame(width: 26)
-                Text("版权声明（展开查看全部）")
+                Text("版权声明")
                     .font(BeansFont.appFont(14, .semibold))
                     .foregroundStyle(Color.beansLabel)
                 Spacer()
@@ -1136,7 +1136,7 @@ struct SettingsView: View {
 
     private var footerNote: some View {
         VStack(spacing: 6) {
-            Text("Beans · 仅供学习交流，纯 AI 实现此应用")
+            Text("Beans Music · 仅供学习交流，纯 AI 实现此应用")
                 .font(BeansFont.appFont(11))
                 .foregroundStyle(Color.beansSecondary.opacity(0.7))
             Text("接入网易云音乐、QQ 音乐、酷狗音乐等公开接口")
