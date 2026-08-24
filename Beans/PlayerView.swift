@@ -214,7 +214,7 @@ struct PlayerView: View {
             await loadLyrics()
             await extractCoverPalette()
         }
-        .onChange(of: layoutData) { _, newValue in
+        .onChange(of: layoutData) { newValue in
             PlayerLayoutStore.save(newValue)
         }
         .sheet(isPresented: $showQueue) { QueueView().environmentObject(player) }
@@ -1000,7 +1000,7 @@ struct PlayerView: View {
             Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(Color.white)
-                .contentTransition(.symbolEffect(.replace))
+                .modifier(BeansSymbolReplace())
                 .scaleEffect(player.isPlaying ? 1.0 : 0.88)
                 .animation(.spring(response: 0.32, dampingFraction: 0.6), value: player.isPlaying)
                 .frame(width: 44, height: 44)
@@ -1078,7 +1078,7 @@ struct PlayerView: View {
                 Spacer()
                 Button {
                     BeansHaptics.select()
-                    withAnimation(.spring(duration: 0.3)) { layoutMode = false }
+                    withAnimation(.spring(response: 0.3, dampingFraction: 0.86)) { layoutMode = false }
                 } label: {
                     Text("完成")
                         .font(BeansFont.appFont(13, .semibold))
@@ -1645,7 +1645,7 @@ struct LyricsSection: View {
                     scrollToCurrent(proxy)
                 }
             }
-            .onChange(of: currentIndex) { _, newIndex in
+            .onChange(of: currentIndex) { newIndex in
                 guard let newIndex, !isUserScrolling else { return }
                 withAnimation(.easeInOut(duration: 0.3)) {
                     proxy.scrollTo(newIndex, anchor: anchor)

@@ -41,6 +41,9 @@ struct RootView: View {
     @AppStorage("beans.disclaimerAccepted") private var disclaimerAccepted = false
     /// 版本更新说明弹窗
     @State private var showWhatsNew = false
+    /// 自动检测更新结果
+    @State private var updateInfo: UpdateChecker.ReleaseInfo?
+    @State private var showUpdateAlert = false
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
     }
@@ -86,7 +89,7 @@ struct RootView: View {
                 .environmentObject(player)
                 .environmentObject(auth)
         }
-        .animation(.spring(duration: 0.4), value: player.currentSong?.id)
+        .animation(.spring(response: 0.4, dampingFraction: 0.86), value: player.currentSong?.id)
         .overlay(alignment: .bottom) {
             ToastView(center: ToastCenter.shared)
         }
@@ -96,7 +99,7 @@ struct RootView: View {
                 showWhatsNew = true
             }
         }
-        .onChange(of: disclaimerAccepted) { _, accepted in
+        .onChange(of: disclaimerAccepted) { accepted in
             // 首次进入：确认免责声明后弹出更新说明
             if accepted, ChangelogStore.shouldShowWhatsNew {
                 showWhatsNew = true
@@ -104,6 +107,19 @@ struct RootView: View {
         }
         .sheet(isPresented: $showWhatsNew) {
             WhatsNewSheet()
+        }
+        .task(id: disclaimerAccepted) {
+            guard disclaimerAccepted else { return }
+            if let info = await UpdateChecker.checkIfNeeded() {
+                updateInfo = info
+                showUpdateAlert = true
+            }
+        }
+        .alert("发现新版本", isPresented: $showUpdateAlert, presenting: updateInfo) { info in
+            Button("前往更新") { UIApplication.shared.open(info.htmlURL) }
+            Button("以后再说", role: .cancel) {}
+        } message: { info in
+            Text("Beans Music 有新版本 \(info.version) 啦，是否前往 GitHub 下载更新？")
         }
     }
 }

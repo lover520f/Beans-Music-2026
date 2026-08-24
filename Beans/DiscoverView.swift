@@ -66,7 +66,7 @@ struct DiscoverView: View {
             .scrollIndicators(.hidden)
             .refreshable { await load(force: true) }
             .task(id: source) { await load(force: false) }
-            .onChange(of: disclaimerAccepted) { _, accepted in
+            .onChange(of: disclaimerAccepted) { accepted in
                 // 免责声明确认进入后：若首页加载失败则自动刷新（无需手动下拉）
                 if accepted, errorMessage != nil {
                     Task { await load(force: true) }
@@ -273,7 +273,7 @@ struct DiscoverView: View {
     private func rankToggleButton(label: String, icon: String) -> some View {
         Button {
             BeansHaptics.select()
-            withAnimation(.spring(duration: 0.35)) { ranksExpanded.toggle() }
+            withAnimation(.spring(response: 0.35, dampingFraction: 0.86)) { ranksExpanded.toggle() }
         } label: {
             HStack(spacing: 6) {
                 Text(label)

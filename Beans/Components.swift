@@ -131,10 +131,15 @@ struct BeansGlass<S: Shape>: View {
 
     var body: some View {
         if isLiquid {
-            GlassEffectContainer {
+            if #available(iOS 26, *) {
+                GlassEffectContainer {
+                    shape
+                        .fill(.clear)
+                        .glassEffect(.clear, in: shape)
+                }
+            } else {
                 shape
-                    .fill(.clear)
-                    .glassEffect(.clear, in: shape)
+                    .fill(.ultraThinMaterial)
             }
         } else {
             shape
@@ -156,18 +161,38 @@ struct GlassCard<Content: View>: View {
 
     var body: some View {
         if isLiquid {
-            GlassEffectContainer {
+            if #available(iOS 26, *) {
+                GlassEffectContainer {
+                    content()
+                        .padding(16)
+                        .glassEffect(.clear, in: .rect(cornerRadius: cornerRadius))
+                }
+                .beansCardShadow(radius: 9, y: 3)
+            } else {
                 content()
                     .padding(16)
-                    .glassEffect(.clear, in: .rect(cornerRadius: cornerRadius))
+                    .background(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.ultraThinMaterial))
+                    .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
+                    .beansCardShadow(radius: 9, y: 3)
             }
-            .beansCardShadow(radius: 9, y: 3)
         } else {
             content()
                 .padding(16)
                 .background(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous).fill(.ultraThinMaterial))
                 .clipShape(RoundedRectangle(cornerRadius: cornerRadius, style: .continuous))
                 .beansCardShadow(radius: 9, y: 3)
+        }
+    }
+}
+
+/// 播放/暂停图标切换过渡：iOS 17+ 使用符号替换动画，低版本回退透明度过渡
+struct BeansSymbolReplace: ViewModifier {
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 17, *) {
+            content.contentTransition(.symbolEffect(.replace))
+        } else {
+            content.contentTransition(.opacity)
         }
     }
 }

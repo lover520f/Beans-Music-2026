@@ -126,7 +126,7 @@ struct SearchView: View {
             hotWords = []
             await loadHotWords()
         }
-        .onChange(of: keyword) { _, newValue in
+        .onChange(of: keyword) { newValue in
             debounceTask?.cancel()
             let trimmed = newValue.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else {
@@ -142,7 +142,7 @@ struct SearchView: View {
                 await startSearch(trimmed)
             }
         }
-        .onChange(of: provider) { _, _ in
+        .onChange(of: provider) { _ in
             let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !trimmed.isEmpty else { return }
             debounceTask?.cancel()

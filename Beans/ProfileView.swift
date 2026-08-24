@@ -1,4 +1,5 @@
 import SwiftUI
+import UIKit
 import PhotosUI
 import UniformTypeIdentifiers
 
@@ -20,6 +21,10 @@ struct ProfileView: View {
     @State private var showSettings = false
     /// 软件使用说明
     @State private var showUsageGuide = false
+    /// 手动检查更新
+    @State private var checkingUpdate = false
+    @State private var updateResult: UpdateChecker.CheckResult?
+    @State private var showUpdateResult = false
     @ObservedObject private var qqAuth = QQMusicAuth.shared
 
     private var themeMode: BeansThemeMode {
@@ -119,6 +124,26 @@ struct ProfileView: View {
         .sheet(isPresented: $showSleepTimer) {
             SleepTimerSheet()
                 .environmentObject(player)
+        }
+        .alert("检查更新", isPresented: $showUpdateResult, presenting: updateResult) { result in
+            switch result {
+            case .update(let info):
+                Button("前往更新") { UIApplication.shared.open(info.htmlURL) }
+                Button("取消", role: .cancel) {}
+            case .upToDate:
+                Button("好", role: .cancel) {}
+            case .failed:
+                Button("好", role: .cancel) {}
+            }
+        } message: { result in
+            switch result {
+            case .update(let info):
+                Text("发现新版本 \(info.version)，是否前往 GitHub 下载更新？")
+            case .upToDate:
+                Text("当前已是最新版本 \(UpdateChecker.currentVersion)")
+            case .failed:
+                Text("检查失败，请检查网络后重试")
+            }
         }
     }
 
@@ -393,6 +418,8 @@ struct ProfileView: View {
             .beansCardShadow(radius: 9, y: 3)
 
             copyrightDisclosure
+
+            updateLinkCard
         }
     }
 
@@ -428,6 +455,84 @@ struct ProfileView: View {
                             BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
         }
         .beansCardShadow(radius: 9, y: 3)
+    }
+
+    /// 更新地址 + 检查更新（GitHub 项目，可点击交互）
+    private var updateLinkCard: some View {
+        VStack(spacing: 10) {
+            Button {
+                BeansHaptics.tap()
+                if let url = URL(string: "https://github.com/XIaodou0416/Beans-Music") {
+                    UIApplication.shared.open(url)
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.up.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.beansHighlight)
+                        .frame(width: 26)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text("更新地址")
+                            .font(BeansFont.appFont(14, .semibold))
+                            .foregroundStyle(Color.beansLabel)
+                        Text("GitHub：XIaodou0416/Beans-Music")
+                            .font(BeansFont.appFont(11))
+                            .foregroundStyle(Color.beansComment)
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.8)
+                    }
+                    Spacer()
+                    Image(systemName: "arrow.up.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.beansComment)
+                }
+                .padding(16)
+                .background {
+                    BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .beansCardShadow(radius: 9, y: 3)
+            }
+            .buttonStyle(.plain)
+
+            Button {
+                BeansHaptics.tap()
+                guard !checkingUpdate else { return }
+                checkingUpdate = true
+                Task {
+                    let result = await UpdateChecker.checkNow()
+                    await MainActor.run {
+                        checkingUpdate = false
+                        updateResult = result
+                        showUpdateResult = true
+                    }
+                }
+            } label: {
+                HStack(spacing: 10) {
+                    Image(systemName: checkingUpdate ? "arrow.triangle.2.circlepath" : "checkmark.circle.fill")
+                        .font(.system(size: 15))
+                        .foregroundStyle(Color.beansHighlight)
+                        .frame(width: 26)
+                        .rotationEffect(.degrees(checkingUpdate ? 360 : 0))
+                        .animation(checkingUpdate ? .linear(duration: 1).repeatForever(autoreverses: false) : .default, value: checkingUpdate)
+                    VStack(alignment: .leading, spacing: 2) {
+                        Text(checkingUpdate ? "正在检查…" : "检查更新")
+                            .font(BeansFont.appFont(14, .semibold))
+                            .foregroundStyle(Color.beansLabel)
+                        Text("检测 GitHub 最新版本")
+                            .font(BeansFont.appFont(11))
+                            .foregroundStyle(Color.beansComment)
+                    }
+                    Spacer()
+                }
+                .padding(16)
+                .background {
+                    BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+                }
+                .beansCardShadow(radius: 9, y: 3)
+            }
+            .buttonStyle(.plain)
+            .disabled(checkingUpdate)
+        }
     }
 }
 
@@ -651,7 +756,7 @@ struct SettingsView: View {
                 }
             }
         }
-        .onChange(of: bgImageItem) { _, item in
+        .onChange(of: bgImageItem) { item in
             guard let item else { return }
             Task {
                 if let data = try? await item.loadTransferable(type: Data.self), !data.isEmpty {
