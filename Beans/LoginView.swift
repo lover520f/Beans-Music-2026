@@ -210,7 +210,8 @@ struct LoginView: View {
                 .font(BeansFont.appFont(11))
                 .foregroundStyle(Color.beansComment)
         }
-        .frame(width: 286, minHeight: 250)
+        .frame(width: 286)
+        .frame(minHeight: 250)
         .padding(18)
         .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
         .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
