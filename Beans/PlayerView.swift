@@ -765,20 +765,20 @@ struct PlayerView: View {
             }
             .gesture(
                 layoutMode
-                    ? DragGesture(minimumDistance: 0)
+                    ? AnyGesture(DragGesture(minimumDistance: 0)
                         .onChanged { value in
                             var e = layoutData["grabber"] ?? PlayerLayoutEntry()
                             e.x = value.translation.width
                             e.y = value.translation.height
                             layoutData["grabber"] = e
-                        }
-                    : DragGesture(minimumDistance: 25)
+                        })
+                    : AnyGesture(DragGesture(minimumDistance: 25)
                         .onEnded { value in
                             if value.translation.height < -50, song != nil {
                                 BeansHaptics.medium()
                                 showComments = true
                             }
-                        }
+                        })
             )
     }
 
