@@ -35,8 +35,8 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
-            id: "1.9.2",
-            version: "1.9.2",
+            id: "1.9.4",
+            version: "1.9.4",
             title: "注释配色 · 布局优化",
             features: [
                 "新增「注释文字颜色」：我的 → 外观可自定义全 App 说明文字颜色",
