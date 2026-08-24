@@ -480,11 +480,19 @@ struct ProgressLine: View {
                         )
                     )
                     .frame(width: max(geo.size.width * ratio, 6))
+                    .shadow(color: Color.beansAmber.opacity(0.5), radius: 3, y: 1)
                     .overlay(alignment: .trailing) {
-                        Circle()
-                            .fill(Color.beansAmber)
-                            .frame(width: 5, height: 5)
-                            .shadow(color: Color.beansAmber.opacity(0.5), radius: 2.5)
+                        ZStack {
+                            // 柔圆光晕（替代生硬方边阴影）
+                            Circle()
+                                .fill(Color.beansAmber.opacity(0.45))
+                                .blur(radius: 4)
+                                .frame(width: 14, height: 14)
+                            Circle()
+                                .fill(Color.beansAmber)
+                                .frame(width: 5, height: 5)
+                                .shadow(color: Color.beansAmber.opacity(0.8), radius: 2)
+                        }
                     }
             }
         }

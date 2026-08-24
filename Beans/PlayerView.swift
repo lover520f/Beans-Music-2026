@@ -52,6 +52,10 @@ struct PlayerView: View {
     @AppStorage("beans.playerLayoutMode") private var layoutMode = false
     @State private var layoutData: [String: PlayerLayoutEntry] = PlayerLayoutStore.load()
     @State private var layoutPart: PlayerLayoutPart = .progress
+    /// 歌词布局：对齐样式 / 水平偏移 / 垂直重心（底部更多或顶部更多歌词）
+    @AppStorage("beans.lyricAlignRaw") private var lyricAlignRaw = "center"
+    @AppStorage("beans.lyricOffsetX") private var lyricOffsetX = 0.0
+    @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
 
     private var song: Song? { player.currentSong }
     private let rateOptions: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -59,6 +63,17 @@ struct PlayerView: View {
     /// 封面主色联动调色板：背景渐变 / 进度条 / 播放暂停键 / 功能按钮 / 歌词高亮等全部跟随封面主色。
     /// 安全机制：只在切歌（.task(id: song?.identityKey)）时一次性提取并更新，绝不随封面加载过程高频重算 @State，
     /// 避免整页反复重绘导致的布局错乱与发烫。深浅模式切换时及时重算配色。
+    /// 歌词对齐样式（居中 / 全部居左）
+    private var lyricAlign: HorizontalAlignment {
+        lyricAlignRaw == "left" ? .leading : .center
+    }
+
+    /// 歌词垂直重心：0.5 居中；<0.5 当前行偏上（显示更多后续歌词），>0.5 偏下（显示更多已唱歌词）
+    private var lyricAnchor: UnitPoint {
+        let y = 0.5 + CGFloat(lyricAnchorY) / 200
+        return UnitPoint(x: 0.5, y: min(max(y, 0.15), 0.85))
+    }
+
     private var palette: CoverPalette {
         if let dominantColor {
             return CoverPalette.make(dominant: dominantColor, colorScheme: colorScheme)
@@ -627,7 +642,7 @@ struct PlayerView: View {
                 if lyrics.isEmpty {
                     emptyLyricsView
                 } else {
-                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation) { line in
+                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor) { line in
                         BeansHaptics.tap()
                         player.seek(to: line.time)
                     }
@@ -926,7 +941,6 @@ struct PlayerView: View {
             .pickerStyle(.segmented)
             layoutSlider("X", value: selectedLayoutEntry.x, range: -140...140)
             layoutSlider("Y", value: selectedLayoutEntry.y, range: -300...300)
-            layoutSlider("Z 层级", value: selectedLayoutEntry.z, range: 0...10, step: 1)
             HStack(spacing: 10) {
                 Button {
                     layoutData = [:]
@@ -939,7 +953,7 @@ struct PlayerView: View {
                 }
                 .buttonStyle(.plain)
                 Spacer()
-                Text("编辑模式：拖动组件到任意位置")
+                Text("编辑模式：拖动组件到任意位置（X / Y）")
                     .font(BeansFont.appFont(11))
                     .foregroundStyle(palette.secondary)
             }
@@ -1188,19 +1202,26 @@ struct SeekBar: View {
                                            startPoint: .leading, endPoint: .trailing)
                         )
                         .frame(width: thumbX, height: 5)
+                        .shadow(color: accent.opacity(0.45), radius: 4, y: 1)
                         .overlay(alignment: .top) {
                             LinearGradient(colors: [.white.opacity(0.55), .clear],
                                            startPoint: .top, endPoint: .bottom)
                                 .frame(height: 2.5)
                                 .clipShape(Capsule())
                         }
-                    // 游动光点（在已播放段上往返移动）
-                    Circle()
-                        .fill(.white.opacity(0.9))
-                        .frame(width: 5, height: 5)
-                        .shadow(color: .white.opacity(0.95), radius: 5)
-                        .offset(x: max(2, thumbX - 5) * flowPhase)
-                        .animation(.linear(duration: 2.4).repeatForever(autoreverses: true), value: flowPhase)
+                    // 游动光点（在已播放段上往返移动，柔圆光晕）
+                    ZStack {
+                        Circle()
+                            .fill(.white.opacity(0.35))
+                            .blur(radius: 4)
+                            .frame(width: 14, height: 14)
+                        Circle()
+                            .fill(.white.opacity(0.95))
+                            .frame(width: 5, height: 5)
+                            .shadow(color: .white.opacity(0.7), radius: 2)
+                    }
+                    .offset(x: max(2, thumbX - 5) * flowPhase)
+                    .animation(.linear(duration: 2.4).repeatForever(autoreverses: true), value: flowPhase)
                 }
 
                 // 滑块（流光/辉光/波浪用发光圆点；极光自带大滑块）
@@ -1325,6 +1346,12 @@ struct LyricsSection: View {
     var glowRadius: CGFloat = 9
     /// 显示歌词翻译（当前行下方小字）
     var showTranslation: Bool = false
+    /// 歌词对齐样式（居中 / 居左）
+    var alignment: HorizontalAlignment = .center
+    /// 歌词水平偏移
+    var offsetX: CGFloat = 0
+    /// 当前行在视口中的垂直锚点
+    var anchor: UnitPoint = .center
     let onTapLine: (LyricLine) -> Void
 
     /// 长按歌词进入多选复制模式（可多选 / 全选复制）
@@ -1393,10 +1420,11 @@ struct LyricsSection: View {
                             .id(index)
                     }
                 }
-                .padding(.vertical, 16)
+                .padding(.vertical, 160)
                 .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity)
+            .offset(x: offsetX)
             .scrollIndicators(.hidden)
             // 上下渐隐遮罩（借鉴 Kumone 歌词界面）：歌词接近顶部/底部时自然淡出
             .mask(
@@ -1426,7 +1454,7 @@ struct LyricsSection: View {
             .onChange(of: currentIndex) { _, newIndex in
                 guard let newIndex, !isUserScrolling else { return }
                 withAnimation(.easeInOut(duration: 0.3)) {
-                    proxy.scrollTo(newIndex, anchor: .center)
+                    proxy.scrollTo(newIndex, anchor: anchor)
                 }
             }
             .simultaneousGesture(
@@ -1486,22 +1514,22 @@ struct LyricsSection: View {
                 .blur(radius: blurRadius)
                 .opacity(max(opacity, 0.15))
                 .scaleEffect(isCurrent ? 1.05 : 1)
-                .multilineTextAlignment(.center)
+                .multilineTextAlignment(alignment == .leading ? .leading : .center)
                 .lineLimit(nil)
                 .fixedSize(horizontal: false, vertical: true)
             if let translationText, !translationText.isEmpty {
                 Text(translationText)
                     .font(BeansFont.appFont(size * 0.68, .regular))
                     .foregroundStyle(secondary.opacity(isCurrent ? 0.9 : 0.45))
-                    .multilineTextAlignment(.center)
+                    .multilineTextAlignment(alignment == .leading ? .leading : .center)
                     .lineLimit(nil)
                     .fixedSize(horizontal: false, vertical: true)
                     .blur(radius: blurRadius * 0.5)
                     .opacity(max(opacity, 0.2))
             }
         }
-        .frame(maxWidth: .infinity, alignment: .center)
-        .padding(.horizontal, 36)
+        .frame(maxWidth: .infinity, alignment: alignment == .leading ? .leading : .center)
+        .padding(.horizontal, alignment == .leading ? 40 : 36)
         .animation(.easeInOut(duration: 0.25), value: currentIndex)
     }
 
@@ -1574,7 +1602,7 @@ struct LyricsSection: View {
 
     private func scrollToCurrent(_ proxy: ScrollViewProxy) {
         guard let currentIndex else { return }
-        proxy.scrollTo(currentIndex, anchor: .center)
+        proxy.scrollTo(currentIndex, anchor: anchor)
     }
 }
 
@@ -1611,6 +1639,9 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricGradMode") private var gradMode = 0
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = true
     @AppStorage("beans.playerLayoutMode") private var layoutMode = false
+    @AppStorage("beans.lyricAlignRaw") private var lyricAlignRaw = "center"
+    @AppStorage("beans.lyricOffsetX") private var lyricOffsetX = 0.0
+    @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
     @Environment(\.dismiss) private var dismiss
 
     /// 预设按钮：点击应用渐变起止色 + 发光强度
@@ -1838,10 +1869,59 @@ struct PlayerSettingsSheet: View {
                     .font(BeansFont.appFont(13))
                     .foregroundStyle(Color.beansAmber)
                 }
+                Section("歌词布局") {
+                    Picker("对齐样式", selection: $lyricAlignRaw) {
+                        Text("居中").tag("center")
+                        Text("全部居左").tag("left")
+                    }
+                    .pickerStyle(.segmented)
+                    HStack(spacing: 10) {
+                        Text("水平偏移")
+                            .font(BeansFont.appFont(13))
+                            .foregroundStyle(Color.beansSecondary)
+                            .frame(width: 64, alignment: .leading)
+                        Slider(value: $lyricOffsetX, in: -80...80, step: 1)
+                            .tint(Color.beansAmber)
+                        Text("\(Int(lyricOffsetX))")
+                            .font(BeansFont.appFont(12, .regular, .monospaced))
+                            .foregroundStyle(Color.beansSecondary)
+                            .frame(width: 34, alignment: .trailing)
+                    }
+                    HStack(spacing: 10) {
+                        Text("垂直重心")
+                            .font(BeansFont.appFont(13))
+                            .foregroundStyle(Color.beansSecondary)
+                            .frame(width: 64, alignment: .leading)
+                        Slider(value: $lyricAnchorY, in: -80...80, step: 1)
+                            .tint(Color.beansAmber)
+                        Text("\(Int(lyricAnchorY))")
+                            .font(BeansFont.appFont(12, .regular, .monospaced))
+                            .foregroundStyle(Color.beansSecondary)
+                            .frame(width: 34, alignment: .trailing)
+                    }
+                    Text("垂直重心：负值当前行偏上（下方显示更多后续歌词），正值偏下（上方显示更多已唱歌词）")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansSecondary)
+                    Button("恢复默认") {
+                        lyricAlignRaw = "center"
+                        lyricOffsetX = 0
+                        lyricAnchorY = 0
+                        BeansHaptics.select()
+                    }
+                    .font(BeansFont.appFont(13))
+                    .foregroundStyle(Color.beansAmber)
+                }
                 Section("底部布局") {
-                    Toggle("自定义布局", isOn: $layoutMode)
-                        .tint(Color.beansAmber)
-                    Text("开启后可在播放页自由拖动底部组件位置，并调整 X / Y / Z 层级（设置里可随时恢复默认）")
+                    Toggle("自定义布局", isOn: Binding(
+                        get: { layoutMode },
+                        set: { newValue in
+                            layoutMode = newValue
+                            // 开启后直接回到播放页进行调节
+                            if newValue { dismiss() }
+                        }
+                    ))
+                    .tint(Color.beansAmber)
+                    Text("开启后自动回到播放页，可自由拖动底部组件到任意位置（X / Y），并随时恢复默认")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
                 }

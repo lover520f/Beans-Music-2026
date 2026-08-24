@@ -14,7 +14,6 @@ enum PlayerLayoutPart: String, CaseIterable, Identifiable {
 struct PlayerLayoutEntry: Codable, Equatable {
     var x: CGFloat = 0
     var y: CGFloat = 0
-    var z: CGFloat = 0
 }
 
 /// 播放器底部布局调整存储（UserDefaults JSON，持久化）
@@ -55,7 +54,6 @@ struct Layoutable: ViewModifier {
         let entry = data[part.rawValue] ?? PlayerLayoutEntry()
         content
             .offset(x: entry.x, y: entry.y)
-            .zIndex(entry.z)
             .overlay(alignment: .topLeading) {
                 if enabled {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
