@@ -2,6 +2,7 @@ import SwiftUI
 
 // MARK: - 流式标签布局（热搜标签云）
 
+@available(iOS 16, *)
 struct FlowLayout: Layout {
     var spacing: CGFloat = 10
 
@@ -350,9 +351,18 @@ struct SearchView: View {
                 if hotWords.isEmpty {
                     LoadingStateView()
                 } else {
-                    FlowLayout(spacing: 10) {
-                        ForEach(Array(hotWords.enumerated()), id: \.offset) { index, word in
-                            hotTag(index: index, word: word)
+                    if #available(iOS 16, *) {
+                        FlowLayout(spacing: 10) {
+                            ForEach(Array(hotWords.enumerated()), id: \.offset) { index, word in
+                                hotTag(index: index, word: word)
+                            }
+                        }
+                    } else {
+                        // iOS 15 降级：自适应网格实现流式标签
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: 92), spacing: 10)], alignment: .leading, spacing: 10) {
+                            ForEach(Array(hotWords.enumerated()), id: \.offset) { index, word in
+                                hotTag(index: index, word: word)
+                            }
                         }
                     }
                 }

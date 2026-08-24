@@ -29,8 +29,8 @@ struct HistoryView: View {
             .navigationTitle("最近播放")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
-                if !player.history.isEmpty {
-                    ToolbarItem(placement: .topBarTrailing) {
+                ToolbarItem(placement: .topBarTrailing) {
+                    if !player.history.isEmpty {
                         Button("清空") {
                             player.clearHistory()
                         }
