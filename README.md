@@ -14,7 +14,7 @@
 
 | 播放页 | 歌词翻译页 | 播放器设置 | 搜索页面 |
 | --- | --- | --- | --- |
-| <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413311~tplv-a9rns2rl98-image.image" width="200"> | <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413312~tplv-a9rns2rl98-image.image" width="200"> | <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413313~tplv-a9rns2rl98-image.image" width="200"> | <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413314~tplv-a9rns2rl98-image.image" width="200"> |
+|！[BQACAgUAAyEGAASHRsPbAAEZxZhqjEoIbqHJg1ug6W5StuKEQ6wklQACNDMAAg-uYVRtp4bEtmfTZT0E.jpg](https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxZhqjEoIbqHJg1ug6W5StuKEQ6wklQACNDMAAg-uYVRtp4bEtmfTZT0E.jpg)| <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413312~tplv-a9rns2rl98-image.image" width="200"> | <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413313~tplv-a9rns2rl98-image.image" width="200"> | <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413314~tplv-a9rns2rl98-image.image" width="200"> |
 
 | 音乐库 | 全局设置 | 发现首页 |
 | --- | --- | --- |
