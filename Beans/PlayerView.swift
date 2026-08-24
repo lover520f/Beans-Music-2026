@@ -30,6 +30,9 @@ struct PlayerView: View {
     @State private var showArtistHome = false
     @State private var pickedArtistName = ""
     @State private var showArtistPicker = false
+    @State private var showDouyin = false
+    @AppStorage("beans.djVisual") private var djVisualEnabled = false
+    @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
     @State private var dominantColor: RGBColor?
     @Namespace private var coverNS
     @AppStorage("beans.lyricFontSize") private var lyricFontSize = 17
@@ -230,6 +233,12 @@ struct PlayerView: View {
                     .environmentObject(player)
             }
         }
+        .sheet(isPresented: $showDouyin) {
+            let feed = player.history.isEmpty ? ((song.map { [$0] }) ?? []) : player.history
+            DouyinModeSheet(songs: feed)
+                .environmentObject(player)
+                .environmentObject(auth)
+        }
         .confirmationDialog("选择歌手", isPresented: $showArtistPicker, titleVisibility: .visible) {
             ForEach(Array(artistNames.enumerated()), id: \.offset) { _, name in
                 Button(name) {
@@ -272,6 +281,14 @@ struct PlayerView: View {
                 isPlaying: player.isPlaying,
                 breath: playerBreath
             )
+            if djVisualEnabled {
+                DJVisualView(
+                    accent: palette.accent,
+                    secondary: palette.secondary,
+                    isPlaying: player.isPlaying,
+                    intensity: djVisualIntensity
+                )
+            }
             LinearGradient(
                 colors: colorScheme == .dark
                     ? [.black.opacity(0.22), .clear, .black.opacity(0.34)]
@@ -375,6 +392,38 @@ struct PlayerView: View {
                     showShare = true
                 } label: {
                     Label("分享歌曲", systemImage: "square.and.arrow.up")
+                }
+                Divider()
+                Button {
+                    showDouyin = true
+                } label: {
+                    Label("刷抖音模式", systemImage: "rectangle.stack.fill")
+                }
+                Menu {
+                    if LocalLibraryStore.shared.playlists.isEmpty {
+                        Button {
+                            let p = LocalLibraryStore.shared.createPlaylist(name: "我的本地歌单")
+                            if let song { LocalLibraryStore.shared.addSong(song, to: p.id) }
+                            BeansHaptics.success()
+                            ToastCenter.shared.show("已创建「我的本地歌单」并加入")
+                        } label: {
+                            Label("新建歌单并加入", systemImage: "plus.circle")
+                        }
+                    } else {
+                        ForEach(LocalLibraryStore.shared.playlists) { p in
+                            Button {
+                                if let song {
+                                    LocalLibraryStore.shared.addSong(song, to: p.id)
+                                    BeansHaptics.success()
+                                    ToastCenter.shared.show("已加入「\(p.name)」")
+                                }
+                            } label: {
+                                Text(p.name)
+                            }
+                        }
+                    }
+                } label: {
+                    Label("加入本地歌单", systemImage: "internaldrive")
                 }
                 Divider()
                 Button {
@@ -1072,7 +1121,7 @@ struct PlayerView: View {
         return [text]
     }
 
-    /// 各平台歌曲链接（网易云 / QQ音乐 / 酷狗音乐）
+    /// 各平台歌曲链接（网易云 / QQ音乐）
     private func shareURL(for song: Song) -> URL? {
         switch song.source {
         case .netease:
@@ -1083,17 +1132,6 @@ struct PlayerView: View {
             }
             let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
             return URL(string: "https://y.qq.com/n/ryqq/search?w=\(encoded)")
-        case .kugou:
-            if let hash = song.kugouHash, !hash.isEmpty {
-                var comps = URLComponents(string: "https://m.kugou.com/share/index.html")!
-                var items: [URLQueryItem] = [URLQueryItem(name: "hash", value: hash)]
-                if let aid = song.kugouAlbumID, !aid.isEmpty {
-                    items.append(URLQueryItem(name: "album_id", value: aid))
-                }
-                comps.queryItems = items
-                return comps.url
-            }
-            return URL(string: "https://m.kugou.com/share/index.html")
         }
     }
 
@@ -1155,10 +1193,6 @@ struct PlayerView: View {
         guard let song else { return }
         if song.source == .qq, let mid = song.qqMid {
             if let raw = try? await QQMusicAPI.shared.lyric(songmid: mid) {
-                lyrics = LyricParser.parse(raw)
-            }
-        } else if song.source == .kugou, let hash = song.kugouHash {
-            if let raw = try? await KugouMusicAPI.shared.lyric(hash: hash, durationMS: Int(song.duration * 1000)) {
                 lyrics = LyricParser.parse(raw)
             }
         } else {
@@ -1728,6 +1762,8 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
     @AppStorage("beans.circularCover") private var circularCover = true
     @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = false
+    @AppStorage("beans.djVisual") private var djVisualEnabled = false
+    @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
     @AppStorage("beans.lyricGlowColorRaw") private var glowColorRaw = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -1855,6 +1891,24 @@ struct PlayerSettingsSheet: View {
                             .foregroundStyle(Color.beansAmber)
                     }
                     Text("强度 \(Int((breath * 100).rounded()))%")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
+                }
+                Section("DJ 视觉模式") {
+                    Toggle("节奏脉冲光效", isOn: $djVisualEnabled)
+                        .tint(Color.beansAmber)
+                    Text("开启后播放器封面背后随节拍扩散光环（仅播放时运行动画，暂停即静止，不发烫）")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
+                    HStack(spacing: 12) {
+                        Image(systemName: "circle.lefthalf.filled")
+                            .foregroundStyle(Color.beansAmber)
+                        Slider(value: $djVisualIntensity, in: 0...1, step: 0.05)
+                            .tint(Color.beansAmber)
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(Color.beansAmber)
+                    }
+                    Text("强度 \(Int((djVisualIntensity * 100).rounded()))%")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
                 }

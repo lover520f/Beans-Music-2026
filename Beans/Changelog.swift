@@ -35,6 +35,22 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.9.9",
+            version: "1.9.9",
+            title: "抖音模式 · DJ 视觉 · 本地音乐库 · 落雪音源",
+            features: [
+                "新增刷抖音模式：主页右上角与播放器更多菜单进入，竖向翻页浏览歌曲、上滑/下滑切歌",
+                "新增 DJ 视觉模式：播放器封面背后随节拍扩散的光环与环绕彩带（播放器设置可开关、可调强度）",
+                "新增本地音乐库：设备本机歌单，可新建 / 重命名 / 删除 / 播放 / 搜索添加歌曲，覆盖安装不丢失",
+                "接入落雪音乐源：第三方音源导入支持 lx-music-api-server 格式，播放 VIP 歌曲时自动搜索取流",
+            ],
+            fixes: [
+                "修复 QQ 音乐歌单封面一直加载：fcg 接口返回的相对路径封面自动补全 y.gtimg.cn 域名",
+                "修复 QQ 音乐歌单点开不显示歌曲：歌单详情改用 fcg_ucc_getcdinfo_byids_cp 主通道并兼容 track_info 包裹结构",
+                "全面移除酷狗音乐相关功能（登录 / 歌单 / 搜索 / 排行 / 音源），精简体积与维护成本",
+            ]
+        ),
+        VersionLog(
             id: "1.9.8",
             version: "1.9.8",
             title: "QQ 歌单同步修复 · 音乐库精简",
@@ -394,7 +410,7 @@ struct UsageGuideSheet: View {
                             }
                             .beansCardShadow(radius: 8, y: 3)
                         }
-                        Text("Beans Music · 仅供学习交流，纯 AI 实现此应用 · 接入网易云音乐、QQ 音乐、酷狗音乐等公开接口")
+                        Text("Beans Music · 仅供学习交流，纯 AI 实现此应用 · 接入网易云音乐、QQ 音乐等公开接口")
                             .font(BeansFont.appFont(11))
                             .foregroundStyle(Color.beansComment.opacity(0.8))
                             .multilineTextAlignment(.center)

@@ -2,7 +2,7 @@ import Foundation
 import CryptoKit
 
 /// 灰色歌曲 / VIP 试听解锁（借鉴 Kumone 的 UnblockService）
-/// 按序尝试 pyncmd → 酷我 → 酷狗，返回第一个可用的第三方播放地址。
+/// 按序尝试 pyncmd → 酷我 → 咪咕 → 波点，返回第一个可用的第三方播放地址。
 /// 默认开启：由 PlayerManager 在网易云 URL 为空或仅试听片段时自动调用。
 enum UnblockService {
     struct Resolved {
@@ -13,7 +13,6 @@ enum UnblockService {
             switch source {
             case "pyncmd": return "pyncmd 音源"
             case "kuwo": return "酷我音源"
-            case "kugou": return "酷狗音源"
             case "migu": return "咪咕音源"
             default: return source
             }
@@ -55,11 +54,12 @@ enum UnblockService {
         // pyncmd 只支持网易云 id；QQ 歌曲（neteaseID = 0）直接跳过
         if neteaseID > 0, store.isEnabled("pyncmd"), let r = await pyncmd(neteaseID: neteaseID) { return r }
         if store.isEnabled("kuwo"), let r = await kuwo(keyword: keyword, durationMS: durationMS, artists: artists, strict: strict, songName: name) { return r }
-        if store.isEnabled("kugou"), let r = await kugou(keyword: keyword, durationMS: durationMS, artists: artists, strict: strict, songName: name) { return r }
         if store.isEnabled("bodian"), let r = await bodian(keyword: keyword, durationMS: durationMS, artists: artists, strict: strict, songName: name) { return r }
-        // 用户导入的自定义源（按导入顺序）
+        // 用户导入的自定义源（按导入顺序；kind == "lx" 走落雪 API 服务器）
         for source in store.customSources {
-            if let r = await custom(source: source, name: name, artists: artists, neteaseID: neteaseID) { return r }
+            if source.kind == "lx" {
+                if let r = await lx(source: source, keyword: keyword) { return r }
+            } else if let r = await custom(source: source, name: name, artists: artists, neteaseID: neteaseID) { return r }
         }
         return nil
     }
@@ -232,94 +232,7 @@ enum UnblockService {
         return text
     }
 
-    // MARK: - 音源 3：酷狗（搜索 + 时长匹配 + 播放直链）
-
-    private static func kugou(keyword: String, durationMS: Int, artists: String = "", strict: Bool = false, songName: String = "") async -> Resolved? {
-        let target = Double(durationMS) / 1000.0
-        var comps = URLComponents(string: "http://mobilecdn.kugou.com/api/v3/search/song")!
-        comps.queryItems = [
-            URLQueryItem(name: "format", value: "json"),
-            URLQueryItem(name: "keyword", value: keyword),
-            URLQueryItem(name: "page", value: "1"),
-            URLQueryItem(name: "pagesize", value: "10"),
-        ]
-        guard let url = comps.url,
-              let data = await get(url),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let dataObj = obj["data"] as? [String: Any],
-              let list = dataObj["info"] as? [[String: Any]] else { return nil }
-
-        var fallbackHash: String?
-        var fallbackAlbumID: String?
-        for song in list.prefix(10) {
-            guard let hash = song["hash"] as? String, !hash.isEmpty else { continue }
-            if let dur = duration(of: song["duration"]), abs(dur - target) > 5 { continue }
-            let albumID: String
-            if let s = song["album_id"] as? String { albumID = s }
-            else if let i = song["album_id"] as? Int { albumID = String(i) }
-            else { albumID = "" }
-
-            // 歌手校验：优先原唱（酷狗 singername），避免翻唱误匹配
-            let singer = song["singername"] as? String ?? ""
-            if strict {
-                // 严格模式：歌名 + 歌手 同时匹配才算原唱，不满足直接跳过（无回退）
-                let songTitle = song["songname"] as? String ?? song["SongName"] as? String ?? ""
-                if songNameMatches(songName, songTitle) && artistMatches(artists, singer), let r = await kugouPlayURL(hash: hash, albumID: albumID) { return r }
-                continue
-            }
-            if fallbackHash == nil { fallbackHash = hash; fallbackAlbumID = albumID }
-            if !artistMatches(artists, singer) { continue }
-
-            if let r = await kugouPlayURL(hash: hash, albumID: albumID) { return r }
-        }
-        // 无歌手匹配时回退第一个时长匹配项，保证可播放
-        if let hash = fallbackHash {
-            let key = md5Hex("\(hash)kgcloudv2")
-            var ft = URLComponents(string: "http://trackercdn.kugou.com/i/v2/")!
-            ft.queryItems = [
-                URLQueryItem(name: "key", value: key),
-                URLQueryItem(name: "hash", value: hash),
-                URLQueryItem(name: "appid", value: "1005"),
-                URLQueryItem(name: "pid", value: "2"),
-                URLQueryItem(name: "cmd", value: "25"),
-                URLQueryItem(name: "behavior", value: "play"),
-                URLQueryItem(name: "album_id", value: fallbackAlbumID ?? ""),
-            ]
-            if let trackURL = ft.url,
-               let td = await get(trackURL),
-               let to = try? JSONSerialization.jsonObject(with: td) as? [String: Any],
-               let urls = to["url"] as? [Any],
-               let first = urls.first as? String,
-               let playURL = URL(string: first) {
-                return Resolved(url: playURL, source: "kugou")
-            }
-        }
-        return nil
-    }
-
-    /// 酷狗直链转换（hash + album_id → 播放 URL）
-    private static func kugouPlayURL(hash: String, albumID: String) async -> Resolved? {
-        let key = md5Hex("\(hash)kgcloudv2")
-        var t = URLComponents(string: "http://trackercdn.kugou.com/i/v2/")!
-        t.queryItems = [
-            URLQueryItem(name: "key", value: key),
-            URLQueryItem(name: "hash", value: hash),
-            URLQueryItem(name: "appid", value: "1005"),
-            URLQueryItem(name: "pid", value: "2"),
-            URLQueryItem(name: "cmd", value: "25"),
-            URLQueryItem(name: "behavior", value: "play"),
-            URLQueryItem(name: "album_id", value: albumID),
-        ]
-        guard let trackURL = t.url,
-              let td = await get(trackURL),
-              let to = try? JSONSerialization.jsonObject(with: td) as? [String: Any],
-              let urls = to["url"] as? [Any],
-              let first = urls.first as? String,
-              let playURL = URL(string: first) else { return nil }
-        return Resolved(url: playURL, source: "kugou")
-    }
-
-    // MARK: - 音源 4：波点（借鉴 splayer-unlock-plugin：酷我搜索 + 波点签名取流）
+    // MARK: - 音源 3：波点（借鉴 splayer-unlock-plugin：酷我搜索 + 波点签名取流）
 
     /// 随机设备号（对应插件 generateDeviceId，0 ~ 100000000000）
     private static let bodianDeviceID: String = String(Int.random(in: 0...100_000_000_000))
@@ -381,6 +294,46 @@ enum UnblockService {
               let urlString = value as? String, !urlString.isEmpty,
               let playURL = URL(string: urlString) else { return nil }
         return Resolved(url: playURL, source: source.name)
+    }
+
+    // MARK: - 落雪音乐源（lx-music-api-server 风格 HTTP API）
+    /// 兼容落雪 API 服务器（如 lx-music-api-server）：先按关键词搜索拿到歌曲 id，
+    /// 再请求播放地址。headers 里可配置 source（wy/kg/qq/mg/tx，默认 kg）与 br（默认 320）。
+    private static func lx(source: ThirdPartySource, keyword: String) async -> Resolved? {
+        guard source.kind == "lx", !source.template.isEmpty else { return nil }
+        let base = source.template.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard let baseURL = URL(string: base) else { return nil }
+        let lxSource = source.headers["source"] ?? "kg"
+        let br = source.headers["br"] ?? "320"
+        // 1) 搜索：GET /music/search?source=&query=&page=1&limit=5
+        var searchComps = URLComponents(url: baseURL.appendingPathComponent("music/search"), resolvingAgainstBaseURL: false)
+        searchComps?.queryItems = [
+            URLQueryItem(name: "source", value: lxSource),
+            URLQueryItem(name: "query", value: keyword),
+            URLQueryItem(name: "page", value: "1"),
+            URLQueryItem(name: "limit", value: "5")
+        ]
+        guard let searchURL = searchComps?.url, let data = await get(searchURL),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let dataObj = obj["data"] as? [String: Any],
+              let list = dataObj["list"] as? [[String: Any]],
+              let first = list.first,
+              let id = first["id"] as? String ?? (first["id"] as? Int).map(String.init)
+        else { return nil }
+        // 2) 取播放地址：GET /music/url?source=&id=&br=
+        var urlComps = URLComponents(url: baseURL.appendingPathComponent("music/url"), resolvingAgainstBaseURL: false)
+        urlComps?.queryItems = [
+            URLQueryItem(name: "source", value: lxSource),
+            URLQueryItem(name: "id", value: id),
+            URLQueryItem(name: "br", value: br)
+        ]
+        guard let urlURL = urlComps?.url, let data2 = await get(urlURL),
+              let obj2 = try? JSONSerialization.jsonObject(with: data2) as? [String: Any],
+              let d2 = obj2["data"] as? [String: Any],
+              let urlStr = d2["url"] as? String, !urlStr.isEmpty,
+              let playURL = URL(string: urlStr)
+        else { return nil }
+        return Resolved(url: playURL, source: "落雪 (\(lxSource))")
     }
 
     /// 点分路径取值：url / data.url / data.audioUrl ...
@@ -478,7 +431,7 @@ enum UnblockService {
         return false
     }
 
-    /// 兼容酷我「mm:ss」与酷狗「秒数」两种时长格式
+    /// 兼容酷我「mm:ss」与秒数两种时长格式
     private static func duration(of value: Any?) -> Double? {
         if let n = value as? Double { return n }
         if let n = value as? Int { return Double(n) }

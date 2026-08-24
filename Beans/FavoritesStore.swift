@@ -7,19 +7,15 @@ final class FavoritesStore: ObservableObject {
 
     /// QQ 红心收藏（本地持久化，供音乐库展示）
     @Published private(set) var qqFavoriteSongs: [Song] = []
-    /// 酷狗红心收藏（本地持久化，酷狗无公开收藏接口）
-    @Published private(set) var kugouFavoriteSongs: [Song] = []
     /// 网易云红心收藏（本地缓存 + 云端同步）
     @Published private(set) var neteaseFavoriteSongs: [Song] = []
 
     private let defaults = UserDefaults.standard
     private let neteaseKey = "beans.fav.netease.v1"
     private let qqKey = "beans.fav.qq.v1"
-    private let kugouKey = "beans.fav.kugou.v1"
 
     private init() {
         qqFavoriteSongs = Self.loadSongs(qqKey)
-        kugouFavoriteSongs = Self.loadSongs(kugouKey)
         neteaseFavoriteSongs = Self.loadSongs(neteaseKey)
     }
 
@@ -32,9 +28,6 @@ final class FavoritesStore: ObservableObject {
         case .qq:
             guard let mid = song.qqMid else { return false }
             return qqFavoriteSongs.contains { $0.qqMid == mid }
-        case .kugou:
-            guard let hash = song.kugouHash else { return false }
-            return kugouFavoriteSongs.contains { $0.kugouHash == hash }
         }
     }
 
@@ -68,11 +61,6 @@ final class FavoritesStore: ObservableObject {
                 }
             }
             return true
-        case .kugou:
-            guard let hash = song.kugouHash else { return false }
-            let liked = !isLiked(song)
-            updateKugou(song, liked: liked)
-            return true
         }
     }
 
@@ -89,21 +77,6 @@ final class FavoritesStore: ObservableObject {
             neteaseFavoriteSongs.removeAll { $0.id == song.id }
         }
         saveSongs(neteaseFavoriteSongs, key: neteaseKey)
-    }
-
-    private func updateKugou(_ song: Song, liked: Bool) {
-        if liked {
-            kugouFavoriteSongs.removeAll { $0.kugouHash != nil && $0.kugouHash == song.kugouHash }
-            kugouFavoriteSongs.insert(song, at: 0)
-        } else {
-            kugouFavoriteSongs.removeAll { $0.kugouHash != nil && $0.kugouHash == song.kugouHash }
-        }
-        saveSongs(kugouFavoriteSongs, key: kugouKey)
-    }
-
-    /// 移除酷狗收藏（音乐库侧滑删除）
-    func removeKugouFavorite(_ song: Song) {
-        updateKugou(song, liked: false)
     }
 
     private func updateQQ(_ song: Song, liked: Bool) {

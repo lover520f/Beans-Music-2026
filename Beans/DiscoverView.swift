@@ -14,13 +14,12 @@ struct DiscoverView: View {
     @State private var selectedTopList: TopList?
     @State private var selectedPlaylist: Playlist?
     @State private var showDailyList = false
+    @State private var showDouyin = false
     /// 首页数据源：网易云 / QQ音乐（与搜索页同一控件样式）
     @State private var source: SearchProvider = .netease
     @State private var qqTopLists: [QQTopInfo] = []
     @State private var selectedQQTopList: QQTopInfo?
     @State private var selectedQQPlaylist: Playlist?
-    @State private var kugouTopLists: [KugouMusicAPI.KugouTopInfo] = []
-    @State private var selectedKugouTopList: KugouMusicAPI.KugouTopInfo?
     /// 排行榜展开状态：收起显示前 3，展开显示前 10
     @State private var ranksExpanded = false
     /// 首次启动免责声明：确认进入后若加载失败自动刷新
@@ -94,13 +93,14 @@ struct DiscoverView: View {
                     .environmentObject(player)
                     .environmentObject(auth)
             }
-            .sheet(item: $selectedKugouTopList) { info in
-                KugouTopListDetailView(info: info)
+            .sheet(isPresented: $showDailyList) {
+                DailySongsSheet(songs: dailySongs)
                     .environmentObject(player)
                     .environmentObject(auth)
             }
-            .sheet(isPresented: $showDailyList) {
-                DailySongsSheet(songs: dailySongs)
+            .sheet(isPresented: $showDouyin) {
+                let feed = dailySongs.isEmpty ? (player.history.isEmpty ? [] : player.history) : dailySongs
+                DouyinModeSheet(songs: feed)
                     .environmentObject(player)
                     .environmentObject(auth)
             }
@@ -120,9 +120,15 @@ struct DiscoverView: View {
                         .foregroundStyle(Color.beansComment)
                 }
                 Spacer()
-                GlassIconButton(systemName: "arrow.clockwise") {
-                    BeansHaptics.tap()
-                    Task { await load(force: true) }
+                HStack(spacing: 10) {
+                    GlassIconButton(systemName: "rectangle.stack.fill") {
+                        BeansHaptics.tap()
+                        showDouyin = true
+                    }
+                    GlassIconButton(systemName: "arrow.clockwise") {
+                        BeansHaptics.tap()
+                        Task { await load(force: true) }
+                    }
                 }
             }
         }
@@ -211,7 +217,6 @@ struct DiscoverView: View {
         switch source {
         case .netease: return neteaseTopLists.count
         case .qq: return qqTopLists.count
-        case .kugou: return kugouTopLists.count
         }
     }
 
@@ -219,12 +224,11 @@ struct DiscoverView: View {
         ranksExpanded ? min(visibleRankCount, 10) : min(visibleRankCount, 3)
     }
 
-    /// 当前平台是否有排行榜数据（网易云用 topLists，QQ / 酷狗用各自的数组）
+    /// 当前平台是否有排行榜数据（网易云用 topLists，QQ 用 qqTopLists）
     private var hasRankData: Bool {
         switch source {
         case .netease: return !topLists.isEmpty
         case .qq: return !qqTopLists.isEmpty
-        case .kugou: return !kugouTopLists.isEmpty
         }
     }
 
@@ -270,14 +274,6 @@ struct DiscoverView: View {
                 rankRow(index: index, name: info.name, subtitle: "QQ 峰尖榜", coverURL: info.coverURL) {
                     BeansHaptics.tap()
                     selectedQQTopList = info
-                }
-                Divider().overlay(Color.beansComment.opacity(0.12))
-            }
-        } else {
-            ForEach(Array(kugouTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, info in
-                rankRow(index: index, name: info.name, subtitle: "酷狗音乐榜单", coverURL: info.coverURL) {
-                    BeansHaptics.tap()
-                    selectedKugouTopList = info
                 }
                 Divider().overlay(Color.beansComment.opacity(0.12))
             }
@@ -533,14 +529,6 @@ struct DiscoverView: View {
             snapshot.dailySongs = dr
             snapshot.qqTopLists = tl
             snapshot.personalized = pp
-        case .kugou:
-            async let a = KugouMusicAPI.shared.topListSongs(rankID: 8888, page: 1, limit: 30)
-            async let b = KugouMusicAPI.shared.topLists()
-            async let c = KugouMusicAPI.shared.playlists(page: 1, limit: 12)
-            let (dr, tl, pp) = try await (a, b, c)
-            snapshot.dailySongs = dr
-            snapshot.kugouTopLists = tl
-            snapshot.personalized = pp
         case .netease:
             async let a = NetEaseAPI.shared.topLists()
             async let b = NetEaseAPI.shared.dailyRecommend()
@@ -563,65 +551,11 @@ struct DiscoverView: View {
         topLists = snapshot.topLists
         personalized = snapshot.personalized
         qqTopLists = snapshot.qqTopLists
-        kugouTopLists = snapshot.kugouTopLists
     }
 
     private var hasAnyData: Bool {
         !dailySongs.isEmpty || !topLists.isEmpty || !personalized.isEmpty
-            || !qqTopLists.isEmpty || !kugouTopLists.isEmpty
-    }
-}
-
-// MARK: - 酷狗榜单详情
-
-struct KugouTopListDetailView: View {
-    @EnvironmentObject private var player: PlayerManager
-    @EnvironmentObject private var auth: AuthStore
-
-    let info: KugouMusicAPI.KugouTopInfo
-    @State private var tracks: [Song] = []
-    @State private var loading = true
-    @State private var errorMessage: String?
-
-    var body: some View {
-        NavigationStack {
-            Group {
-                if loading {
-                    LoadingStateView()
-                } else if let errorMessage {
-                    ErrorStateView(message: errorMessage) {
-                        Task { await load() }
-                    }
-                } else {
-                    List {
-                        Section {
-                            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, song in
-                                SongCell(song: song, glassRow: true) {
-                                    player.play(songs: tracks, startAt: index)
-                                }
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
-                            }
-                        }
-                    }
-                }
-            }
-            .navigationTitle(info.name)
-            .navigationBarTitleDisplayMode(.inline)
-        }
-        .task { await load() }
-    }
-
-    private func load() async {
-        loading = true
-        errorMessage = nil
-        do {
-            tracks = try await KugouMusicAPI.shared.topListSongs(rankID: info.id, page: 1, limit: 50)
-            loading = false
-        } catch {
-            errorMessage = error.localizedDescription
-            loading = false
-        }
+            || !qqTopLists.isEmpty
     }
 }
 

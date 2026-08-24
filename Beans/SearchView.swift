@@ -40,7 +40,6 @@ struct FlowLayout: Layout {
 enum SearchProvider: String, CaseIterable, Identifiable {
     case netease = "网易云"
     case qq = "QQ音乐"
-    case kugou = "酷狗音乐"
 
     var id: String { rawValue }
 
@@ -53,9 +52,6 @@ enum SearchProvider: String, CaseIterable, Identifiable {
         case .qq: return LinearGradient(
             colors: [Color(red: 0.15, green: 0.78, blue: 0.55), Color(red: 0.05, green: 0.58, blue: 0.42)],
             startPoint: .topLeading, endPoint: .bottomTrailing)
-        case .kugou: return LinearGradient(
-            colors: [Color(red: 0.12, green: 0.58, blue: 0.98), Color(red: 0.05, green: 0.35, blue: 0.88)],
-            startPoint: .topLeading, endPoint: .bottomTrailing)
         }
     }
 
@@ -63,7 +59,6 @@ enum SearchProvider: String, CaseIterable, Identifiable {
         switch self {
         case .netease: return "cloud.fill"
         case .qq: return "play.rectangle.fill"
-        case .kugou: return "music.note"
         }
     }
 }
@@ -662,10 +657,6 @@ struct SearchView: View {
             if let words = try? await QQMusicAPI.shared.hotKeys() {
                 hotWords = words
             }
-        } else if provider == .kugou {
-            if let words = try? await KugouMusicAPI.shared.hotSearch() {
-                hotWords = words
-            }
         } else if let words = try? await NetEaseAPI.shared.hotSearch() {
             hotWords = words
         }
@@ -705,19 +696,6 @@ struct SearchView: View {
                     artistResults = artists
                 case (.qq, .album):
                     let albums = try await QQMusicAPI.shared.searchAlbums(keyword: trimmed)
-                    guard !Task.isCancelled else { return }
-                    albumResults = albums
-                case (.kugou, .song):
-                    let songs = try await KugouMusicAPI.shared.searchSongs(keyword: trimmed)
-                    guard !Task.isCancelled else { return }
-                    songResults = songs
-                    if !songs.isEmpty { BeansHaptics.success() }
-                case (.kugou, .artist):
-                    let artists = try await KugouMusicAPI.shared.searchArtists(keyword: trimmed)
-                    guard !Task.isCancelled else { return }
-                    artistResults = artists
-                case (.kugou, .album):
-                    let albums = try await KugouMusicAPI.shared.searchAlbums(keyword: trimmed)
                     guard !Task.isCancelled else { return }
                     albumResults = albums
                 }

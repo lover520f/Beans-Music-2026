@@ -236,20 +236,8 @@ struct ArtistHomeSheet: View {
         errorMessage = nil
         if artistSource == .qq {
             await loadQQArtist()
-        } else if artistSource == .kugou {
-            await loadKugouArtist()
         } else {
             await loadNetEaseArtist()
-        }
-    }
-
-    /// 酷狗歌手：酷狗无歌手详情接口，用"歌手名"搜索热门歌曲代替
-    private func loadKugouArtist() async {
-        do {
-            artist = Artist(id: "kg-0", name: artistName, coverURL: nil, source: .kugou)
-            let songs = (try? await KugouMusicAPI.shared.searchSongs(keyword: artistName, limit: 50)) ?? []
-            hotSongs = songs
-            loading = false
         }
     }
 

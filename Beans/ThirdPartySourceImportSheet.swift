@@ -16,6 +16,48 @@ struct ThirdPartySourceImportSheet: View {
                 Text("粘贴第三方解锁源 JSON 配置")
                     .font(BeansFont.appFont(13, .semibold))
                     .foregroundStyle(Color.beansLabel)
+                HStack(spacing: 8) {
+                    Button {
+                        jsonText = #"""
+                        {
+                          "name": "落雪音乐源",
+                          "kind": "lx",
+                          "template": "https://你的服务器地址",
+                          "urlPath": "url",
+                          "headers": { "source": "kg", "br": "320" }
+                        }
+                        """#
+                        errorMessage = nil
+                    } label: {
+                        Text("落雪音乐源" + (jsonText.contains("\"kind\": \"lx\"") ? " ✓" : ""))
+                            .font(BeansFont.appFont(12, .semibold))
+                            .foregroundStyle(jsonText.contains("\"kind\": \"lx\"") ? Color.beansAmber : Color.beansLabel)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(Capsule().fill(Color.beansGlassFill))
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        jsonText = #"""
+                        {
+                          "name": "我的音源",
+                          "kind": "keyword",
+                          "template": "https://api.example.com/music?keyword={keyword}",
+                          "urlPath": "data.url"
+                        }
+                        """#
+                        errorMessage = nil
+                    } label: {
+                        Text("通用音源示例")
+                            .font(BeansFont.appFont(12, .semibold))
+                            .foregroundStyle(Color.beansLabel)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 7)
+                            .background(Capsule().fill(Color.beansGlassFill))
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                }
                 TextEditor(text: $jsonText)
                     .font(.system(size: 12, design: .monospaced))
                     .scrollContentBackground(.hidden)
@@ -27,7 +69,7 @@ struct ThirdPartySourceImportSheet: View {
                         .font(BeansFont.appFont(11))
                         .foregroundStyle(.red)
                 }
-                Text("字段：name 名称；kind 查询方式（netease-id 按网易云 ID / keyword 按关键词）；template 请求模板；urlPath 响应里播放地址的字段路径（如 url、data.url）；headers 可选请求头。\n占位符：{id} 网易云ID、{name} 歌名、{artist} 歌手、{keyword} 歌名+歌手。")
+                Text("字段：name 名称；kind 查询方式（netease-id 按网易云 ID / keyword 按关键词 / lx 落雪 API 服务器）；template 请求模板；urlPath 响应里播放地址的字段路径（如 url、data.url）；headers 可选请求头。\n占位符：{id} 网易云ID、{name} 歌名、{artist} 歌手、{keyword} 歌名+歌手。\n落雪（kind 填 lx）：template 填 lx-music-api-server 的服务器地址，headers 里 source 可选 wy/kg/qq/mg/tx，br 可选 320/128。播放时自动搜索并取流。")
                     .font(BeansFont.appFont(11))
                     .foregroundStyle(Color.beansComment)
                 Button {

@@ -129,8 +129,6 @@ struct MiniPlayerView: View {
         var raw: String?
         if song.source == .qq, let mid = song.qqMid {
             raw = try? await QQMusicAPI.shared.lyric(songmid: mid)
-        } else if song.source == .kugou, let hash = song.kugouHash {
-            raw = try? await KugouMusicAPI.shared.lyric(hash: hash, durationMS: Int(song.duration * 1000))
         } else {
             raw = try? await NetEaseAPI.shared.lyric(id: song.id)
         }

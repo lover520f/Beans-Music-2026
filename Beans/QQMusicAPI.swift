@@ -745,6 +745,9 @@ final class QQMusicAPI {
         guard !name.isEmpty else { return nil }
         var cover = item["diss_cover"] as? String ?? (item["logo"] as? String ?? item["picurl"] as? String ?? item["cover"] as? String ?? "")
         if cover.hasPrefix("http://") { cover = "https://" + cover.dropFirst(7) }
+        // fcg 接口返回的 diss_cover 可能是相对路径（/music/photo_new/...），补全 y.gtimg.cn 域名
+        if cover.hasPrefix("/") { cover = "https://y.gtimg.cn" + cover }
+        if cover.hasPrefix("//") { cover = "https:" + cover }
         let count = item["song_cnt"] as? Int ?? (item["songnum"] as? Int ?? item["total_song_num"] as? Int ?? item["song_count"] as? Int ?? 0)
         return Playlist(id: id, name: name, coverURL: cover.isEmpty ? nil : URL(string: cover), trackCount: count, source: .qq)
     }
@@ -772,8 +775,24 @@ final class QQMusicAPI {
         return playlists
     }
 
-    /// QQ 歌单内歌曲
+    /// QQ 歌单内歌曲（主通道 fcg_ucc_getcdinfo_byids_cp，Mineradio 逆向；兜底 musicu GetPlaylistDetail）
     func playlistSongs(listID: Int) async throws -> [Song] {
+        let qqAuth = QQMusicAuth.shared
+        let cookie = qqAuth.isLoggedIn ? qqAuth.cookieHeader : ""
+        let loginUin = qqAuth.isLoggedIn ? qqAuth.uin : "0"
+        let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=\(listID)&loginUin=\(loginUin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
+        if let detailJson = try? await get(detailURL, referer: "https://y.qq.com/n/yqq/playlist", cookie: cookie),
+           let cdlist = detailJson["cdlist"] as? [[String: Any]],
+           let songlist = cdlist.first?["songlist"] as? [[String: Any]],
+           !songlist.isEmpty {
+            let songs = songlist.compactMap { item -> Song? in
+                // 部分接口返回会把歌曲包在 track_info 里，先解包再走统一解析
+                let raw = (item["track_info"] as? [String: Any]) ?? item
+                return song(from: raw)
+            }
+            if !songs.isEmpty { return songs }
+        }
+        // 兜底：musicu GetPlaylistDetail
         let payload: [String: Any] = [
             "comm": ["ct": 24, "cv": 0],
             "req_1": [
@@ -784,7 +803,10 @@ final class QQMusicAPI {
         ]
         let json = try await musicu(payload)
         let list = nestedArray(json, path: ["req_1", "data", "songlist"])
-        return list.compactMap { song(from: $0) }
+        return list.compactMap { item -> Song? in
+            let raw = (item["track_info"] as? [String: Any]) ?? item
+            return song(from: raw)
+        }
     }
 
     /// QQ 歌手热门歌曲（fcg_v8_singer_track_cp；mid 为空或接口异常时返回空，由调用方按歌手名搜索兜底）

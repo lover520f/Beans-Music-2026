@@ -16,9 +16,6 @@ struct LibraryView: View {
     @State private var source: SearchProvider = .netease
     @State private var qqPlaylists: [Playlist] = []
     @State private var qqLoading = false
-    @State private var kugouPlaylists: [Playlist] = []
-    @State private var kugouLoading = false
-    @ObservedObject private var kugouAuth = KugouMusicAuth.shared
 
     var body: some View {
         let _ = theme.accent
@@ -31,7 +28,8 @@ struct LibraryView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     providerPicker
-                    if source == .netease { playlistsSection } else if source == .qq { qqSection } else { kugouSection }
+                    LocalMusicSection
+                    if source == .netease { playlistsSection } else { qqSection }
                     historySection
                 }
                 .padding(.horizontal, 16)
@@ -46,7 +44,6 @@ struct LibraryView: View {
             if source == .qq {
                 await loadQQPlaylists()
             }
-            if source == .kugou { await loadKugouPlaylists() }
         }
         .sheet(isPresented: $showHistory) {
             HistoryView()
@@ -63,7 +60,7 @@ struct LibraryView: View {
             Button("创建") { createPlaylist() }
             Button("取消", role: .cancel) {}
         } message: {
-            Text("输入歌单名称，创建后同步到\(source == .netease ? "网易云" : source == .qq ? "QQ 音乐" : "酷狗音乐")")
+            Text("输入歌单名称，创建后同步到\(source == .netease ? "网易云" : "QQ 音乐")")
         }
         .confirmationDialog("确定删除歌单「\(pendingDelete?.name ?? "")」吗？", isPresented: $showDeleteConfirm, titleVisibility: .visible) {
             Button("删除", role: .destructive) { confirmDeletePlaylist() }
@@ -78,7 +75,7 @@ struct LibraryView: View {
                     Text("音乐库")
                         .font(BeansFont.appFont(30, .bold))
                         .foregroundStyle(Color.beansLabel)
-                    Text(source == .netease ? "网易云歌单" : source == .qq ? "QQ 音乐收藏与歌单" : "酷狗音乐歌单")
+                    Text(source == .netease ? "网易云歌单" : "QQ 音乐收藏与歌单")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
                 }
@@ -344,74 +341,6 @@ struct LibraryView: View {
 
     // MARK: - 歌单新建 / 删除
 
-    /// 酷狗模式整体内容：酷狗歌单（同步登录账号歌单）
-    private var kugouSection: some View {
-        VStack(alignment: .leading, spacing: 24) {
-            kugouPlaylistsSection
-        }
-    }
-
-    /// 酷狗歌单广场（无需登录）
-    private var kugouPlaylistsSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "我的酷狗歌单", trailing: kugouPlaylists.isEmpty ? nil : "\(kugouPlaylists.count) 个") {}
-            if !kugouAuth.isLoggedIn {
-                EmptyStateView(icon: "music.note.list", text: "登录酷狗音乐后即可查看你的歌单")
-            } else if kugouLoading {
-                LoadingStateView()
-            } else if kugouPlaylists.isEmpty {
-                EmptyStateView(icon: "music.note.list", text: "暂未拉取到酷狗歌单\n可在「我的」检查酷狗登录状态")
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(kugouPlaylists) { playlist in
-                        Button {
-                            selectedPlaylist = playlist
-                        } label: {
-                            HStack(spacing: 12) {
-                                CoverImage(url: playlist.coverURL, size: 56, cornerRadius: 12)
-                                VStack(alignment: .leading, spacing: 3) {
-                                    Text(playlist.name)
-                                        .font(BeansFont.appFont(15, .medium))
-                                        .foregroundStyle(Color.beansLabel)
-                                        .lineLimit(1)
-                                    Text("\(playlist.trackCount) 首")
-                                        .font(BeansFont.appFont(12))
-                                        .foregroundStyle(Color.beansComment)
-                                }
-                                Spacer(minLength: 8)
-                                Image(systemName: "chevron.right")
-                                    .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.beansComment.opacity(0.6))
-                            }
-                            .padding(.horizontal, 14)
-                            .padding(.vertical, 10)
-                            .contentShape(Rectangle())
-                        }
-                        .buttonStyle(.plain)
-                        Divider().overlay(Color.beansComment.opacity(0.12))
-                    }
-                }
-                .padding(.vertical, 6)
-                .background {
-                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                }
-                .clipShape(RoundedRectangle(cornerRadius: 22, style: .continuous))
-                .beansCardShadow(radius: 8, y: 3)
-            }
-        }
-    }
-
-    private func loadKugouPlaylists() async {
-        guard kugouAuth.isLoggedIn, !kugouAuth.userID.isEmpty else {
-            kugouPlaylists = []
-            kugouLoading = false
-            return
-        }
-        kugouLoading = true
-        kugouPlaylists = (try? await KugouMusicAPI.shared.userPlaylists(userid: kugouAuth.userID)) ?? []
-        kugouLoading = false
-    }
-
     private func loadQQPlaylists() async {
         guard qqAuth.isLoggedIn else {
             qqPlaylists = []
@@ -464,25 +393,6 @@ struct LibraryView: View {
                     ToastCenter.shared.show("创建失败：\(error.localizedDescription)")
                 }
             }
-        case .kugou:
-            guard kugouAuth.isLoggedIn else {
-                ToastCenter.shared.show("请先登录酷狗音乐后再创建歌单")
-                return
-            }
-            Task {
-                do {
-                    let ok = try await KugouMusicAPI.shared.createPlaylist(name: name)
-                    if ok {
-                        ToastCenter.shared.show("歌单「\(name)」已创建")
-                        newPlaylistName = ""
-                        await loadKugouPlaylists()
-                    } else {
-                        ToastCenter.shared.show("创建失败，请确认已登录酷狗音乐")
-                    }
-                } catch {
-                    ToastCenter.shared.show("创建失败：\(error.localizedDescription)")
-                }
-            }
         }
     }
 
@@ -517,20 +427,6 @@ struct LibraryView: View {
                         await loadQQPlaylists()
                     } else {
                         ToastCenter.shared.show("删除失败，请确认已登录 QQ 音乐")
-                    }
-                } catch {
-                    ToastCenter.shared.show("删除失败：\(error.localizedDescription)")
-                }
-            }
-        case .kugou:
-            Task {
-                do {
-                    let ok = try await KugouMusicAPI.shared.deletePlaylist(pid: playlist.id)
-                    if ok {
-                        ToastCenter.shared.show("已删除歌单「\(playlist.name)」")
-                        await loadKugouPlaylists()
-                    } else {
-                        ToastCenter.shared.show("删除失败，请确认已登录酷狗音乐")
                     }
                 } catch {
                     ToastCenter.shared.show("删除失败：\(error.localizedDescription)")
