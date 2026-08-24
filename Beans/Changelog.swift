@@ -14,7 +14,9 @@ enum ChangelogStore {
     static let lastSeenKey = "beans.lastSeenVersion"
 
     static var currentVersion: String {
-        Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
+        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
+        return build.isEmpty ? short : "\(short) (\(build))"
     }
 
     static var lastSeenVersion: String {
@@ -34,6 +36,20 @@ enum ChangelogStore {
 
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
+        VersionLog(
+            id: "1.0.10",
+            version: "1.0 (10)",
+            title: "设置备份与恢复 + 歌词 3D 立体",
+            features: [
+                "设置页新增「备份与恢复」：一键导出全部自定义配置（主题、配色、歌词效果、播放器布局、音质等）为 JSON 文件，支持导入恢复",
+                "新增网易云网页登录：应用内打开网页版完成扫码 / 手机号登录，自动同步账号与歌单",
+                "歌词新增 3D 立体倾斜：上下后仰 + 左右倾斜，角度可自由调节，营造立体透视感",
+                "网易云登录页新增「网页登录」入口，登录方式更丰富",
+            ],
+            fixes: [
+                "修复设置配置导出偶发无响应的问题，改用系统原生导出面板",
+            ]
+        ),
         VersionLog(
             id: "1.0",
             version: "1.0",

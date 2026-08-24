@@ -613,8 +613,8 @@ struct SettingsView: View {
     /// 更新日志
     @State private var showChangelog = false
     /// 配置备份与恢复
-    @State private var showShareBackup = false
-    @State private var backupFileURL: URL?
+    @State private var backupDoc: BackupDocument?
+    @State private var showExportBackup = false
     @State private var showRestorePicker = false
     @State private var pendingRestore: [String: Any]?
     @State private var showRestoreConfirm = false
@@ -673,9 +673,19 @@ struct SettingsView: View {
         .sheet(isPresented: $showChangelog) {
             ChangelogListView()
         }
-        .sheet(isPresented: $showShareBackup) {
-            if let backupFileURL {
-                ShareSheet(items: [backupFileURL])
+        .fileExporter(
+            isPresented: $showExportBackup,
+            document: backupDoc,
+            contentType: .json,
+            defaultFilename: "Beans设置备份-\(Self.backupDateString())"
+        ) { result in
+            switch result {
+            case .success:
+                backupMessage = "配置备份已导出"
+                ToastCenter.shared.show("配置备份已导出")
+            case .failure(let error):
+                backupMessage = "导出失败：\(error.localizedDescription)"
+                ToastCenter.shared.show("导出失败")
             }
         }
         .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json, .plainText], allowsMultipleSelection: false) { result in
@@ -1235,7 +1245,7 @@ struct SettingsView: View {
         .buttonStyle(GlassPressButtonStyle(scale: 0.95))
     }
 
-    /// 导出：收集 beans.* 设置写入临时 JSON 并调起系统分享
+    /// 导出：收集 beans.* 设置生成 JSON，交给系统原生导出面板
     private func exportBackup() {
         let defaults = UserDefaults.standard
         var payload: [String: Any] = [:]
@@ -1244,7 +1254,10 @@ struct SettingsView: View {
             // 跳过壁纸数据（含 base64 图片，恢复后路径失效）与超大值
             if key.hasPrefix("beans.wallpapers.") { continue }
             if let data = value as? Data, data.count > 200 * 1024 { continue }
-            payload[key] = backupJSONSafe(value)
+            let safe = backupJSONSafe(value)
+            // 逐个校验可序列化，异常类型直接跳过，避免整份备份生成失败
+            guard JSONSerialization.isValidJSONObject([key: safe]) else { continue }
+            payload[key] = safe
         }
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         payload["beans.backup.meta"] = [
@@ -1253,22 +1266,19 @@ struct SettingsView: View {
             "version": version,
         ] as [String: Any]
         guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) else {
+            backupMessage = "备份生成失败：存在无法序列化的设置项"
             ToastCenter.shared.show("备份生成失败")
             return
         }
+        backupDoc = BackupDocument(data: data)
+        backupMessage = nil
+        showExportBackup = true
+    }
+
+    private static func backupDateString() -> String {
         let formatter = DateFormatter()
         formatter.dateFormat = "yyyy-MM-dd"
-        let fileName = "Beans设置备份-\(formatter.string(from: Date())).json"
-        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
-        do {
-            try data.write(to: url)
-        } catch {
-            ToastCenter.shared.show("备份生成失败")
-            return
-        }
-        backupFileURL = url
-        backupMessage = nil
-        showShareBackup = true
+        return formatter.string(from: Date())
     }
 
     /// 恢复：把 JSON 备份中 beans.* 键写回 UserDefaults
@@ -1490,4 +1500,19 @@ struct FontDocumentPicker: UIViewControllerRepresentable {
         func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {}
     }
 }
+// MARK: - 配置备份文档（SwiftUI 原生 fileExporter 导出，稳定可靠）
 
+struct BackupDocument: FileDocument {
+    static var readableContentTypes: [UTType] { [.json] }
+    var data: Data
+
+    init(data: Data) { self.data = data }
+
+    init(configuration: ReadConfiguration) throws {
+        data = configuration.file.regularFileContents ?? Data()
+    }
+
+    func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
+        FileWrapper(regularFileWithContents: data)
+    }
+}
