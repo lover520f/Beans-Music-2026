@@ -37,6 +37,10 @@ struct RootView: View {
 
     @State private var selection: RootTab = .discover
     @State private var showPlayer = false
+    /// 免责声明确认状态（门禁在 BeansApp 中，这里用于确认后弹出更新说明）
+    @AppStorage("beans.disclaimerAccepted") private var disclaimerAccepted = false
+    /// 版本更新说明弹窗
+    @State private var showWhatsNew = false
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
     }
@@ -85,6 +89,21 @@ struct RootView: View {
         .animation(.spring(duration: 0.4), value: player.currentSong?.id)
         .overlay(alignment: .bottom) {
             ToastView(center: ToastCenter.shared)
+        }
+        .onAppear {
+            // 已确认过免责声明：直接判断是否需要展示更新说明
+            if disclaimerAccepted, ChangelogStore.shouldShowWhatsNew {
+                showWhatsNew = true
+            }
+        }
+        .onChange(of: disclaimerAccepted) { _, accepted in
+            // 首次进入：确认免责声明后弹出更新说明
+            if accepted, ChangelogStore.shouldShowWhatsNew {
+                showWhatsNew = true
+            }
+        }
+        .sheet(isPresented: $showWhatsNew) {
+            WhatsNewSheet()
         }
     }
 }

@@ -98,12 +98,16 @@ struct LibraryView: View {
 
     private var playlistsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "我的歌单", trailing: "新建") {
-                BeansHaptics.tap()
-                newPlaylistName = ""
-                showCreatePlaylist = true
+            SectionHeader(title: "我的歌单", trailing: auth.isLoggedIn ? "新建" : nil) {
+                if auth.isLoggedIn {
+                    BeansHaptics.tap()
+                    newPlaylistName = ""
+                    showCreatePlaylist = true
+                }
             }
-            if auth.playlists.isEmpty {
+            if !auth.isLoggedIn {
+                EmptyStateView(icon: "music.note.list", text: "登录网易云音乐后即可查看你的歌单")
+            } else if auth.playlists.isEmpty {
                 createPlaylistCard
             } else {
                 VStack(spacing: 0) {

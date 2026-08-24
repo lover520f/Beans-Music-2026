@@ -18,6 +18,8 @@ struct ProfileView: View {
     @State private var showAccountHub = false
     /// 设置页（外观 + 歌词翻译等）
     @State private var showSettings = false
+    /// 软件使用说明
+    @State private var showUsageGuide = false
     @ObservedObject private var qqAuth = QQMusicAuth.shared
     @ObservedObject private var kugouAuth = KugouMusicAuth.shared
 
@@ -78,6 +80,7 @@ struct ProfileView: View {
                     header
                     userCard
                     featuresGrid
+                    usageGuideCard
                     aboutSection
                 }
                 .padding(.horizontal, 16)
@@ -109,6 +112,9 @@ struct ProfileView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(theme)
+        }
+        .sheet(isPresented: $showUsageGuide) {
+            UsageGuideSheet()
         }
         .sheet(isPresented: $showSleepTimer) {
             SleepTimerSheet()
@@ -330,6 +336,39 @@ struct ProfileView: View {
         weekRecord = wr?.items ?? []
         allRecord = ar?.items ?? []
 
+    }
+
+    /// 软件使用说明入口
+    private var usageGuideCard: some View {
+        Button {
+            BeansHaptics.tap()
+            showUsageGuide = true
+        } label: {
+            HStack(spacing: 14) {
+                Image(systemName: "questionmark.circle.fill")
+                    .font(.system(size: 15))
+                    .foregroundStyle(Color.beansAmber)
+                    .frame(width: 30)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("软件使用说明")
+                        .font(BeansFont.appFont(15, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    Text("了解多平台切换、账号、播放与个性化玩法")
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansSecondary)
+                }
+                Spacer()
+                Image(systemName: "chevron.right")
+                    .font(.system(size: 12, weight: .semibold))
+                    .foregroundStyle(Color.beansSecondary.opacity(0.6))
+            }
+            .padding(16)
+            .background {
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+            }
+        }
+        .buttonStyle(.plain)
+        .beansCardShadow(radius: 9, y: 3)
     }
 
     private var aboutSection: some View {
@@ -637,6 +676,8 @@ struct SettingsView: View {
     /// 第三方音源管理
     @ObservedObject private var unblockStore = UnblockSourceStore.shared
     @State private var showSourceImport = false
+    /// 更新日志
+    @State private var showChangelog = false
 
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
@@ -651,6 +692,7 @@ struct SettingsView: View {
                         appearanceSection
                         playbackSection
                         unblockSection
+                        changelogSection
                         footerNote
                     }
                     .padding(.horizontal, 16)
@@ -685,6 +727,9 @@ struct SettingsView: View {
                 installFont(from: url)
             }
             .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showChangelog) {
+            ChangelogListView()
         }
     }
 
@@ -1110,6 +1155,39 @@ struct SettingsView: View {
         }
         .toggleStyle(.switch)
         .tint(Color.beansAmber)
+    }
+
+    /// 更新日志入口
+    private var changelogSection: some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Button {
+                BeansHaptics.tap()
+                showChangelog = true
+            } label: {
+                HStack(spacing: 12) {
+                    Image(systemName: "clock.arrow.circlepath")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.beansAmber)
+                        .frame(width: 28)
+                    Text("更新日志")
+                        .font(BeansFont.appFont(15))
+                        .foregroundStyle(Color.beansLabel)
+                    Spacer()
+                    Text("v\(ChangelogStore.currentVersion)")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansSecondary)
+                    Image(systemName: "chevron.right")
+                        .font(.system(size: 12, weight: .semibold))
+                        .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                }
+                .padding(16)
+                .background {
+                                    BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
+                }
+            }
+            .buttonStyle(.plain)
+            .beansCardShadow(radius: 8, y: 3)
+        }
     }
 
     private var footerNote: some View {

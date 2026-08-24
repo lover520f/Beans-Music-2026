@@ -56,6 +56,10 @@ struct PlayerView: View {
     @AppStorage("beans.lyricAlignRaw") private var lyricAlignRaw = "center"
     @AppStorage("beans.lyricOffsetX") private var lyricOffsetX = 0.0
     @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
+    /// 底部指示线开关（上滑呼出评论区）
+    @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
+    /// 歌词自定义发光颜色（留空跟随当前行颜色 / 封面取色）
+    @AppStorage("beans.lyricGlowColorRaw") private var lyricGlowColorRaw = ""
 
     private var song: Song? { player.currentSong }
     private let rateOptions: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -63,6 +67,12 @@ struct PlayerView: View {
     /// 封面主色联动调色板：背景渐变 / 进度条 / 播放暂停键 / 功能按钮 / 歌词高亮等全部跟随封面主色。
     /// 安全机制：只在切歌（.task(id: song?.identityKey)）时一次性提取并更新，绝不随封面加载过程高频重算 @State，
     /// 避免整页反复重绘导致的布局错乱与发烫。深浅模式切换时及时重算配色。
+    /// 自定义歌词发光颜色
+    private var lyricGlowColor: Color? {
+        if lyricGlowColorRaw.hasPrefix("#"), let c = Color(hex: lyricGlowColorRaw) { return c }
+        return nil
+    }
+
     /// 歌词对齐样式（居中 / 全部居左）
     private var lyricAlign: HorizontalAlignment {
         lyricAlignRaw == "left" ? .leading : .center
@@ -642,7 +652,7 @@ struct PlayerView: View {
                 if lyrics.isEmpty {
                     emptyLyricsView
                 } else {
-                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor) { line in
+                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor) { line in
                         BeansHaptics.tap()
                         player.seek(to: line.time)
                     }
@@ -718,7 +728,9 @@ struct PlayerView: View {
                 .modifier(Layoutable(part: .progress, enabled: layoutMode, data: $layoutData))
             deckRow
                 .modifier(Layoutable(part: .controls, enabled: layoutMode, data: $layoutData))
-            deckGrabber
+            if deckGrabberEnabled {
+                deckGrabber
+            }
         }
         .padding(.horizontal, 24)
         .padding(.top, 0)
@@ -1352,6 +1364,8 @@ struct LyricsSection: View {
     var offsetX: CGFloat = 0
     /// 当前行在视口中的垂直锚点
     var anchor: UnitPoint = .center
+    /// 自定义发光颜色（nil 时跟随当前行颜色 / 封面取色）
+    var glowColorOverride: Color? = nil
     let onTapLine: (LyricLine) -> Void
 
     /// 长按歌词进入多选复制模式（可多选 / 全选复制）
@@ -1492,7 +1506,7 @@ struct LyricsSection: View {
         } else {
             lineStyle = AnyShapeStyle(isCurrent ? accent : secondary)
         }
-        let glowColor = isCurrent ? (gradientStart ?? accent) : accent
+        let glowColor = glowColorOverride ?? (gradientStart ?? accent)
 
         let lineFont: Font = BeansFont.appFont(size)
         // 翻译行：仅当前行展示（借鉴 Kumone 的歌词翻译显示）
@@ -1642,6 +1656,8 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricAlignRaw") private var lyricAlignRaw = "center"
     @AppStorage("beans.lyricOffsetX") private var lyricOffsetX = 0.0
     @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
+    @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
+    @AppStorage("beans.lyricGlowColorRaw") private var glowColorRaw = ""
     @Environment(\.dismiss) private var dismiss
 
     /// 预设按钮：点击应用渐变起止色 + 发光强度
@@ -1698,6 +1714,19 @@ struct PlayerSettingsSheet: View {
             set: { newValue in
                 dimColorRaw = "#" + UIColor(newValue).hexString
                 gradMode = 1
+            }
+        )
+    }
+
+    /// 歌词发光颜色：留空时跟随当前行颜色 / 封面取色
+    private var glowColor: Binding<Color> {
+        Binding(
+            get: {
+                if glowColorRaw.hasPrefix("#"), let c = Color(hex: glowColorRaw) { return c }
+                return Color.beansAmber
+            },
+            set: { newValue in
+                glowColorRaw = "#" + UIColor(newValue).hexString
             }
         )
     }
@@ -1848,9 +1877,14 @@ struct PlayerSettingsSheet: View {
                 Section("歌词颜色") {
                     ColorPicker("当前行颜色", selection: currentColor, supportsOpacity: false)
                     ColorPicker("未播放行颜色", selection: dimColor, supportsOpacity: false)
+                    ColorPicker("歌词发光颜色", selection: glowColor, supportsOpacity: false)
+                    Text("自定义发光颜色；恢复默认后跟随当前行颜色 / 封面取色")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansSecondary)
                     Button("恢复默认颜色") {
                         currentColorRaw = ""
                         dimColorRaw = ""
+                        glowColorRaw = ""
                         gradMode = 0
                         BeansHaptics.select()
                     }
@@ -1869,8 +1903,26 @@ struct PlayerSettingsSheet: View {
                     .font(BeansFont.appFont(13))
                     .foregroundStyle(Color.beansAmber)
                 }
-                Section("歌词布局") {
-                    Picker("对齐样式", selection: $lyricAlignRaw) {
+                Section("布局调整") {
+                    Toggle("自定义底部布局", isOn: Binding(
+                        get: { layoutMode },
+                        set: { newValue in
+                            layoutMode = newValue
+                            // 开启后直接回到播放页进行调节
+                            if newValue { dismiss() }
+                        }
+                    ))
+                    .tint(Color.beansAmber)
+                    Text("开启后自动回到播放页，可自由拖动底部组件到任意位置（X / Y），并随时恢复默认")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansSecondary)
+                    Toggle("显示底部指示线", isOn: $deckGrabberEnabled)
+                        .tint(Color.beansAmber)
+                    Text("关闭后播放页底部不再显示指示线，也无法上滑呼出评论区")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansSecondary)
+                    Divider()
+                    Picker("歌词对齐样式", selection: $lyricAlignRaw) {
                         Text("居中").tag("center")
                         Text("全部居左").tag("left")
                     }
@@ -1902,7 +1954,7 @@ struct PlayerSettingsSheet: View {
                     Text("垂直重心：负值当前行偏上（下方显示更多后续歌词），正值偏下（上方显示更多已唱歌词）")
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansSecondary)
-                    Button("恢复默认") {
+                    Button("恢复歌词默认") {
                         lyricAlignRaw = "center"
                         lyricOffsetX = 0
                         lyricAnchorY = 0
@@ -1910,20 +1962,6 @@ struct PlayerSettingsSheet: View {
                     }
                     .font(BeansFont.appFont(13))
                     .foregroundStyle(Color.beansAmber)
-                }
-                Section("底部布局") {
-                    Toggle("自定义布局", isOn: Binding(
-                        get: { layoutMode },
-                        set: { newValue in
-                            layoutMode = newValue
-                            // 开启后直接回到播放页进行调节
-                            if newValue { dismiss() }
-                        }
-                    ))
-                    .tint(Color.beansAmber)
-                    Text("开启后自动回到播放页，可自由拖动底部组件到任意位置（X / Y），并随时恢复默认")
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
                 }
                 Section("歌词翻译") {
                     Toggle("显示歌词翻译", isOn: $lyricTranslation)
