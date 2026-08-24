@@ -10,7 +10,18 @@
 
 **👀 在线预览（HTML 介绍页）：** https://xiaodou0416.github.io/Beans-Music/
 
+## 📱 软件预览
+
+| 播放页 | 歌词翻译页 | 播放器设置 | 搜索页面 |
+| --- | --- | --- | --- |
+| <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413311~tplv-a9rns2rl98-image.image" width="200"> | <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413312~tplv-a9rns2rl98-image.image" width="200"> | <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413313~tplv-a9rns2rl98-image.image" width="200"> | <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413314~tplv-a9rns2rl98-image.image" width="200"> |
+
+| 音乐库 | 全局设置 | 发现首页 |
+| --- | --- | --- |
+| <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413315~tplv-a9rns2rl98-image.image" width="200"> | <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413316~tplv-a9rns2rl98-image.image" width="200"> | <img src="https://p3-flow-image-sign.byteimg.com/ocean-cloud-dr5v4r2n3c/31002100039844488a02422010413317~tplv-a9rns2rl98-image.image" width="200"> |
+
 ---
+
 
 ## 🎨 核心卖点：DIY 美化，你的播放器你做主
 
@@ -79,7 +90,7 @@
 ## 📱 系统体验
 
 - iOS 26 原生液态玻璃（Liquid Glass）TabBar，与系统 App 一致
-- 首次进入免责声明确认门禁 + 版本更新说明弹窗 + 更新日志
+- 首次进入 4 页引导（欢迎 / DIY 美化 / 双平台 / 免责确认）+ 版本更新说明弹窗 + 更新日志
 - 软件使用说明、深浅色自适应
 
 ---
@@ -88,7 +99,7 @@
 
 ```
 Beans/
-├── BeansApp.swift                应用入口（免责声明门禁）
+├── BeansApp.swift                应用入口（首次使用引导页 + 免责确认）
 ├── RootView.swift                底部 Tab 液态玻璃导航 + 迷你播放器
 ├── DiscoverView.swift            发现页（每日推荐 / 排行榜 / 推荐歌单）
 ├── SearchView.swift              搜索（网易云 / QQ 切换 / 热搜）
