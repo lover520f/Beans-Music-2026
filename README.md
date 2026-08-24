@@ -10,31 +10,25 @@
 
 **👀 在线预览（HTML 介绍页）：** https://xiaodou0416.github.io/Beans-Music/
 
-## 界面预览
+## 📱 界面预览
 
-首页
-< img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxZhqjEoIbqHJg1ug6W5StuKEQ6wklQACNDMAAg-uYVRtp4bEtmfTZT0E.jpg" width="320">
+<p align="center">
+  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxZhqjEoIbqHJg1ug6W5StuKEQ6wklQACNDMAAg-uYVRtp4bEtmfTZT0E.jpg" width="320" alt="首页">
+  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaJqjErkqY231RffZMnFS1tAwB_yOwACPzMAAg-uYVSQWkZF93Uuiz0E.png" width="320" alt="首页（浅色）">
+</p>
+<p align="center">
+  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaNqjEsCeieAguWVE5KJTwQCc3axuAACQDMAAg-uYVQR8wYPW4JoPT0E.jpg" width="320" alt="歌词页">
+  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaVqjEshJIRepNG5uXkFVibz6fdGIAACQjMAAg-uYVRn9kbUmKr6Pz0E.jpg" width="320" alt="播放封面页">
+</p>
+<p align="center">
+  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxapqjEuPdyQ-j_OQQAk93CFZk3pSxQACRzMAAg-uYVT9sIJWJqpucD0E.jpg" width="320" alt="搜索页面">
+  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaxqjEvN4uNfcKYnfUZO_7t8TK19cgACSTMAAg-uYVTx8jMaR93Asz0E.jpg" width="320" alt="音乐库">
+</p>
+<p align="center">
+  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxZpqjEovcWhx6YImnT6XZEYV5JGBQwACNjMAAg-uYVR_di0PshsBXz0E.jpg" width="320" alt="全局设置">
+  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaBqjEqxUK5BLTA511N14csnASzwswACPTMAAg-uYVQMQSjKbO3t9T0E.jpg" width="320" alt="主题设置（浅色）">
+</p>
 
-首页（浅色）
-< img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaJqjErkqY231RffZMnFS1tAwB_yOwACPzMAAg-uYVSQWkZF93Uuiz0E.png" width="320">
-
-歌词页
-< img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaNqjEsCeieAguWVE5KJTwQCc3axuAACQDMAAg-uYVQR8wYPW4JoPT0E.jpg" width="320">
-
-播放封面页
-< img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaVqjEshJIRepNG5uXkFVibz6fdGIAACQjMAAg-uYVRn9kbUmKr6Pz0E.jpg" width="320">
-
-搜索页面
-< img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxapqjEuPdyQ-j_OQQAk93CFZk3pSxQACRzMAAg-uYVT9sIJWJqpucD0E.jpg" width="320">
-
-音乐库
-< img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaxqjEvN4uNfcKYnfUZO_7t8TK19cgACSTMAAg-uYVTx8jMaR93Asz0E.jpg" width="320">
-
-全局设置
-< img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxZpqjEovcWhx6YImnT6XZEYV5JGBQwACNjMAAg-uYVR_di0PshsBXz0E.jpg" width="320">
-
-主题设置（浅色）
-< img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaBqjEqxUK5BLTA511N14csnASzwswACPTMAAg-uYVQMQSjKbO3t9T0E.jpg" width="320">
 ---
 
 
