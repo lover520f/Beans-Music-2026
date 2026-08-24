@@ -466,7 +466,7 @@ final class PlayerManager: NSObject, ObservableObject {
     }
 
     /// 在网易云按 歌名+歌手 匹配同名歌曲（QQ vkey 失败时的免费播放兜底）
-    private func matchNetEaseSong(name: String, artists: String, durationMS: Int) async -> Song? {
+    private func matchNetEaseSong(name: String, artists: String, durationMS: Int, strict: Bool = false) async -> Song? {
         let keyword = ([name, artists].filter { !$0.isEmpty }).joined(separator: " ")
         guard !keyword.isEmpty,
               let results = try? await NetEaseAPI.shared.search(keyword: keyword, limit: 8),
