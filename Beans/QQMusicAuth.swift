@@ -109,7 +109,7 @@ final class QQMusicAuth: ObservableObject {
     static let webCookieNames: Set<String> = [
         "uin", "p_uin", "skey", "p_skey", "qqmusic_key", "qm_keyst",
         "musickey", "pt4_token", "pt2gguin", "pt_login_sig", "pt4_aid",
-        "qmusic_s", "pgv_pvid", "pgv_info",
+        "qmusic_s", "pgv_pvid", "pgv_info", "ptnick", "nick", "nickname",
     ]
 
     /// 解析浏览器复制出来的完整 Cookie 字符串："a=b; c=d"
@@ -127,8 +127,13 @@ final class QQMusicAuth: ObservableObject {
         return dict
     }
 
-    /// uin（可能带 o 前缀）转显示昵称
+    /// uin（可能带 o 前缀）转显示昵称；优先 ptlogin 下发的 ptnick_* / nick Cookie（Mineradio 同款兜底）
     static func fallbackNickname(_ dict: [String: String]) -> String {
+        if let key = dict.keys.first(where: { $0.hasPrefix("ptnick") }),
+           let raw = dict[key], !raw.isEmpty {
+            return raw.removingPercentEncoding ?? raw
+        }
+        if let nick = dict["nick"], !nick.isEmpty { return nick }
         let clean = (dict["uin"] ?? "").replacingOccurrences(of: "o", with: "")
         return clean.isEmpty ? "QQ音乐用户" : "QQ音乐用户 \(clean)"
     }
@@ -372,7 +377,7 @@ final class QQMusicAuth: ObservableObject {
     func fetchProfile() async {
         guard isLoggedIn, !uin.isEmpty, uin != "0" else { return }
         do {
-            let urlString = "https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?format=json&inCharset=utf8&outCharset=utf-8&g_tk=\(gtk)&uin=\(uin)"
+            let urlString = "https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?cid=205360838&userid=\(uin)&reqfrom=1&g_tk=5381&loginUin=\(uin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
             guard let url = URL(string: urlString) else { return }
             var request = URLRequest(url: url)
             request.setValue(Self.ua, forHTTPHeaderField: "User-Agent")
@@ -382,10 +387,22 @@ final class QQMusicAuth: ObservableObject {
             guard let http = response as? HTTPURLResponse, http.statusCode == 200,
                   let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
             let code = obj["code"] as? Int ?? -1
-            guard code == 0 else { return }
-            guard let nick = Self.extractNickname(obj), !nick.isEmpty, nick != nickname else { return }
-            nickname = nick
-            defaults.set(nick, forKey: nickKey)
+            // code 1000 = 资料接口不可用（Mineradio 排障记录），不视为未登录，改用 Cookie 兜底
+            guard code == 0 || code == 1000 else { return }
+            if let nick = Self.extractNickname(obj), !nick.isEmpty, nick != nickname {
+                nickname = nick
+                defaults.set(nick, forKey: nickKey)
+                return
+            }
+            // 资料接口拿不到昵称时，用 ptlogin 下发的 ptnick_* Cookie 兜底
+            if let key = cookies.keys.first(where: { $0.hasPrefix("ptnick") }),
+               let raw = cookies[key], !raw.isEmpty {
+                let nick = raw.removingPercentEncoding ?? raw
+                if nick != nickname {
+                    nickname = nick
+                    defaults.set(nick, forKey: nickKey)
+                }
+            }
         } catch {
             // 尽力而为：接口波动不影响登录
         }

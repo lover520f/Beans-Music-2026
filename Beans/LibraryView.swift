@@ -18,8 +18,6 @@ struct LibraryView: View {
     @State private var qqLoading = false
     @State private var kugouPlaylists: [Playlist] = []
     @State private var kugouLoading = false
-    /// QQ「我喜欢」云端歌曲（登录后拉取，与本地红心合并展示）
-    @State private var qqCloudFavorites: [Song] = []
     @ObservedObject private var kugouAuth = KugouMusicAuth.shared
 
     var body: some View {
@@ -47,7 +45,6 @@ struct LibraryView: View {
         .task(id: source) {
             if source == .qq {
                 await loadQQPlaylists()
-                await loadQQFavorites()
             }
             if source == .kugou { await loadKugouPlaylists() }
         }
@@ -274,11 +271,10 @@ struct LibraryView: View {
         .beansCardShadow(radius: 6, y: 2)
     }
 
-    /// QQ 模式整体内容：用户歌单 + 红心收藏
+    /// QQ 模式整体内容：用户歌单（创建 + 收藏同步）
     private var qqSection: some View {
         VStack(alignment: .leading, spacing: 24) {
             qqPlaylistsSection
-            qqFavoritesSection
         }
     }
 
@@ -346,50 +342,12 @@ struct LibraryView: View {
         }
     }
 
-    /// QQ 音乐收藏（红心歌曲，本地持久化 + 云端尽力同步）
-    private var qqFavoritesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "QQ 我喜欢", trailing: mergedQQFavorites.isEmpty ? nil : "\(mergedQQFavorites.count) 首") {}
-            if mergedQQFavorites.isEmpty {
-                EmptyStateView(icon: "heart", text: "还没有喜欢的 QQ 歌曲\n在播放器点击红心即可收藏")
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(mergedQQFavorites.enumerated()), id: \.element.id) { index, song in
-                        SongCell(song: song) {
-                            player.play(songs: mergedQQFavorites, startAt: index)
-                        }
-                        Divider().overlay(Color.beansComment.opacity(0.15))
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background {
-                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                }
-                .beansCardShadow(radius: 8, y: 3)
-            }
-        }
-    }
-
-    /// QQ「我喜欢」歌曲：云端（登录拉取）与本地红心合并去重
-    private var mergedQQFavorites: [Song] {
-        var seen = Set<String>()
-        var result: [Song] = []
-        for song in qqCloudFavorites + favorites.qqFavoriteSongs {
-            guard let mid = song.qqMid, !mid.isEmpty, !seen.contains(mid) else { continue }
-            seen.insert(mid)
-            result.append(song)
-        }
-        return result
-    }
-
     // MARK: - 歌单新建 / 删除
 
-    /// 酷狗模式整体内容：酷狗歌单广场 + 本地红心收藏
+    /// 酷狗模式整体内容：酷狗歌单（同步登录账号歌单）
     private var kugouSection: some View {
         VStack(alignment: .leading, spacing: 24) {
             kugouPlaylistsSection
-            kugouFavoritesSection
         }
     }
 
@@ -443,31 +401,6 @@ struct LibraryView: View {
         }
     }
 
-    /// 酷狗红心收藏（本地持久化）
-    private var kugouFavoritesSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "酷狗音乐收藏", trailing: favorites.kugouFavoriteSongs.isEmpty ? nil : "\(favorites.kugouFavoriteSongs.count) 首") {}
-            if favorites.kugouFavoriteSongs.isEmpty {
-                EmptyStateView(icon: "heart", text: "还没有收藏的酷狗音乐歌曲\n在播放器点击红心即可收藏")
-            } else {
-                VStack(spacing: 0) {
-                    ForEach(Array(favorites.kugouFavoriteSongs.enumerated()), id: \.element.id) { index, song in
-                        SongCell(song: song) {
-                            player.play(songs: favorites.kugouFavoriteSongs, startAt: index)
-                        }
-                        Divider().overlay(Color.beansComment.opacity(0.15))
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 6)
-                .background {
-                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
-                }
-                .beansCardShadow(radius: 8, y: 3)
-            }
-        }
-    }
-
     private func loadKugouPlaylists() async {
         guard kugouAuth.isLoggedIn, !kugouAuth.userID.isEmpty else {
             kugouPlaylists = []
@@ -477,12 +410,6 @@ struct LibraryView: View {
         kugouLoading = true
         kugouPlaylists = (try? await KugouMusicAPI.shared.userPlaylists(userid: kugouAuth.userID)) ?? []
         kugouLoading = false
-    }
-
-    /// QQ「我喜欢」云端歌曲（登录后拉取，失败保留本地红心）
-    private func loadQQFavorites() async {
-        guard qqAuth.isLoggedIn else { return }
-        qqCloudFavorites = (try? await QQMusicAPI.shared.favoriteSongs()) ?? []
     }
 
     private func loadQQPlaylists() async {

@@ -114,7 +114,7 @@ struct QQWebLoginPanel: View {
         let wanted = QQMusicAuth.webCookieNames
         WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
             var dict: [String: String] = [:]
-            for cookie in cookies where wanted.contains(cookie.name) {
+            for cookie in cookies where wanted.contains(cookie.name) || cookie.name.hasPrefix("ptnick") {
                 dict[cookie.name] = cookie.value
             }
             // 兜底：白名单未命中时，收下 qq.com 域的全部 Cookie

@@ -452,55 +452,84 @@ final class KugouMusicAPI {
         }
     }
 
-    /// 创建歌单（mobilecdn v3 playlist/create，需登录 Cookie；status=1 视为成功）
-    func createPlaylist(name: String) async throws -> Bool {
-        let kgAuth = KugouMusicAuth.shared
-        guard kgAuth.isLoggedIn, !kgAuth.userID.isEmpty else { return false }
-        var comps = URLComponents(string: "https://mobilecdn.kugou.com/api/v3/playlist/create")!
-        var items = [
-            URLQueryItem(name: "userid", value: kgAuth.userID),
-            URLQueryItem(name: "mid", value: kgAuth.mid),
-            URLQueryItem(name: "specialname", value: name),
-            URLQueryItem(name: "plat", value: "0"),
-            URLQueryItem(name: "version", value: "9100"),
-        ]
-        if !kgAuth.token.isEmpty {
-            items.append(URLQueryItem(name: "token", value: kgAuth.token))
-        }
-        comps.queryItems = items
-        let data = try await get(comps.url!.absoluteString, referer: "https://m.kugou.com/", cookie: kgAuth.cookieHeader)
-        guard let obj = json(data) else {
-            throw NetEaseError.decoding("酷狗创建歌单解析失败")
-        }
+    /// 表单 POST（www.kugou.com 写操作接口）
+    private func postForm(_ urlString: String, body: [String: Any], referer: String = "https://www.kugou.com/", cookie: String = "") async throws -> [String: Any] {
+        guard let url = URL(string: urlString) else { throw NetEaseError.unknown("请求地址无效") }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue(referer, forHTTPHeaderField: "Referer")
+        if !cookie.isEmpty { request.setValue(cookie, forHTTPHeaderField: "Cookie") }
+        var comps = URLComponents()
+        comps.queryItems = body.map { URLQueryItem(name: $0.key, value: "\($0.value)") }
+        request.httpBody = comps.query?.data(using: .utf8)
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw NetEaseError.network }
+        guard let obj = json(data) else { throw NetEaseError.decoding("酷狗表单解析失败") }
+        return obj
+    }
+
+    /// 酷狗创建 / 删除歌单结果判定（status=1 / err_code=0 / data 带 specialid 均视为成功）
+    private static func isKugouPlaylistSuccess(_ obj: [String: Any]) -> Bool {
         if let status = obj["status"] as? Int { return status == 1 }
+        if let status = obj["status"] as? String { return status == "1" || status.lowercased() == "success" }
         if let code = obj["err_code"] as? Int { return code == 0 }
         if let code = obj["error_code"] as? Int { return code == 0 }
+        if let data = obj["data"] as? [String: Any],
+           data["specialid"] != nil || data["special_id"] != nil { return true }
         return false
     }
 
-    /// 删除歌单（mobilecdn v3 playlist/remove，需登录 Cookie）
+    /// 创建歌单（酷狗接口不稳定：先试网页版表单 POST，再试 mobilecdn v3 GET；任一成功即视为创建成功）
+    func createPlaylist(name: String) async throws -> Bool {
+        let kgAuth = KugouMusicAuth.shared
+        guard kgAuth.isLoggedIn, !kgAuth.userID.isEmpty else { return false }
+        let cookie = kgAuth.cookieHeader
+        var body: [String: Any] = [
+            "userid": kgAuth.userID,
+            "mid": kgAuth.mid,
+            "specialname": name,
+            "plat": 0,
+            "version": 9100,
+        ]
+        if !kgAuth.token.isEmpty { body["token"] = kgAuth.token }
+        do {
+            let obj = try await postForm("https://www.kugou.com/playlist/create", body: body, referer: "https://www.kugou.com/", cookie: cookie)
+            if Self.isKugouPlaylistSuccess(obj) { return true }
+        } catch {}
+        var comps = URLComponents(string: "https://mobilecdn.kugou.com/api/v3/playlist/create")!
+        comps.queryItems = body.map { URLQueryItem(name: $0.key, value: "\($0.value)") }
+        do {
+            let data = try await get(comps.url!.absoluteString, referer: "https://m.kugou.com/", cookie: cookie)
+            if let obj = json(data), Self.isKugouPlaylistSuccess(obj) { return true }
+        } catch {}
+        return false
+    }
+
+    /// 删除歌单（同创建：网页版表单 POST + mobilecdn v3 GET 双通道）
     func deletePlaylist(pid: Int) async throws -> Bool {
         let kgAuth = KugouMusicAuth.shared
         guard kgAuth.isLoggedIn, !kgAuth.userID.isEmpty else { return false }
-        var comps = URLComponents(string: "https://mobilecdn.kugou.com/api/v3/playlist/remove")!
-        var items = [
-            URLQueryItem(name: "userid", value: kgAuth.userID),
-            URLQueryItem(name: "mid", value: kgAuth.mid),
-            URLQueryItem(name: "specialid", value: String(pid)),
-            URLQueryItem(name: "plat", value: "0"),
-            URLQueryItem(name: "version", value: "9100"),
+        let cookie = kgAuth.cookieHeader
+        var body: [String: Any] = [
+            "userid": kgAuth.userID,
+            "mid": kgAuth.mid,
+            "specialid": pid,
+            "plat": 0,
+            "version": 9100,
         ]
-        if !kgAuth.token.isEmpty {
-            items.append(URLQueryItem(name: "token", value: kgAuth.token))
-        }
-        comps.queryItems = items
-        let data = try await get(comps.url!.absoluteString, referer: "https://m.kugou.com/", cookie: kgAuth.cookieHeader)
-        guard let obj = json(data) else {
-            throw NetEaseError.decoding("酷狗删除歌单解析失败")
-        }
-        if let status = obj["status"] as? Int { return status == 1 }
-        if let code = obj["err_code"] as? Int { return code == 0 }
-        if let code = obj["error_code"] as? Int { return code == 0 }
+        if !kgAuth.token.isEmpty { body["token"] = kgAuth.token }
+        do {
+            let obj = try await postForm("https://www.kugou.com/playlist/delete", body: body, referer: "https://www.kugou.com/", cookie: cookie)
+            if Self.isKugouPlaylistSuccess(obj) { return true }
+        } catch {}
+        var comps = URLComponents(string: "https://mobilecdn.kugou.com/api/v3/playlist/remove")!
+        comps.queryItems = body.map { URLQueryItem(name: $0.key, value: "\($0.value)") }
+        do {
+            let data = try await get(comps.url!.absoluteString, referer: "https://m.kugou.com/", cookie: cookie)
+            if let obj = json(data), Self.isKugouPlaylistSuccess(obj) { return true }
+        } catch {}
         return false
     }
 

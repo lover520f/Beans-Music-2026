@@ -35,6 +35,20 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.9.8",
+            version: "1.9.8",
+            title: "QQ 歌单同步修复 · 音乐库精简",
+            features: [
+                "QQ 音乐歌单同步升级（借鉴 Mineradio）：同时拉取「创建的歌单 + 收藏的歌单」并合并去重，喜欢的歌单排最前",
+                "QQ 昵称显示优化：登录后优先从资料接口 / ptnick Cookie 拉取真实昵称",
+                "音乐库精简：移除「QQ 我喜欢」「酷狗音乐收藏」区块，仅保留歌单同步",
+            ],
+            fixes: [
+                "修复 QQ 音乐歌单不同步：改用 fcg_user_created_diss + fcg_get_profile_order_asset 双接口",
+                "酷狗创建 / 删除歌单增加网页版表单接口与 mobilecdn 双通道，提高成功率",
+            ]
+        ),
+        VersionLog(
             id: "1.9.7",
             version: "1.9.7",
             title: "歌单修复 · 布局缩放 · 封面旋转",

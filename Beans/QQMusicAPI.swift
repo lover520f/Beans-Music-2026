@@ -691,38 +691,62 @@ final class QQMusicAPI {
         return Array(songs.prefix(limit))
     }
 
-    /// 用户创建的歌单（fcg_user_created_songlist；登录后带 Cookie 可拉取完整列表）
-    /// 携带 g_tk/utf8 参数，解析兼容 data.diss / data.list 等不同响应结构
+    /// 用户歌单（创建 + 收藏合并；逆向自 Mineradio：fcg_user_created_diss 拉创建歌单、
+    /// fcg_get_profile_order_asset 拉收藏歌单，合并去重并过滤 QQ 空间背景歌单，喜欢的歌单排最前）
     func userPlaylists(uin: String) async throws -> [Playlist] {
         let qqAuth = QQMusicAuth.shared
-        let gtk = qqAuth.gtk
-        let urlString = "https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_songlist.fcg?format=json&inCharset=utf8&outCharset=utf-8&utf8=1&g_tk=\(gtk)&uin=\(uin)"
-        guard let url = URL(string: urlString) else { throw NetEaseError.unknown("请求地址无效") }
-        var request = URLRequest(url: url)
-        request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 QQMusic/9.0.5", forHTTPHeaderField: "User-Agent")
-        request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
-        request.setValue(qqAuth.isLoggedIn ? qqAuth.cookieHeader : "uin=0; qqmusic_fromtag=66", forHTTPHeaderField: "Cookie")
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw NetEaseError.network }
-        guard let json = parseJSON(data) else { throw NetEaseError.decoding("QQ 歌单解析失败") }
-        let dataObj = json["data"] as? [String: Any] ?? [:]
-        var diss = dataObj["diss"] as? [[String: Any]] ?? []
-        if diss.isEmpty {
-            diss = dataObj["list"] as? [[String: Any]] ?? []
-        }
-        if diss.isEmpty {
-            diss = dataObj["disslist"] as? [[String: Any]] ?? []
-        }
+        guard qqAuth.isLoggedIn else { return [] }
+        let cookie = qqAuth.cookieHeader
+        let createdURL = "https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_diss?hostUin=0&hostuin=\(uin)&sin=0&size=200&g_tk=5381&loginUin=\(uin)&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
+        let collectURL = "https://c.y.qq.com/fav/fcgi-bin/fcg_get_profile_order_asset.fcg?ct=20&cid=205360956&userid=\(uin)&reqtype=3&sin=0&ein=80"
+
         var playlists: [Playlist] = []
-        for item in diss {
-            guard let id = item["dissid"] as? Int ?? (item["tid"] as? Int) ?? Int(item["dissid"] as? String ?? "") else { continue }
-            let name = item["diss_name"] as? String ?? (item["title"] as? String ?? item["name"] as? String ?? "")
-            var cover = item["diss_cover"] as? String ?? (item["cover"] as? String ?? item["pic_url"] as? String ?? "")
-            if cover.hasPrefix("http://") { cover = "https://" + cover.dropFirst(7) }
-            let count = item["songcnt"] as? Int ?? (item["songnum"] as? Int ?? 0)
-            playlists.append(Playlist(id: id, name: name, coverURL: cover.isEmpty ? nil : URL(string: cover), trackCount: count, source: .qq))
+        var seen = Set<Int>()
+
+        func append(_ item: [String: Any]) {
+            guard let playlist = Self.playlist(fromQQDiss: item), !seen.contains(playlist.id) else { return }
+            let text = playlist.name + " " + (item["hostname"] as? String ?? "")
+            if text.lowercased().contains("qzone") || text.contains("空间") || text.contains("背景音乐") { return }
+            seen.insert(playlist.id)
+            playlists.append(playlist)
+        }
+
+        if let created = try? await get(createdURL, referer: "https://y.qq.com/portal/profile.html", cookie: cookie),
+           let data = created["data"] as? [String: Any],
+           let disslist = data["disslist"] as? [[String: Any]] {
+            disslist.forEach(append)
+        }
+        if let collected = try? await get(collectURL, referer: "https://y.qq.com/portal/profile.html", cookie: cookie),
+           let data = collected["data"] as? [String: Any],
+           let cdlist = data["cdlist"] as? [[String: Any]] {
+            cdlist.forEach(append)
+        }
+
+        // 喜欢的歌单（我喜欢 / 我的喜欢 / 喜欢的音乐）排最前
+        playlists.sort { lhs, rhs in
+            let a = lhs.name.contains("我喜欢") || lhs.name.contains("我的喜欢") || lhs.name.contains("喜欢的音乐")
+            let b = rhs.name.contains("我喜欢") || rhs.name.contains("我的喜欢") || rhs.name.contains("喜欢的音乐")
+            if a != b { return a }
+            return lhs.name < rhs.name
         }
         return playlists
+    }
+
+    /// QQ 歌单项解析（字段对齐 Mineradio：dissid/tid/dirid/id/diss_id + diss_name/name/title…）
+    private static func playlist(fromQQDiss item: [String: Any]) -> Playlist? {
+        let id = item["dissid"] as? Int
+            ?? (item["tid"] as? Int)
+            ?? (item["dirid"] as? Int)
+            ?? (item["id"] as? Int)
+            ?? Int(item["dissid"] as? String ?? "")
+            ?? Int(item["dirid"] as? String ?? "")
+        guard let id, id > 0 else { return nil }
+        let name = item["diss_name"] as? String ?? (item["name"] as? String ?? item["title"] as? String ?? "")
+        guard !name.isEmpty else { return nil }
+        var cover = item["diss_cover"] as? String ?? (item["logo"] as? String ?? item["picurl"] as? String ?? item["cover"] as? String ?? "")
+        if cover.hasPrefix("http://") { cover = "https://" + cover.dropFirst(7) }
+        let count = item["song_cnt"] as? Int ?? (item["songnum"] as? Int ?? item["total_song_num"] as? Int ?? item["song_count"] as? Int ?? 0)
+        return Playlist(id: id, name: name, coverURL: cover.isEmpty ? nil : URL(string: cover), trackCount: count, source: .qq)
     }
 
     /// QQ 推荐歌单
