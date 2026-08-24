@@ -84,6 +84,8 @@ struct SearchView: View {
 
     @State private var keyword = ""
     @State private var provider: SearchProvider = .netease
+    /// 已加载热门搜索的 provider（避免切 tab 反复加载）
+    @State private var hotLoadedProvider: SearchProvider?
     @State private var resultType: SearchResultType = .song
     @State private var songResults: [Song] = []
     @State private var artistResults: [Artist] = []
@@ -124,6 +126,8 @@ struct SearchView: View {
             }
         }
         .task(id: provider) {
+            guard hotLoadedProvider != provider else { return }
+            hotLoadedProvider = provider
             hotWords = []
             await loadHotWords()
         }

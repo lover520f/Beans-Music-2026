@@ -38,15 +38,15 @@ struct ArtistHomeSheet: View {
                     }
                 } else {
                     ScrollView {
-                        VStack(alignment: .leading, spacing: 20) {
+                        VStack(alignment: .leading, spacing: 14) {
                             artistHeader
                             hotSongsSection
                             if artistSource == .netease {
                                 albumsSection
                             }
                         }
-                        .padding(.top, 8)
-                        .padding(.bottom, 24)
+                        .padding(.top, 6)
+                        .padding(.bottom, 16)
                     }
                     .scrollIndicators(.hidden)
                 }
@@ -96,11 +96,43 @@ struct ArtistHomeSheet: View {
     }
 
     private var hotSongsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("热门歌曲")
                 .font(BeansFont.appFont(17, .bold))
                 .foregroundStyle(Color.beansLabel)
                 .padding(.horizontal, 16)
+            if !hotSongs.isEmpty {
+                HStack(spacing: 10) {
+                    Button {
+                        BeansHaptics.tap()
+                        player.play(songs: hotSongs, startAt: 0)
+                        dismiss()
+                    } label: {
+                        Label("播放全部", systemImage: "play.fill")
+                            .font(BeansFont.appFont(13, .semibold))
+                            .foregroundStyle(.white)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .background(Capsule().fill(Color.beansAmber))
+                    }
+                    .buttonStyle(.plain)
+                    Button {
+                        BeansHaptics.tap()
+                        player.play(songs: hotSongs.shuffled(), startAt: 0)
+                        dismiss()
+                    } label: {
+                        Label("随机播放", systemImage: "shuffle")
+                            .font(BeansFont.appFont(13, .semibold))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(maxWidth: .infinity)
+                            .padding(.vertical, 9)
+                            .background(Capsule().strokeBorder(Color.beansAmber.opacity(0.5), lineWidth: 1))
+                    }
+                    .buttonStyle(.plain)
+                }
+                .padding(.horizontal, 16)
+                .padding(.bottom, 2)
+            }
             if hotSongs.isEmpty {
                 Text("暂无歌曲")
                     .font(BeansFont.appFont(13))
@@ -131,7 +163,7 @@ struct ArtistHomeSheet: View {
                                 }
                                 Spacer()
                             }
-                            .padding(.vertical, 7)
+                            .padding(.vertical, 6)
                             .padding(.horizontal, 16)
                             .contentShape(Rectangle())
                         }
@@ -143,7 +175,7 @@ struct ArtistHomeSheet: View {
     }
 
     private var albumsSection: some View {
-        VStack(alignment: .leading, spacing: 8) {
+        VStack(alignment: .leading, spacing: 6) {
             Text("专辑")
                 .font(BeansFont.appFont(17, .bold))
                 .foregroundStyle(Color.beansLabel)

@@ -58,6 +58,8 @@ struct PlayerView: View {
     @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
     /// 底部指示线开关（上滑呼出评论区）
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
+    /// 圆形封面模式（播放器大封面 / 歌词页左上角小封面）
+    @AppStorage("beans.circularCover") private var circularCover = true
     /// 歌词自定义发光颜色（留空跟随当前行颜色 / 封面取色）
     @AppStorage("beans.lyricGlowColorRaw") private var lyricGlowColorRaw = ""
 
@@ -420,6 +422,7 @@ struct PlayerView: View {
     /// 专辑模式：封面居中 + 歌名/歌手 + 轻点提示（VStack 自动居中）
     private func albumPanel(geo: GeometryProxy) -> some View {
         let size = coverSize(in: geo)
+        let coverRadius: CGFloat = circularCover ? size / 2 : min(24, size * 0.08)
         return VStack(spacing: 16) {
             Spacer(minLength: 2)
 
@@ -441,24 +444,31 @@ struct PlayerView: View {
                                 .frame(width: size * 1.10, height: size * 1.10)
                                 .blur(radius: 40)
                                 .scaleEffect(1.0)
-                            // 液态玻璃托盘（微浮动）
-                                                        BeansGlass(shape: RoundedRectangle(cornerRadius: min(30, size * 0.10), style: .continuous))
-                            .frame(width: size * 1.10, height: size * 1.10)
-                            .shadow(color: .black.opacity(0.28), radius: 26, y: 12)
-                            .offset(y: 0)
+                            // 液态玻璃托盘（圆形模式用圆形托盘）
+                            if circularCover {
+                                BeansGlass(shape: Circle())
+                                    .frame(width: size * 1.10, height: size * 1.10)
+                                    .shadow(color: .black.opacity(0.28), radius: 26, y: 12)
+                                    .offset(y: 0)
+                            } else {
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: min(30, size * 0.10), style: .continuous))
+                                    .frame(width: size * 1.10, height: size * 1.10)
+                                    .shadow(color: .black.opacity(0.28), radius: 26, y: 12)
+                                    .offset(y: 0)
+                            }
                         }
                     .allowsHitTesting(false)
 
                     // 封面（静态）
-                    CoverImage(url: song?.coverURL, size: size, cornerRadius: min(24, size * 0.08), emptyHint: player.isBuffering ? "等待开始播放…" : nil)
+                    CoverImage(url: song?.coverURL, size: size, cornerRadius: coverRadius, emptyHint: player.isBuffering ? "等待开始播放…" : nil)
                         .matchedGeometryEffect(id: "playerCover", in: coverNS)
                         .overlay {
-                            RoundedRectangle(cornerRadius: min(24, size * 0.08), style: .continuous)
+                            RoundedRectangle(cornerRadius: coverRadius, style: .continuous)
                                 .strokeBorder(.white.opacity(0.28), lineWidth: 1)
                         }
                         .overlay {
                             // 顶部玻璃反光
-                            RoundedRectangle(cornerRadius: min(24, size * 0.08), style: .continuous)
+                            RoundedRectangle(cornerRadius: coverRadius, style: .continuous)
                                 .fill(
                                     LinearGradient(
                                         colors: [.white.opacity(0.28), .white.opacity(0.03), .clear],
@@ -466,7 +476,7 @@ struct PlayerView: View {
                                     )
                                 )
                         }
-                        .clipShape(RoundedRectangle(cornerRadius: min(24, size * 0.08), style: .continuous))
+                        .clipShape(RoundedRectangle(cornerRadius: coverRadius, style: .continuous))
                         .shadow(color: .black.opacity(0.38), radius: 24, y: 12)
                 }
                 .frame(width: size * 1.10, height: size * 1.10)
@@ -594,10 +604,10 @@ struct PlayerView: View {
                 Button {
                     toggleLyrics()
                 } label: {
-                    CoverImage(url: song?.coverURL, size: 48, cornerRadius: 12)
+                    CoverImage(url: song?.coverURL, size: 48, cornerRadius: circularCover ? 24 : 12)
                         .matchedGeometryEffect(id: "playerCover", in: coverNS)
                         .overlay {
-                            RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            RoundedRectangle(cornerRadius: circularCover ? 24 : 12, style: .continuous)
                                 .strokeBorder(.white.opacity(0.2), lineWidth: 1)
                         }
                 }
@@ -1706,6 +1716,7 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricOffsetX") private var lyricOffsetX = 0.0
     @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
+    @AppStorage("beans.circularCover") private var circularCover = true
     @AppStorage("beans.lyricGlowColorRaw") private var glowColorRaw = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -1951,6 +1962,13 @@ struct PlayerSettingsSheet: View {
                     }
                     .font(BeansFont.appFont(13))
                     .foregroundStyle(Color.beansAmber)
+                }
+                Section("封面") {
+                    Toggle("圆形封面模式", isOn: $circularCover)
+                        .tint(Color.beansAmber)
+                    Text("播放器封面与歌词页左上角封面显示为圆形")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
                 }
                 Section("布局调整") {
                     Toggle("自定义底部布局", isOn: Binding(

@@ -35,6 +35,19 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.9.6",
+            version: "1.9.6",
+            title: "圆形封面 · 歌手页优化",
+            features: [
+                "新增圆形封面模式：播放器封面与歌词页左上角封面显示为圆形（播放器设置可开关）",
+                "歌手主页新增「播放全部」「随机播放」",
+            ],
+            fixes: [
+                "优化歌手主页排版间距，更紧凑",
+                "修复底栏切换时搜索页每次重新加载热门搜索的问题",
+            ]
+        ),
+        VersionLog(
             id: "1.9.5",
             version: "1.9.5",
             title: "布局调整修复",
