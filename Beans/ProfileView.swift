@@ -837,6 +837,9 @@ struct SettingsView: View {
     /// 第三方音源管理
     @ObservedObject private var unblockStore = UnblockSourceStore.shared
     @State private var showSourceImport = false
+    @State private var testingSourceID: String?
+    @State private var sourceTestResult: String?
+    @State private var showSourceTestResult = false
     /// 更新日志
     @State private var showChangelog = false
     /// 配置备份与恢复
@@ -1297,7 +1300,7 @@ struct SettingsView: View {
                             Text("免费听歌")
                                 .font(BeansFont.appFont(15))
                                 .foregroundStyle(Color.beansLabel)
-                            Text("灰色 / VIP / 周杰伦等版权歌曲自动从第三方音源匹配播放（默认关闭，手动开启）")
+                            Text("灰色 / VIP / 周杰伦等版权歌曲自动从已导入的第三方音源匹配播放（需先导入并开启音源，默认关闭）")
                                 .font(BeansFont.appFont(11))
                                 .foregroundStyle(Color.beansComment)
                         }
@@ -1315,17 +1318,11 @@ struct SettingsView: View {
         }
     }
 
-    /// 第三方音源管理：内置源开关 + 导入自定义源
+    /// 第三方音源管理：仅用户导入的音源，支持独立开关与取流自检
     private var unblockSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "第三方音源")
             VStack(spacing: 10) {
-                unblockSourceToggle(id: "pyncmd", icon: "bolt.fill", title: "GD 音乐台", subtitle: "按网易云 ID 取高音质地址")
-                unblockSourceToggle(id: "kuwo", icon: "music.note", title: "酷我音源", subtitle: "酷我搜索 + 双直链兜底")
-                unblockSourceToggle(id: "bodian", icon: "waveform.badge.plus", title: "波点音源", subtitle: "波点签名取流（Splayer 解锁插件）")
-
-                Divider().overlay(Color.beansComment.opacity(0.15))
-
                 Button {
                     BeansHaptics.tap()
                     showSourceImport = true
@@ -1347,12 +1344,20 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
 
                 if unblockStore.customSources.isEmpty {
-                    Text("尚未导入自定义音源（支持 JSON 配置或落雪 LX 脚本音源 JS 文件）")
+                    Text("尚未导入第三方音源（支持 JSON 配置或落雪 LX 脚本音源 JS 文件），导入后可独立开关并自检")
                         .font(BeansFont.appFont(11))
                         .foregroundStyle(Color.beansComment)
                 } else {
                     ForEach(unblockStore.customSources) { source in
                         HStack(spacing: 10) {
+                            Toggle("", isOn: Binding(
+                                get: { source.enabled },
+                                set: { unblockStore.setEnabled(source, enabled: $0) }
+                            ))
+                            .labelsHidden()
+                            .toggleStyle(.switch)
+                            .tint(Color.beansAmber)
+                            .frame(width: 46)
                             Image(systemName: "externaldrive.fill")
                                 .font(.system(size: 12))
                                 .foregroundStyle(Color.beansAmber)
@@ -1362,11 +1367,26 @@ struct SettingsView: View {
                                     .font(BeansFont.appFont(14, .semibold))
                                     .foregroundStyle(Color.beansLabel)
                                     .lineLimit(1)
-                                Text(source.kind == "netease-id" ? "按网易云 ID 查询" : source.kind == "lxscript" ? "落雪 LX 脚本音源" : "关键词查询")
+                                Text(source.kind == "netease-id" ? "按网易云 ID 查询" : source.kind == "lxscript" ? "落雪 LX 脚本音源" : source.kind == "lx" ? "落雪 API 服务器" : "关键词查询")
                                     .font(BeansFont.appFont(10))
                                     .foregroundStyle(Color.beansComment)
                             }
                             Spacer()
+                            if testingSourceID == source.id {
+                                ProgressView()
+                                    .controlSize(.small)
+                                    .frame(width: 24)
+                            } else {
+                                Button {
+                                    BeansHaptics.tap()
+                                    testSource(source)
+                                } label: {
+                                    Image(systemName: "wrench.and.screwdriver")
+                                        .font(.system(size: 13))
+                                        .foregroundStyle(Color.beansAmber)
+                                }
+                                .buttonStyle(.plain)
+                            }
                             Button(role: .destructive) {
                                 BeansHaptics.medium()
                                 unblockStore.remove(source)
@@ -1377,6 +1397,7 @@ struct SettingsView: View {
                             }
                             .buttonStyle(.plain)
                         }
+                        .opacity(source.enabled ? 1 : 0.45)
                     }
                 }
             }
@@ -1386,33 +1407,29 @@ struct SettingsView: View {
             }
             .beansCardShadow(radius: 9, y: 3)
         }
+        .alert("音源自检", isPresented: $showSourceTestResult) {
+            Button("好", role: .cancel) {}
+        } message: {
+            Text(sourceTestResult ?? "")
+        }
     }
 
-    private func unblockSourceToggle(id: String, icon: String, title: String, subtitle: String) -> some View {
-        Toggle(isOn: Binding(
-            get: { unblockStore.isEnabled(id) },
-            set: {
-                unblockStore.setBuiltin(id, enabled: $0)
-                ToastCenter.shared.show("部分音源开关需重启 App 后完全生效")
-            }
-        )) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.beansAmber)
-                    .frame(width: 28)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(BeansFont.appFont(14))
-                        .foregroundStyle(Color.beansLabel)
-                    Text(subtitle)
-                        .font(BeansFont.appFont(10))
-                        .foregroundStyle(Color.beansComment)
+    /// 用固定测试歌曲（周杰伦-晴天）验证导入音源能否取到播放地址，失败时显示真实原因
+    private func testSource(_ source: ThirdPartySource) {
+        testingSourceID = source.id
+        Task {
+            let result = await UnblockService.testSource(source)
+            await MainActor.run {
+                testingSourceID = nil
+                switch result {
+                case .success(let url):
+                    sourceTestResult = "✅ 测试成功，已获取播放地址：\n\(url)"
+                case .failure(let error):
+                    sourceTestResult = "❌ 测试失败：\n\(error.localizedDescription)\n\n可在「设置 → 日志」导出日志反馈。"
                 }
+                showSourceTestResult = true
             }
         }
-        .toggleStyle(.switch)
-        .tint(Color.beansAmber)
     }
 
     /// 更新日志入口

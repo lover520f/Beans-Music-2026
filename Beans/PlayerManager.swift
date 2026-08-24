@@ -352,12 +352,18 @@ final class PlayerManager: NSObject, ObservableObject {
                     guard generation == self.loadGeneration else { return }
                     self.isBuffering = false
                     self.loadFailed = true
-                    if self.shouldLockOfficialOnly(song) {
-                        BeansLogger.shared.log("播放失败：\(song.name) - 未找到原唱音源（官方受限），拒绝翻唱版本", level: .error)
-                        ToastCenter.shared.show("《\(song.name)》未找到原唱音源（官方受限），已停止播放，拒绝翻唱版本")
-                    } else if song.source == .qq && song.isVIP && !enableUnblock {
+                    if song.source == .qq && song.isVIP && !enableUnblock {
                         BeansLogger.shared.log("播放失败：\(song.name) - QQ VIP 歌曲未开启免费听歌", level: .error)
-                        ToastCenter.shared.show("《\(song.name)》为 QQ VIP 歌曲，未开启「免费听歌」，无法播放完整音轨")
+                        ToastCenter.shared.show("《\(song.name)》为 QQ VIP 歌曲，请先在 我的 → 设置 → 播放设置 开启「免费听歌」")
+                    } else if self.shouldLockOfficialOnly(song) {
+                        let hasSource = UnblockSourceStore.shared.customSources.contains { $0.enabled }
+                        if enableUnblock, !hasSource {
+                            BeansLogger.shared.log("播放失败：\(song.name) - 未找到原唱音源（未导入或未开启第三方音源）", level: .error)
+                            ToastCenter.shared.show("《\(song.name)》未找到原唱音源：请先在 设置 → 第三方音源 导入并开启音源（如星海、全豆要 JS）")
+                        } else {
+                            BeansLogger.shared.log("播放失败：\(song.name) - 未找到原唱音源（官方受限），拒绝翻唱版本", level: .error)
+                            ToastCenter.shared.show("《\(song.name)》未找到原唱音源（官方受限），已停止播放，拒绝翻唱版本")
+                        }
                     } else {
                         BeansLogger.shared.log("播放失败：\(song.name) - 无法解析播放地址", level: .error)
                     }
