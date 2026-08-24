@@ -4,7 +4,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Beans Music · 开源音乐播放器</title>
-<meta name="description" content="Beans Music - iOS 26 液态玻璃风格第三方音乐播放器，聚合网易云/QQ音乐/酷狗音乐，纯 AI 开发，完全开源。">
+<meta name="description" content="Beans Music - iOS 26 液态玻璃风格第三方音乐播放器，聚合网易云/QQ音乐，纯 AI 开发，完全开源。">
 <style>
   :root {
     --bg1: #0d0d12;
@@ -29,8 +29,6 @@
     -webkit-font-smoothing: antialiased;
   }
   .wrap { max-width: 960px; margin: 0 auto; padding: 56px 24px 80px; }
-
-  /* 玻璃卡片 */
   .glass {
     background: var(--card);
     border: 1px solid var(--border);
@@ -40,8 +38,6 @@
     box-shadow: 0 20px 50px rgba(0,0,0,.35);
     padding: 28px;
   }
-
-  /* 顶部 */
   .hero { text-align:center; padding: 40px 28px 36px; }
   .logo {
     width: 84px; height: 84px; margin: 0 auto 20px;
@@ -60,8 +56,6 @@
     background: rgba(255,255,255,.08); border: 1px solid var(--border);
   }
   .badges a:hover { background: rgba(255,255,255,.14); }
-
-  /* 区块 */
   section { margin-top: 26px; }
   .sec-title {
     display:flex; align-items:center; gap:10px;
@@ -71,21 +65,16 @@
     width: 10px; height: 10px; border-radius: 50%;
     background: linear-gradient(135deg, var(--accent), var(--accent2));
   }
-
-  /* 功能网格 */
   .grid { display:grid; grid-template-columns: repeat(auto-fit, minmax(260px, 1fr)); gap: 14px; }
   .feature { border-radius: 18px; padding: 18px; background: rgba(255,255,255,.045); border:1px solid var(--border); }
   .feature .icon { font-size: 24px; }
   .feature h3 { font-size: 15px; margin: 8px 0 6px; }
   .feature p { font-size: 12.5px; color: var(--sub); line-height: 1.65; }
-
-  /* 免责声明 / 作者 */
   .notice { font-size: 13px; color: var(--sub); line-height: 1.9; }
   .notice b { color: var(--accent); }
   .author { text-align:center; padding: 22px; }
   .author .big { font-size: 15px; color: var(--text); margin-bottom: 6px; }
   .author .sub { font-size: 12.5px; color: var(--sub); line-height: 1.8; }
-
   .cta { display:flex; gap:12px; justify-content:center; flex-wrap:wrap; margin-top: 26px; }
   .btn {
     display:inline-flex; align-items:center; gap:8px;
@@ -97,7 +86,6 @@
   }
   .btn:hover { transform: translateY(-2px); }
   .btn.ghost { background: rgba(255,255,255,.08); color: var(--text); border:1px solid var(--border); box-shadow:none; }
-
   footer { margin-top: 40px; text-align:center; font-size: 12px; color: rgba(242,237,228,.4); line-height: 1.8; }
   @media (max-width: 560px) { .hero h1 { font-size: 30px; } .wrap { padding: 32px 16px 56px; } }
 </style>
@@ -108,7 +96,7 @@
   <div class="glass hero">
     <div class="logo">🎵</div>
     <h1>Beans Music</h1>
-    <p class="tag">iOS 26 原生液态玻璃 · 聚合网易云 / QQ音乐 / 酷狗音乐 · 纯 SwiftUI · 完全开源</p>
+    <p class="tag">iOS 26 原生液态玻璃 · 聚合网易云 / QQ音乐 · 纯 SwiftUI · 完全开源</p>
     <div class="badges">
       <a href="https://github.com/XIaodou0416/Beans-Music">⭐ GitHub 源码</a>
       <a href="https://github.com/XIaodou0416/Beans-Music/releases">📦 Releases 下载</a>
@@ -119,14 +107,14 @@
   <section>
     <div class="sec-title"><span class="dot"></span>为什么它很强大？</div>
     <div class="grid">
-      <div class="feature"><div class="icon">🎧</div><h3>一个 App 听遍三大平台</h3><p>网易云 / QQ 音乐 / 酷狗音乐一键切换，每日推荐、排行榜、歌单广场、搜索、热门搜索全部跟随平台。</p></div>
-      <div class="feature"><div class="icon">🔐</div><h3>多平台账号登录</h3><p>网易云扫码 / 网页登录、QQ 扫码 / 网页授权、酷狗账号登录，同步歌单、收藏、听歌排行与 VIP / SVIP 标识。</p></div>
-      <div class="feature"><div class="icon">🎨</div><h3>封面即主题</h3><p>动态封面取色，背景渐变、进度条、按钮、歌词高亮全部实时跟随专辑封面主色。</p></div>
-      <div class="feature"><div class="icon">💬</div><h3>专业级歌词定制</h3><p>逐行跟随、点击跳转、翻译、自定义颜色 / 渐变 / 发光 / 模糊、3D 立体倾斜、长按多选复制。</p></div>
-      <div class="feature"><div class="icon">🖼️</div><h3>液态玻璃界面</h3><p>iOS 26 原生 Liquid Glass 材质，深浅色自适应，App Store 风格底栏，抖音式滑动切歌。</p></div>
-      <div class="feature"><div class="icon">🎛️</div><h3>全自由度定制</h3><p>5 套全局主题、自定义壁纸库、全局主题色、底部布局自由拖动、设置一键备份恢复。</p></div>
-      <div class="feature"><div class="icon">⚡</div><h3>播放能力拉满</h3><p>多档音质（标准~Hi-Res）、免费听歌开关、歌曲下载、锁屏控制、后台播放、队列、倍速、睡眠定时。</p></div>
-      <div class="feature"><div class="icon">📊</div><h3>数据全同步</h3><p>听歌排行、播放历史、歌单云端同步，登录后一切都在。</p></div>
+      <div class="feature"><div class="icon">🎧</div><h3>双平台聚合</h3><p>网易云 / QQ 音乐一键切换：每日推荐、排行榜、推荐歌单、搜索、热门搜索全部跟随平台。</p></div>
+      <div class="feature"><div class="icon">🔐</div><h3>双平台账号登录</h3><p>网易云扫码 / 网页登录、QQ 扫码 / 网页 / Cookie 导入，同步歌单、收藏、听歌排行与 VIP / SVIP 标识。</p></div>
+      <div class="feature"><div class="icon">🎨</div><h3>封面即主题</h3><p>动态封面取色：背景渐变、进度条、按钮、歌词高亮全部实时跟随专辑封面主色。</p></div>
+      <div class="feature"><div class="icon">💬</div><h3>专业级歌词定制</h3><p>逐行跟随、点击跳转、翻译、色盘自定义颜色 / 渐变 / 发光 / 模糊、3D 立体倾斜、长按多选复制。</p></div>
+      <div class="feature"><div class="icon">🖼️</div><h3>液态玻璃界面</h3><p>iOS 26 原生 Liquid Glass，深浅色自适应，9 套主题色，液态 / 磨砂可切换。</p></div>
+      <div class="feature"><div class="icon">🎛️</div><h3>全自由度定制</h3><p>自定义壁纸库、全局背景同步、底部布局自由拖动、进度条 4 种样式、DJ 节奏光效。</p></div>
+      <div class="feature"><div class="icon">⚡</div><h3>播放能力拉满</h3><p>5 档音质、免费听歌、第三方音源、歌曲下载、锁屏控制、后台播放、队列、倍速、睡眠定时。</p></div>
+      <div class="feature"><div class="icon">📊</div><h3>数据全同步</h3><p>听歌排行、播放历史、歌单云端同步，设置配置支持一键备份与恢复。</p></div>
     </div>
   </section>
 
@@ -136,7 +124,7 @@
       <p>· 本应用仅供 <b>个人学习研究</b> 使用，禁止用于商业及非法用途，如产生法律纠纷与作者无关。</p>
       <p>· 音乐 API 来源于 GitHub 开源项目（<b>非官方版 API</b>），本软件不提供任何音频存储服务。</p>
       <p>· 音乐版权归各平台所有，请支持正版；如需下载音频请在各平台官方渠道购买。</p>
-      <p>· “QQ”、“QQ音乐”及企鹅形象等标识著作权或商标权归腾讯公司所有；“网易云”、“网易云音乐”等标识著作权或商标权归网易公司所有；酷狗音乐相关标识归酷狗公司所有，具体请参考各平台用户协议。</p>
+      <p>· “QQ”、“QQ音乐”及企鹅形象等标识著作权或商标权归腾讯公司所有；“网易云”、“网易云音乐”等标识著作权或商标权归网易公司所有，具体请参考各平台用户协议。</p>
     </div>
   </section>
 
