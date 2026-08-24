@@ -6,6 +6,7 @@ import SwiftUI
 enum PlayerLayoutPart: String, CaseIterable, Identifiable {
     case progress = "进度条"
     case controls = "控制按钮"
+    case grabber = "指示线"
 
     var id: String { rawValue }
 }

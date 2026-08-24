@@ -28,9 +28,12 @@ jobs:
               content = f.read()
 
           def bump_version(m):
-              # each build bumps the last part of marketing version (1.2 -> 1.2.1 -> ...)
+              # 三段式版本号：1.9 -> 1.9.1 -> 1.9.2 ...（避免出现 1.10 这类歧义版本号）
               parts = m.group(1).split('.')
-              parts[-1] = str(int(parts[-1]) + 1)
+              if len(parts) < 3:
+                  parts.append('1')
+              else:
+                  parts[-1] = str(int(parts[-1]) + 1)
               return 'MARKETING_VERSION: "' + '.'.join(parts) + '"'
 
           def bump_build(m):
