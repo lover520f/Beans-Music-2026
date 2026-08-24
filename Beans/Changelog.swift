@@ -36,8 +36,8 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
-            id: "1.3.2",
-            version: "1.3.2",
+            id: "1.3.1",
+            version: "1.3.1",
             title: "兼容 iOS 15 低版本系统",
             features: [
                 "兼容 iOS 15+ 低版本系统：iOS 15 / 16 均可正常运行，液态玻璃自动回退磨砂玻璃",
