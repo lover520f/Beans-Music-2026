@@ -14,7 +14,6 @@ struct DiscoverView: View {
     @State private var selectedTopList: TopList?
     @State private var selectedPlaylist: Playlist?
     @State private var showDailyList = false
-    @State private var showDouyin = false
     /// 首页数据源：网易云 / QQ音乐（与搜索页同一控件样式）
     @State private var source: SearchProvider = .netease
     @State private var qqTopLists: [QQTopInfo] = []
@@ -98,12 +97,6 @@ struct DiscoverView: View {
                     .environmentObject(player)
                     .environmentObject(auth)
             }
-            .sheet(isPresented: $showDouyin) {
-                let feed = dailySongs.isEmpty ? (player.history.isEmpty ? [] : player.history) : dailySongs
-                DouyinModeSheet(songs: feed)
-                    .environmentObject(player)
-                    .environmentObject(auth)
-            }
         }
     }
 
@@ -121,10 +114,6 @@ struct DiscoverView: View {
                 }
                 Spacer()
                 HStack(spacing: 10) {
-                    GlassIconButton(systemName: "rectangle.stack.fill") {
-                        BeansHaptics.tap()
-                        showDouyin = true
-                    }
                     GlassIconButton(systemName: "arrow.clockwise") {
                         BeansHaptics.tap()
                         Task { await load(force: true) }
@@ -356,7 +345,7 @@ struct DiscoverView: View {
             // 横滑歌曲卡：每日推荐前 8 首
             ScrollView(.horizontal, showsIndicators: false) {
                 LazyHStack(spacing: 12) {
-                    ForEach(Array(dailySongs.prefix(8).enumerated()), id: \.element.id) { index, song in
+                    ForEach(Array(dailySongs.prefix(8).enumerated()), id: \.element.identityKey) { index, song in
                         Button {
                             BeansHaptics.tap()
                             player.play(songs: dailySongs, startAt: index)
@@ -583,7 +572,7 @@ struct QQTopListDetailView: View {
                 } else {
                     List {
                         Section {
-                            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, song in
+                            ForEach(Array(tracks.enumerated()), id: \.element.identityKey) { index, song in
                                 SongCell(song: song, glassRow: true) {
                                     player.play(songs: tracks, startAt: index)
                                 }
@@ -636,7 +625,7 @@ struct QQPlaylistSongsSheet: View {
                 } else {
                     List {
                         Section {
-                            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, song in
+                            ForEach(Array(tracks.enumerated()), id: \.element.identityKey) { index, song in
                                 SongCell(song: song, glassRow: true) {
                                     player.play(songs: tracks, startAt: index)
                                 }
@@ -698,7 +687,7 @@ struct DailySongsSheet: View {
                         .padding(.vertical, 8)
                     }
                     Section {
-                        ForEach(Array(songs.enumerated()), id: \.element.id) { index, song in
+                        ForEach(Array(songs.enumerated()), id: \.element.identityKey) { index, song in
                             SongCell(song: song, glassRow: true) {
                                 BeansHaptics.tap()
                                 player.play(songs: songs, startAt: index)
@@ -740,7 +729,7 @@ struct TopListDetailView: View {
                     List {
                         header
                         Section {
-                            ForEach(Array(tracks.enumerated()), id: \.element.id) { index, song in
+                            ForEach(Array(tracks.enumerated()), id: \.element.identityKey) { index, song in
                                 SongCell(song: song, glassRow: true) {
                                     player.play(songs: tracks, startAt: index)
                                 }

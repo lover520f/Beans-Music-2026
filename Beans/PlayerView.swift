@@ -30,7 +30,6 @@ struct PlayerView: View {
     @State private var showArtistHome = false
     @State private var pickedArtistName = ""
     @State private var showArtistPicker = false
-    @State private var showDouyin = false
     @AppStorage("beans.djVisual") private var djVisualEnabled = false
     @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
     @State private var dominantColor: RGBColor?
@@ -69,6 +68,13 @@ struct PlayerView: View {
     @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = false
     /// 歌词自定义发光颜色（留空跟随当前行颜色 / 封面取色）
     @AppStorage("beans.lyricGlowColorRaw") private var lyricGlowColorRaw = ""
+    /// 侧边滑动切歌（抖音式刷视频交互，默认开启）
+    @AppStorage("beans.swipeSwitchSong") private var swipeSwitchSong = true
+    /// 歌词模糊控制：起始距离（距当前行几行开始模糊）+ 模糊强度（0 = 关闭）
+    @AppStorage("beans.lyricBlurStart") private var lyricBlurStart = 1
+    @AppStorage("beans.lyricBlurAmount") private var lyricBlurAmount = 1.1
+    /// 侧边滑动手势当前位移（刷视频式切歌过渡）
+    @State private var swipeOffset: CGFloat = 0
 
     private var song: Song? { player.currentSong }
     private let rateOptions: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -233,12 +239,6 @@ struct PlayerView: View {
                     .environmentObject(player)
             }
         }
-        .sheet(isPresented: $showDouyin) {
-            let feed = player.history.isEmpty ? ((song.map { [$0] }) ?? []) : player.history
-            DouyinModeSheet(songs: feed)
-                .environmentObject(player)
-                .environmentObject(auth)
-        }
         .confirmationDialog("选择歌手", isPresented: $showArtistPicker, titleVisibility: .visible) {
             ForEach(Array(artistNames.enumerated()), id: \.offset) { _, name in
                 Button(name) {
@@ -394,11 +394,6 @@ struct PlayerView: View {
                     Label("分享歌曲", systemImage: "square.and.arrow.up")
                 }
                 Divider()
-                Button {
-                    showDouyin = true
-                } label: {
-                    Label("刷抖音模式", systemImage: "rectangle.stack.fill")
-                }
                 Menu {
                     if LocalLibraryStore.shared.playlists.isEmpty {
                         Button {
@@ -574,9 +569,34 @@ struct PlayerView: View {
         }
         .padding(.bottom, deckInset + geo.safeAreaInsets.bottom)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+        // 侧边上下滑动切歌（抖音式刷视频交互）：上滑下一首、下滑上一首，仅响应纵向手势，与点击封面不冲突
+        .offset(y: swipeOffset)
+        .opacity(1 - min(abs(swipeOffset) / 260, 0.35))
+        .simultaneousGesture(
+            DragGesture(minimumDistance: 50)
+                .onChanged { value in
+                    guard swipeSwitchSong else { return }
+                    let h = value.translation.height
+                    if abs(h) > abs(value.translation.width) {
+                        swipeOffset = h
+                    }
+                }
+                .onEnded { value in
+                    guard swipeSwitchSong else { return }
+                    let h = value.translation.height
+                    withAnimation(.easeOut(duration: 0.18)) { swipeOffset = 0 }
+                    if h < -70 {
+                        BeansHaptics.tap()
+                        player.next()
+                    } else if h > 70 {
+                        BeansHaptics.tap()
+                        player.previous()
+                    }
+                }
+        )
     }
 
-    /// 封面下歌词阅览：最多 4 行，跟随当前播放行自动滚动预览
+    /// 封面下歌词阅览：最多 5 行，跟随当前播放行自动滚动预览
     private var lyricPreviewBox: some View {
         let rows = lyricPreviewRows
         return VStack(spacing: 3) {
@@ -602,13 +622,13 @@ struct PlayerView: View {
                 }
             }
         }
-        .frame(height: 4 * 18 + 3 * 3)
+        .frame(height: 5 * 18 + 4 * 3)
         .padding(.horizontal, 40)
         .contentShape(Rectangle())
         .onTapGesture { toggleLyrics() }
     }
 
-    /// 歌词预览行数据：当前行前后各取几行，最多 4 行
+    /// 歌词预览行数据：当前行前后各取几行，最多 5 行
     private struct LyricPreviewRow {
         let text: String
         let isCurrent: Bool
@@ -636,13 +656,13 @@ struct PlayerView: View {
         guard !lyrics.isEmpty else { return [] }
         var rows: [LyricPreviewRow] = []
         if let idx = previewCurrentIndex {
-            let start = max(0, idx - 1)
-            for i in start..<min(lyrics.count, start + 4) {
+            let start = max(0, idx - 2)
+            for i in start..<min(lyrics.count, start + 5) {
                 let text = lyrics[i].text
                 rows.append(LyricPreviewRow(text: text.isEmpty ? " " : text, isCurrent: i == idx))
             }
         } else {
-            for i in 0..<min(4, lyrics.count) {
+            for i in 0..<min(5, lyrics.count) {
                 let text = lyrics[i].text
                 rows.append(LyricPreviewRow(text: text.isEmpty ? " " : text, isCurrent: i == 0))
             }
@@ -718,7 +738,7 @@ struct PlayerView: View {
                 if lyrics.isEmpty {
                     emptyLyricsView
                 } else {
-                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor) { line in
+                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor, blurStart: CGFloat(lyricBlurStart), blurAmount: lyricBlurAmount) { line in
                         BeansHaptics.tap()
                         player.seek(to: line.time)
                     }
@@ -1469,6 +1489,9 @@ struct LyricsSection: View {
     var anchor: UnitPoint = .center
     /// 自定义发光颜色（nil 时跟随当前行颜色 / 封面取色）
     var glowColorOverride: Color? = nil
+    /// 歌词模糊控制：距当前行几行后开始模糊 + 模糊强度（0 = 完全关闭模糊）
+    var blurStart: CGFloat = 1
+    var blurAmount: CGFloat = 1.1
     let onTapLine: (LyricLine) -> Void
 
     /// 长按歌词进入多选复制模式（可多选 / 全选复制）
@@ -1537,7 +1560,7 @@ struct LyricsSection: View {
                             .id(index)
                     }
                 }
-                .padding(.vertical, 160)
+                .padding(.vertical, 210)
                 .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity)
@@ -1600,7 +1623,8 @@ struct LyricsSection: View {
             : (isPlayed ? 0.38 : 0.72) - Double(min(distance, 4)) * 0.05
         let size = isCurrent ? baseFontSize + 4 : baseFontSize - CGFloat(min(distance, 2)) * 1.5
         // 歌词行模糊：当前行与邻近行保持清晰，距离越远才越柔和（避免只剩一行清晰显得突兀）
-        let blurRadius: CGFloat = isCurrent ? 0 : min(CGFloat(max(distance - 1, 0)) * 1.1, 2.8)
+        // 模糊起始距离与强度由用户控制（0 强度 = 完全关闭模糊）
+        let blurRadius: CGFloat = isCurrent ? 0 : min(CGFloat(max(distance - Int(blurStart), 0)) * blurAmount, 6.0)
 
         // 当前行用渐变（封面色或自定义），光晕跟随渐变起始色
         let lineStyle: AnyShapeStyle
@@ -1765,6 +1789,9 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.djVisual") private var djVisualEnabled = false
     @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
     @AppStorage("beans.lyricGlowColorRaw") private var glowColorRaw = ""
+    @AppStorage("beans.swipeSwitchSong") private var swipeSwitchSong = true
+    @AppStorage("beans.lyricBlurStart") private var lyricBlurStart = 1
+    @AppStorage("beans.lyricBlurAmount") private var lyricBlurAmount = 1.1
     @Environment(\.dismiss) private var dismiss
 
     /// 预设按钮：点击应用渐变起止色 + 发光强度
@@ -1869,6 +1896,13 @@ struct PlayerSettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
+                Section("侧边滑动切歌") {
+                    Toggle("播放页上下滑动切换歌曲", isOn: $swipeSwitchSong)
+                        .tint(Color.beansAmber)
+                    Text("专辑界面上下滑动即可像刷视频一样切歌：上滑下一首、下滑上一首")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
+                }
                 Section("进度条样式") {
                     Picker("样式", selection: $progressBarStyle) {
                         Text("流光").tag(0)
@@ -1949,6 +1983,27 @@ struct PlayerSettingsSheet: View {
                             .font(BeansFont.appFont(12))
                     }
                     Text("\(lineSpacing) pt")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
+                }
+                Section("歌词模糊") {
+                    HStack(spacing: 12) {
+                        Text("起始距离")
+                        Slider(value: Binding(get: { Double(lyricBlurStart) }, set: { lyricBlurStart = Int($0) }), in: 0...4, step: 1)
+                            .tint(Color.beansAmber)
+                        Text("\(lyricBlurStart) 行")
+                            .font(BeansFont.appFont(12))
+                            .foregroundStyle(Color.beansComment)
+                    }
+                    HStack(spacing: 12) {
+                        Image(systemName: "circle.lefthalf.filled")
+                            .foregroundStyle(Color.beansAmber)
+                        Slider(value: $lyricBlurAmount, in: 0...6, step: 0.1)
+                            .tint(Color.beansAmber)
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(Color.beansAmber)
+                    }
+                    Text(lyricBlurAmount < 0.05 ? "已关闭歌词模糊" : String(format: "模糊强度 %.1f（0 为关闭）", lyricBlurAmount))
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
                 }

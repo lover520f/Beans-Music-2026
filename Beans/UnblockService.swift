@@ -188,7 +188,9 @@ enum UnblockService {
     private static func kuwo(keyword: String, durationMS: Int, artists: String = "", strict: Bool = false, songName: String = "") async -> Resolved? {
         guard let rid = await kuwoSearchID(keyword: keyword, durationMS: durationMS, artists: artists, strict: strict, songName: songName) else { return nil }
         // Try 1：antiserver 直链（无需加密，稳定取整曲 MP3）
-        if let urlString = await kuwoConvertURL(rid: rid), let playURL = URL(string: urlString) {
+        // 注意：酷我 antiserver 已回归为所有歌曲返回同一个占位音频（588957081.mp3，约 11 秒语音提示），
+        // 播放它只会听到"请去酷我音乐手机版播放"，这里先校验再使用，避免播放错误音频。
+        if let urlString = await kuwoConvertURL(rid: rid), isValidKuwoURL(urlString), let playURL = URL(string: urlString) {
             return Resolved(url: playURL, source: "kuwo")
         }
         // Try 2：www.kuwo.cn/url 网页接口（支持码率，借鉴 splayer 解锁插件）
@@ -207,7 +209,7 @@ enum UnblockService {
             if let (data, resp) = try? await session.data(for: request),
                let http = resp as? HTTPURLResponse, http.statusCode == 200,
                let text = String(data: data, encoding: .utf8)?.trimmingCharacters(in: .whitespacesAndNewlines),
-               text.hasPrefix("http"),
+               isValidKuwoURL(text), text.hasPrefix("http"),
                let playURL = URL(string: text) {
                 return Resolved(url: playURL, source: "kuwo")
             }
@@ -228,8 +230,15 @@ enum UnblockService {
               let data = await get(url),
               let text = String(data: data, encoding: .utf8)?
                 .trimmingCharacters(in: .whitespacesAndNewlines),
-              text.hasPrefix("http") else { return nil }
+              isValidKuwoURL(text), text.hasPrefix("http") else { return nil }
         return text
+    }
+
+    /// 酷我直链校验：拒绝已知的占位音频（antiserver 现对全部歌曲返回同一个 588957081.mp3，
+    /// 内容为"请去酷我音乐手机版播放"语音提示，播放它属于错误音频）
+    private static func isValidKuwoURL(_ text: String) -> Bool {
+        guard !text.contains("588957081.mp3") else { return false }
+        return true
     }
 
     // MARK: - 音源 3：波点（借鉴 splayer-unlock-plugin：酷我搜索 + 波点签名取流）

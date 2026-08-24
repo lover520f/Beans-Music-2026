@@ -16,6 +16,7 @@ struct LibraryView: View {
     @State private var source: SearchProvider = .netease
     @State private var qqPlaylists: [Playlist] = []
     @State private var qqLoading = false
+    @State private var qqSavedAt = Date.distantPast
 
     var body: some View {
         let _ = theme.accent
@@ -37,7 +38,13 @@ struct LibraryView: View {
                 .padding(.bottom, 190)
             }
             .scrollIndicators(.hidden)
-            .refreshable { await auth.loadLibrary() }
+            .refreshable {
+                if source == .qq {
+                    await loadQQPlaylists(force: true)
+                } else {
+                    await auth.loadLibrary()
+                }
+            }
         }
         .task { await auth.loadLibrary() }
         .task(id: source) {
@@ -215,7 +222,7 @@ struct LibraryView: View {
                 EmptyStateView(icon: "clock.arrow.circlepath", text: "暂无播放记录")
             } else {
                 VStack(spacing: 0) {
-                    ForEach(player.history.prefix(5)) { song in
+                    ForEach(player.history.prefix(5), id: \.identityKey) { song in
                         SongCell(song: song) {
                             playFromHistory(song)
                         }
@@ -341,15 +348,41 @@ struct LibraryView: View {
 
     // MARK: - 歌单新建 / 删除
 
-    private func loadQQPlaylists() async {
+    private func loadQQPlaylists(force: Bool = false) async {
         guard qqAuth.isLoggedIn else {
             qqPlaylists = []
             qqLoading = false
             return
         }
+        // 会话内短缓存：5 分钟内不重复拉取，避免每次打开界面都重新加载（下拉可强制刷新）
+        if !force, Date().timeIntervalSince(qqSavedAt) < 300 { return }
         qqLoading = true
-        qqPlaylists = (try? await QQMusicAPI.shared.userPlaylists(uin: qqAuth.uin)) ?? []
+        let list = (try? await QQMusicAPI.shared.userPlaylists(uin: qqAuth.uin)) ?? []
+        qqPlaylists = list
+        qqSavedAt = Date()
         qqLoading = false
+        // 封面兜底：歌单封面缺失时默认取第一首歌曲封面（列表先展示，封面后台补齐）
+        if !list.isEmpty { await fillQQPlaylistCovers(list) }
+    }
+
+    private func fillQQPlaylistCovers(_ list: [Playlist]) async {
+        let missing = list.filter { $0.coverURL == nil }
+        guard !missing.isEmpty else { return }
+        var covers: [Int: URL] = [:]
+        await withTaskGroup(of: (Int, URL?).self) { group in
+            for playlist in missing {
+                group.addTask {
+                    let cover = try? await QQMusicAPI.shared.firstSongCover(listID: playlist.id)
+                    return (playlist.id, cover)
+                }
+            }
+            for await (id, url) in group {
+                if let url { covers[id] = url }
+            }
+        }
+        for i in qqPlaylists.indices where qqPlaylists[i].coverURL == nil {
+            if let url = covers[qqPlaylists[i].id] { qqPlaylists[i].coverURL = url }
+        }
     }
 
     private func createPlaylist() {
@@ -385,7 +418,7 @@ struct LibraryView: View {
                     if ok {
                         ToastCenter.shared.show("歌单「\(name)」已创建")
                         newPlaylistName = ""
-                        await loadQQPlaylists()
+                        await loadQQPlaylists(force: true)
                     } else {
                         ToastCenter.shared.show("创建失败，请确认已登录 QQ 音乐")
                     }
@@ -424,7 +457,7 @@ struct LibraryView: View {
                     let ok = try await QQMusicAPI.shared.deletePlaylist(dirid: playlist.id)
                     if ok {
                         ToastCenter.shared.show("已删除歌单「\(playlist.name)」")
-                        await loadQQPlaylists()
+                        await loadQQPlaylists(force: true)
                     } else {
                         ToastCenter.shared.show("删除失败，请确认已登录 QQ 音乐")
                     }

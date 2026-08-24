@@ -140,7 +140,7 @@ struct ArtistHomeSheet: View {
                     .padding(.horizontal, 16)
             } else {
                 LazyVStack(spacing: 0) {
-                    ForEach(Array(hotSongs.enumerated()), id: \.element.id) { index, song in
+                    ForEach(Array(hotSongs.enumerated()), id: \.element.identityKey) { index, song in
                         Button {
                             BeansHaptics.tap()
                             player.play(songs: hotSongs, startAt: index)

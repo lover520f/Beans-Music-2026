@@ -466,7 +466,7 @@ struct SearchView: View {
                             .buttonStyle(.plain)
                         }
                         .padding(.vertical, 8)
-                        ForEach(Array(songResults.enumerated()), id: \.element.id) { index, song in
+                        ForEach(Array(songResults.enumerated()), id: \.element.identityKey) { index, song in
                             SongCell(song: song) {
                                 BeansHaptics.tap()
                                 player.play(songs: songResults, startAt: index)

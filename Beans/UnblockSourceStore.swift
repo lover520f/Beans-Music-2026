@@ -52,13 +52,13 @@ final class UnblockSourceStore: ObservableObject {
     static let builtinOrder = ["pyncmd", "kuwo", "bodian"]
 
     private let defaults = UserDefaults.standard
-    private let builtinKey = "beans.unblock.builtin"
+    private let builtinKey = "beans.unblock.builtin.v2"
     private let customKey = "beans.unblock.custom"
 
     private init() {
         let saved = defaults.dictionary(forKey: builtinKey) as? [String: Bool] ?? [:]
         var merged: [String: Bool] = [:]
-        for key in Self.builtinOrder { merged[key] = true }
+        for key in Self.builtinOrder { merged[key] = saved[key] ?? false }
         for (k, v) in saved { merged[k] = v }
         builtinEnabled = merged
         if let data = defaults.data(forKey: customKey),
@@ -70,7 +70,7 @@ final class UnblockSourceStore: ObservableObject {
     }
 
     func isEnabled(_ id: String) -> Bool {
-        builtinEnabled[id] ?? true
+        builtinEnabled[id] ?? false
     }
 
     func setBuiltin(_ id: String, enabled: Bool) {

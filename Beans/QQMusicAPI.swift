@@ -809,6 +809,12 @@ final class QQMusicAPI {
         }
     }
 
+    /// 歌单第一首歌曲封面（歌单封面缺失时的兜底；失败返回 nil）
+    func firstSongCover(listID: Int) async throws -> URL? {
+        let songs = try await playlistSongs(listID: listID)
+        return songs.first?.coverURL
+    }
+
     /// QQ 歌手热门歌曲（fcg_v8_singer_track_cp；mid 为空或接口异常时返回空，由调用方按歌手名搜索兜底）
     func artistHotSongs(mid: String?, name: String, limit: Int = 50) async throws -> [Song] {
         guard let mid, !mid.isEmpty else { return [] }

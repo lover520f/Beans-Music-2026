@@ -328,8 +328,14 @@ final class PlayerManager: NSObject, ObservableObject {
             let strictUnlock = shouldLockOfficialOnly(song)
             let quality = BeansAudioQuality.current
             if song.source == .qq, let mid = song.qqMid {
-                // VIP 歌曲：vkey 未登录只会返回试听片段，直接走网易云同名兜底（免费听 VIP）
-                if song.isVIP {
+                // VIP 歌曲：登录了 VIP/SVIP 账号时 vkey 可返回完整音轨（官方直链，优先使用）；
+                // 未登录或无会员时 vkey 只会返回试听片段，直接走网易云同名兜底（免费听 VIP）
+                if song.isVIP, QQMusicAuth.shared.isLoggedIn, QQMusicAuth.shared.vipBadge != nil {
+                    urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
+                    if urlString == nil {
+                        (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
+                    }
+                } else if song.isVIP {
                     (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
                 } else {
                     urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)

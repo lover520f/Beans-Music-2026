@@ -161,7 +161,7 @@ struct Album: Identifiable, Hashable {
 struct Playlist: Identifiable, Hashable {
     let id: Int
     let name: String
-    let coverURL: URL?
+    var coverURL: URL?
     let trackCount: Int
     let creatorName: String
     /// 歌单来源（网易云 / QQ音乐），QQ 歌单用对应接口加载

@@ -32,7 +32,7 @@ struct PlaylistView: View {
                     List {
                         header
                         Section {
-                            ForEach(Array(displayedTracks.enumerated()), id: \.element.id) { index, song in
+                            ForEach(Array(displayedTracks.enumerated()), id: \.element.identityKey) { index, song in
                                 SongCell(song: song, glassRow: true) {
                                     player.play(songs: displayedTracks, startAt: index)
                                 }

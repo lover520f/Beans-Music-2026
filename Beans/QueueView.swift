@@ -14,7 +14,7 @@ struct QueueView: View {
                 } else {
                     List {
                         Section("接下来 (\(player.queue.count) 首)") {
-                            ForEach(Array(player.queue.enumerated()), id: \.element.id) { index, song in
+                            ForEach(Array(player.queue.enumerated()), id: \.element.identityKey) { index, song in
                                 row(song, index: index)
                                     .listRowBackground(Color.clear)
                                     .listRowSeparator(.hidden)

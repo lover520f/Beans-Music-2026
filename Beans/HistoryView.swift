@@ -10,7 +10,7 @@ struct HistoryView: View {
                     EmptyStateView(icon: "clock.arrow.circlepath", text: "暂无播放历史")
                 } else {
                     List {
-                        ForEach(Array(player.history.enumerated()), id: \.element.id) { index, song in
+                        ForEach(Array(player.history.enumerated()), id: \.element.identityKey) { index, song in
                             SongCell(song: song, glassRow: true) {
                                 player.play(songs: player.history, startAt: index)
                             }
