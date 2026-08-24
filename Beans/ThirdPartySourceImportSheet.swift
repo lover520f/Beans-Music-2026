@@ -20,49 +20,10 @@ struct ThirdPartySourceImportSheet: View {
                     .foregroundStyle(Color.beansLabel)
                 HStack(spacing: 8) {
                     Button {
-                        jsonText = #"""
-                        {
-                          "name": "落雪音乐源",
-                          "kind": "lx",
-                          "template": "https://你的服务器地址",
-                          "urlPath": "url",
-                          "headers": { "source": "kg", "br": "320" }
-                        }
-                        """#
-                        errorMessage = nil
-                    } label: {
-                        Text("落雪音乐源" + (jsonText.contains("\"kind\": \"lx\"") ? " ✓" : ""))
-                            .font(BeansFont.appFont(12, .semibold))
-                            .foregroundStyle(jsonText.contains("\"kind\": \"lx\"") ? Color.beansAmber : Color.beansLabel)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(Capsule().fill(Color.beansGlassFill))
-                    }
-                    .buttonStyle(.plain)
-                    Button {
-                        jsonText = #"""
-                        {
-                          "name": "我的音源",
-                          "kind": "keyword",
-                          "template": "https://api.example.com/music?keyword={keyword}",
-                          "urlPath": "data.url"
-                        }
-                        """#
-                        errorMessage = nil
-                    } label: {
-                        Text("通用音源示例")
-                            .font(BeansFont.appFont(12, .semibold))
-                            .foregroundStyle(Color.beansLabel)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(Capsule().fill(Color.beansGlassFill))
-                    }
-                    .buttonStyle(.plain)
-                    Button {
                         BeansHaptics.tap()
                         showFilePicker = true
                     } label: {
-                        Label("从文件导入", systemImage: "folder")
+                        Label("从文件导入 JS / JSON", systemImage: "folder")
                             .font(BeansFont.appFont(12, .semibold))
                             .foregroundStyle(Color.beansAmber)
                             .padding(.horizontal, 12)
@@ -83,7 +44,7 @@ struct ThirdPartySourceImportSheet: View {
                         .font(BeansFont.appFont(11))
                         .foregroundStyle(.red)
                 }
-                Text("字段：name 名称；kind 查询方式（netease-id 按网易云 ID / keyword 按关键词 / lx 落雪 API 服务器）；template 请求模板；urlPath 响应里播放地址的字段路径（如 url、data.url）；headers 可选请求头。\n占位符：{id} 网易云ID、{name} 歌名、{artist} 歌手、{keyword} 歌名+歌手。\n落雪（kind 填 lx）：template 填 lx-music-api-server 的服务器地址，headers 里 source 可选 wy/kg/qq/mg/tx，br 可选 320/128。播放时自动搜索并取流。\n支持直接选择 .js / .json / .txt 文件导入，JS 文件会尝试自动提取其中的 JSON 配置，一个文件可包含多个音源（JSON 数组）。")
+                Text("字段：name 名称；kind 查询方式（netease-id 按网易云 ID / keyword 按关键词 / lx 落雪 API 服务器）；template 请求模板；urlPath 响应里播放地址的字段路径（如 url、data.url）；headers 可选请求头。\n占位符：{id} 网易云ID、{name} 歌名、{artist} 歌手、{keyword} 歌名+歌手。\n落雪（kind 填 lx）：template 填 lx-music-api-server 的服务器地址，headers 里 source 可选 wy/kg/qq/mg/tx，br 可选 320/128。播放时自动搜索并取流。\n支持直接选择 .js / .json / .txt 文件导入：JS 文件会先尝试提取内嵌的 JSON 配置；若识别为落雪 LX 脚本音源（如星海、全豆要等聚合音源），将直接导入并用内置 JS 引擎运行。播放时需先开启「免费听歌」开关。")
                     .font(BeansFont.appFont(11))
                     .foregroundStyle(Color.beansComment)
                 Button {
@@ -118,18 +79,26 @@ struct ThirdPartySourceImportSheet: View {
 
     /// 粘贴内容导入（支持单个音源或 JSON 数组）
     private func importSource() {
-        let sources = parseSources(jsonText)
-        guard !sources.isEmpty else {
-            errorMessage = Self.friendlyParseError(jsonText)
+        let text = jsonText
+        let sources = parseSources(text)
+        if !sources.isEmpty {
+            for source in sources { store.add(source) }
+            BeansLogger.shared.log("导入第三方音源 \(sources.count) 个：\(sources.map(\.name).joined(separator: "、"))", level: .info)
+            BeansHaptics.success()
+            ToastCenter.shared.show(sources.count > 1 ? "已导入 \(sources.count) 个音源" : "已导入「\(sources.first?.name ?? "")」")
+            dismiss()
             return
         }
-        for source in sources {
-            store.add(source)
+        if Self.looksLikeLXScript(text) {
+            let name = Self.lxScriptName(from: text) ?? "落雪音源脚本"
+            store.add(ThirdPartySource(name: name, kind: "lxscript", template: "", script: text))
+            BeansLogger.shared.log("导入落雪 LX 脚本音源：\(name)", level: .info)
+            BeansHaptics.success()
+            ToastCenter.shared.show("已导入「\(name)」（LX 脚本音源）")
+            dismiss()
+            return
         }
-        BeansLogger.shared.log("导入第三方音源 \(sources.count) 个：\(sources.map(\.name).joined(separator: "、"))", level: .info)
-        BeansHaptics.success()
-        ToastCenter.shared.show(sources.count > 1 ? "已导入 \(sources.count) 个音源" : "已导入「\(sources.first?.name ?? "")」")
-        dismiss()
+        errorMessage = Self.friendlyParseError(text)
     }
 
     /// 从文件导入：读取文本后走同一套解析
@@ -140,25 +109,41 @@ struct ThirdPartySourceImportSheet: View {
         }
         jsonText = text
         let sources = parseSources(text)
-        guard !sources.isEmpty else {
-            errorMessage = Self.friendlyParseError(text)
+        if !sources.isEmpty {
+            for source in sources { store.add(source) }
+            BeansLogger.shared.log("从文件导入第三方音源 \(sources.count) 个：\(url.lastPathComponent)", level: .info)
+            BeansHaptics.success()
+            ToastCenter.shared.show(sources.count > 1 ? "已导入 \(sources.count) 个音源" : "已导入「\(sources.first?.name ?? "")」")
+            dismiss()
             return
         }
-        for source in sources {
-            store.add(source)
+        if Self.looksLikeLXScript(text) {
+            let name = Self.lxScriptName(from: text) ?? url.deletingPathExtension().lastPathComponent
+            store.add(ThirdPartySource(name: name, kind: "lxscript", template: "", script: text))
+            BeansLogger.shared.log("从文件导入落雪 LX 脚本音源：\(name)", level: .info)
+            BeansHaptics.success()
+            ToastCenter.shared.show("已导入「\(name)」（LX 脚本音源）")
+            dismiss()
+            return
         }
-        BeansLogger.shared.log("从文件导入第三方音源 \(sources.count) 个：\(url.lastPathComponent)", level: .info)
-        BeansHaptics.success()
-        ToastCenter.shared.show(sources.count > 1 ? "已导入 \(sources.count) 个音源" : "已导入「\(sources.first?.name ?? "")」")
-        dismiss()
+        errorMessage = Self.friendlyParseError(text)
     }
 
     /// 解析失败时的友好提示：识别落雪 LX 脚本源等常见情况
     private static func friendlyParseError(_ text: String) -> String {
         if looksLikeLXScript(text) {
-            return "检测到落雪音乐 LX 脚本音源（JS 程序）。App 暂不支持直接运行 JS 脚本，请改用 JSON 音源配置或落雪 API 服务器（kind=lx）地址。"
+            return "已识别为落雪 LX 脚本音源，但脚本内容不完整，无法运行。请重新选择完整的 JS 音源文件导入。"
         }
-        return "未找到可用的音源配置。支持：JSON 对象 / JSON 数组，或 JS 文件中内嵌的 JSON 配置。"
+        return "未找到可用的音源配置。支持：JSON 对象 / JSON 数组、JS 文件内嵌 JSON 配置，或直接导入落雪 LX 脚本音源（JS 文件）。"
+    }
+
+    /// 从 LX 脚本头部注释提取 @name 作为音源名
+    private static func lxScriptName(from text: String) -> String? {
+        guard let range = text.range(of: "@name\\s+([^\\r\\n*]+)", options: .regularExpression) else { return nil }
+        let name = text[range]
+            .replacingOccurrences(of: "@name", with: "")
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
     }
 
     /// 检测是否为落雪音乐 LX 脚本音源（JS 程序：含 @name 头注释、EVENT_NAMES / httpFetch 等协议特征）

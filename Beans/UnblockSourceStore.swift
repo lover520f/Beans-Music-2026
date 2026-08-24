@@ -12,16 +12,19 @@ struct ThirdPartySource: Identifiable, Codable, Hashable {
     var template: String
     var urlPath: String = "url"
     var headers: [String: String] = [:]
+    /// 落雪 LX 脚本音源（kind == "lxscript"）的完整 JS 源码
+    var script: String = ""
 
-    enum CodingKeys: String, CodingKey { case id, name, kind, template, urlPath, headers }
+    enum CodingKeys: String, CodingKey { case id, name, kind, template, urlPath, headers, script }
 
-    init(id: String = UUID().uuidString, name: String, kind: String = "keyword", template: String, urlPath: String = "url", headers: [String: String] = [:]) {
+    init(id: String = UUID().uuidString, name: String, kind: String = "keyword", template: String, urlPath: String = "url", headers: [String: String] = [:], script: String = "") {
         self.id = id
         self.name = name
         self.kind = kind
         self.template = template
         self.urlPath = urlPath
         self.headers = headers
+        self.script = script
     }
 
     init(from decoder: Decoder) throws {
@@ -32,6 +35,7 @@ struct ThirdPartySource: Identifiable, Codable, Hashable {
         template = try c.decodeIfPresent(String.self, forKey: .template) ?? ""
         urlPath = try c.decodeIfPresent(String.self, forKey: .urlPath) ?? "url"
         headers = try c.decodeIfPresent([String: String].self, forKey: .headers) ?? [:]
+        script = try c.decodeIfPresent(String.self, forKey: .script) ?? ""
     }
 }
 

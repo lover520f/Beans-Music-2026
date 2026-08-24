@@ -744,7 +744,7 @@ struct AccountHubSheet: View {
                         .font(BeansFont.appFont(15, .semibold))
                         .foregroundStyle(Color.beansLabel)
                     HStack(spacing: 6) {
-                        Text(auth.isLoggedIn ? (auth.user?.nickname ?? "已登录") : "未登录 · 扫码登录同步歌单")
+                        Text(auth.isLoggedIn ? (auth.user?.nickname ?? "已登录") : "未登录 · 网页 / 扫码登录同步歌单")
                             .font(BeansFont.appFont(12))
                             .foregroundStyle(Color.beansComment)
                             .lineLimit(1)
@@ -792,7 +792,7 @@ struct AccountHubSheet: View {
                         .font(BeansFont.appFont(15, .semibold))
                         .foregroundStyle(Color.beansLabel)
                     HStack(spacing: 6) {
-                        Text(qqAuth.isLoggedIn ? (qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname) : "未登录 · 网页 / 扫码 / Cookie 登录")
+                        Text(qqAuth.isLoggedIn ? (qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname) : "未登录 · 网页 / Cookie 登录")
                             .font(BeansFont.appFont(12))
                             .foregroundStyle(Color.beansComment)
                             .lineLimit(1)
@@ -1347,7 +1347,7 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
 
                 if unblockStore.customSources.isEmpty {
-                    Text("尚未导入自定义音源（JSON 配置：请求模板 + 播放地址字段路径）")
+                    Text("尚未导入自定义音源（支持 JSON 配置或落雪 LX 脚本音源 JS 文件）")
                         .font(BeansFont.appFont(11))
                         .foregroundStyle(Color.beansComment)
                 } else {
@@ -1362,7 +1362,7 @@ struct SettingsView: View {
                                     .font(BeansFont.appFont(14, .semibold))
                                     .foregroundStyle(Color.beansLabel)
                                     .lineLimit(1)
-                                Text(source.kind == "netease-id" ? "按网易云 ID 查询" : "关键词查询")
+                                Text(source.kind == "netease-id" ? "按网易云 ID 查询" : source.kind == "lxscript" ? "落雪 LX 脚本音源" : "关键词查询")
                                     .font(BeansFont.appFont(10))
                                     .foregroundStyle(Color.beansComment)
                             }

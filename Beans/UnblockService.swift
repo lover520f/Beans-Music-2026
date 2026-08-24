@@ -59,6 +59,8 @@ enum UnblockService {
         for source in store.customSources {
             if source.kind == "lx" {
                 if let r = await lx(source: source, keyword: keyword) { return r }
+            } else if source.kind == "lxscript", !source.script.isEmpty {
+                if let r = await lxScript(source: source, keyword: keyword, name: name, artists: artists, neteaseID: neteaseID, durationMS: durationMS) { return r }
             } else if let r = await custom(source: source, name: name, artists: artists, neteaseID: neteaseID) { return r }
         }
         return nil
@@ -343,6 +345,82 @@ enum UnblockService {
               let playURL = URL(string: urlStr)
         else { return nil }
         return Resolved(url: playURL, source: "落雪 (\(lxSource))")
+    }
+
+    // MARK: - 落雪 LX 脚本音源（JavaScriptCore 运行用户导入的 JS 音源，如 星海 / 全豆要）
+
+    /// 引擎缓存：最多保留 3 个，避免每次播放都重新初始化脚本
+    private static let lxEngineLock = NSLock()
+    private static var lxEngines: [String: LXScriptEngine] = [:]
+    private static var lxEngineUsed: [String: Date] = [:]
+
+    private static func lxEngine(for source: ThirdPartySource) -> LXScriptEngine {
+        lxEngineLock.lock(); defer { lxEngineLock.unlock() }
+        if let engine = lxEngines[source.id] {
+            lxEngineUsed[source.id] = Date()
+            return engine
+        }
+        if lxEngines.count >= 3, let oldest = lxEngineUsed.min(by: { $0.value < $1.value }) {
+            lxEngines.removeValue(forKey: oldest.key)
+            lxEngineUsed.removeValue(forKey: oldest.key)
+        }
+        let engine = LXScriptEngine(script: source.script)
+        lxEngines[source.id] = engine
+        lxEngineUsed[source.id] = Date()
+        return engine
+    }
+
+    private static func lxScript(source: ThirdPartySource, keyword: String, name: String, artists: String, neteaseID: Int, durationMS: Int) async -> Resolved? {
+        let engine = lxEngine(for: source)
+        do {
+            try await engine.start()
+        } catch {
+            BeansLogger.shared.log("LX脚本音源「\(source.name)」初始化失败：\(error.localizedDescription)", level: .debug)
+            return nil
+        }
+        // 策略 1：网易云歌曲直接用网易云 ID + wy 平台取流（全豆要 / 星海等脚本均支持）
+        if neteaseID > 0 {
+            let songInfo: [String: Any] = ["id": String(neteaseID), "name": name, "singer": artists, "source": "wy"]
+            if let url = try? await engine.resolveURL(source: "wy", songInfo: songInfo),
+               let playURL = URL(string: url) {
+                return Resolved(url: playURL, source: source.name)
+            }
+        }
+        // 策略 2：按 歌名+歌手 搜索，命中最佳匹配后取流
+        if let candidates = try? await engine.search(keyword: keyword),
+           let best = bestLXCandidate(candidates, name: name, artists: artists, durationMS: durationMS),
+           let url = try? await engine.resolveURL(source: best.source, songInfo: ["id": best.id, "name": best.name, "singer": best.singer, "source": best.source]),
+           let playURL = URL(string: url) {
+            return Resolved(url: playURL, source: source.name)
+        }
+        return nil
+    }
+
+    /// 从 LX 脚本搜索候选里挑最佳匹配：歌名 / 歌手 / 时长 加权
+    private static func bestLXCandidate(_ candidates: [LXScriptEngine.Candidate], name: String, artists: String, durationMS: Int) -> LXScriptEngine.Candidate? {
+        let targetName = normalizeMatch(name)
+        let targetArtist = normalizeMatch(artists)
+        var best: LXScriptEngine.Candidate?
+        var bestScore = -1
+        for c in candidates {
+            var score = 0
+            let cn = normalizeMatch(c.name)
+            let ca = normalizeMatch(c.singer)
+            if cn == targetName { score += 100 }
+            else if cn.contains(targetName) || targetName.contains(cn) { score += 60 }
+            if !ca.isEmpty, !targetArtist.isEmpty, ca == targetArtist { score += 50 }
+            else if !ca.isEmpty, !targetArtist.isEmpty, ca.contains(targetArtist) || targetArtist.contains(ca) { score += 25 }
+            if let d = c.durationMS, durationMS > 0, abs(d - durationMS) <= 4000 { score += 20 }
+            if score > bestScore { bestScore = score; best = c }
+        }
+        return best
+    }
+
+    private static func normalizeMatch(_ s: String) -> String {
+        s.lowercased()
+            .replacingOccurrences(of: "（[^（）]*）", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\([^()]*\\)", with: "", options: .regularExpression)
+            .replacingOccurrences(of: "\\s+", with: "", options: .regularExpression)
     }
 
     /// 点分路径取值：url / data.url / data.audioUrl ...
