@@ -688,20 +688,11 @@ struct SettingsView: View {
                 ToastCenter.shared.show("导出失败")
             }
         }
-        .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json, .plainText], allowsMultipleSelection: false) { result in
-            switch result {
-            case .success(let urls):
-                guard let url = urls.first else { return }
-                guard let data = try? Data(contentsOf: url),
-                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
-                    ToastCenter.shared.show("备份文件解析失败")
-                    return
-                }
-                pendingRestore = json
-                showRestoreConfirm = true
-            case .failure(let error):
-                ToastCenter.shared.show("导入失败：\(error.localizedDescription)")
+        .fullScreenCover(isPresented: $showRestorePicker) {
+            BackupDocumentPicker { url in
+                handleBackupImport(url)
             }
+            .ignoresSafeArea()
         }
         .confirmationDialog("导入备份将覆盖当前部分设置，是否继续？", isPresented: $showRestoreConfirm, titleVisibility: .visible) {
             Button("恢复", role: .destructive) {
@@ -1281,6 +1272,17 @@ struct SettingsView: View {
         return formatter.string(from: Date())
     }
 
+    /// 读取用户选择的备份文件并解析，弹确认后恢复
+    private func handleBackupImport(_ url: URL) {
+        guard let data = try? Data(contentsOf: url),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            ToastCenter.shared.show("备份文件解析失败")
+            return
+        }
+        pendingRestore = json
+        showRestoreConfirm = true
+    }
+
     /// 恢复：把 JSON 备份中 beans.* 键写回 UserDefaults
     private func applyRestore(_ json: [String: Any]?) {
         guard let json else { return }
@@ -1514,5 +1516,31 @@ struct BackupDocument: FileDocument {
 
     func fileWrapper(configuration: WriteConfiguration) throws -> FileWrapper {
         FileWrapper(regularFileWithContents: data)
+    }
+}
+// MARK: - 配置备份文件选择器（UIDocumentPicker 封装：比 SwiftUI fileImporter 稳定，所有文件可选）
+
+struct BackupDocumentPicker: UIViewControllerRepresentable {
+    let onPick: (URL) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> UIDocumentPickerViewController {
+        let picker = UIDocumentPickerViewController(forOpeningContentTypes: [.json, .plainText, .item], asCopy: true)
+        picker.delegate = context.coordinator
+        picker.allowsMultipleSelection = false
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: UIDocumentPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, UIDocumentPickerDelegate {
+        let parent: BackupDocumentPicker
+        init(_ parent: BackupDocumentPicker) { self.parent = parent }
+        func documentPicker(_ controller: UIDocumentPickerViewController, didPickDocumentsAt urls: [URL]) {
+            guard let url = urls.first else { return }
+            parent.onPick(url)
+        }
+        func documentPickerWasCancelled(_ controller: UIDocumentPickerViewController) {}
     }
 }
