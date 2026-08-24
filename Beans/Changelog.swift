@@ -35,6 +35,15 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.9.18",
+            version: "1.9.18",
+            title: "播放器底栏恢复 1.9.10 版本",
+            features: [
+                "播放器底部控制区恢复 1.9.10 版本样式：进度条 / 控制按钮 / 指示线直接悬浮在模糊背景上，不再使用底栏背景面板",
+            ],
+            fixes: []
+        ),
+        VersionLog(
             id: "1.9.17",
             version: "1.9.17",
             title: "播放器底栏液态玻璃 · 歌词不再透出",
