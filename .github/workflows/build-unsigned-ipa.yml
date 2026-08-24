@@ -30,6 +30,9 @@ jobs:
           def bump_version(m):
               # 三段式版本号：1.9 -> 1.9.1 -> 1.9.2 ...（避免出现 1.10 这类歧义版本号）
               parts = m.group(1).split('.')
+              if parts == ['1', '0']:
+                  # 对外发布版本 1.0：保持 1.0 不变，仅构建号 +1
+                  return 'MARKETING_VERSION: "1.0"'
               if len(parts) < 3:
                   parts.append('1')
               else:
