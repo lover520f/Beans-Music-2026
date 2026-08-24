@@ -1,6 +1,14 @@
 import Foundation
 import JavaScriptCore
 
+private func nonNullJS(_ v: JSValue?, _ fallback: JSValue) -> JSValue {
+    v ?? fallback
+}
+
+private func undefinedJS(_ ctx: JSContext) -> JSValue {
+    nonNullJS(JSValue(undefinedIn: ctx), JSValue(int32: 0, in: ctx))
+}
+
 /// 落雪音乐 LX 脚本音源运行时（JavaScriptCore 执行用户导入的 JS 音源）
 /// 支持新一代协议（globalThis.lx 的 on / send / request，如 星海、全豆要 等聚合音源），
 /// 也兼容旧一代协议（module.exports 导出 musicSearch / musicUrl 函数）。
@@ -160,7 +168,7 @@ final class LXScriptEngine {
 
         // request(url, options, callback) -> cancelFn
         let requestBlock: @convention(block) (JSValue, JSValue, JSValue) -> JSValue = { [weak self] urlValue, optionsValue, callback in
-            guard let self, let ctx = self.context else { return JSValue(undefinedIn: JSContext()) }
+            guard let self, let ctx = self.context else { return undefinedJS(JSContext()!) }
             let urlString = urlValue.toString() ?? ""
             let method = (optionsValue.objectForKeyedSubscript("method")?.toString() ?? "GET").uppercased()
             var headers: [String: String] = [:]
@@ -170,11 +178,11 @@ final class LXScriptEngine {
             let bodyText = optionsValue.objectForKeyedSubscript("body")?.toString()
             var taskRef: URLSessionTask?
             let cancelBlock: @convention(block) () -> Void = { _ = taskRef?.cancel() }
-            let cancelFn = JSValue(object: cancelBlock, in: ctx) ?? JSValue(undefinedIn: ctx)
+            let cancelFn = nonNullJS(JSValue(object: cancelBlock, in: ctx), undefinedJS(ctx))
 
             guard let url = URL(string: urlString) else {
-                let errObj = JSValue(object: ["message": "无效的请求地址 \(urlString)"], in: ctx) ?? JSValue(undefinedIn: ctx)
-                callback.call(withArguments: [errObj, JSValue(undefinedIn: ctx)])
+                let errObj = nonNullJS(JSValue(object: ["message": "无效的请求地址 \(urlString)"], in: ctx), undefinedJS(ctx))
+                callback.call(withArguments: [errObj, undefinedJS(ctx)])
                 return cancelFn
             }
             var request = URLRequest(url: url)
@@ -186,14 +194,14 @@ final class LXScriptEngine {
                 self.jsQueue.async { [weak self] in
                     guard let self, let ctx = self.context else { return }
                     if let error {
-                        let errValue = JSValue(object: ["message": error.localizedDescription], in: ctx) ?? JSValue(undefinedIn: ctx)
-                        callback.call(withArguments: [errValue, JSValue(undefinedIn: ctx)])
+                        let errValue = nonNullJS(JSValue(object: ["message": error.localizedDescription], in: ctx), undefinedJS(ctx))
+                        callback.call(withArguments: [errValue, undefinedJS(ctx)])
                         return
                     }
-                    let respObj = JSValue(newObjectIn: ctx)
+                    let respObj = nonNullJS(JSValue(newObjectIn: ctx), undefinedJS(ctx))
                     if let http = response as? HTTPURLResponse {
                         respObj.setObject(http.statusCode, forKeyedSubscript: "statusCode")
-                        let headersObj = JSValue(newObjectIn: ctx)
+                        let headersObj = nonNullJS(JSValue(newObjectIn: ctx), undefinedJS(ctx))
                         for (k, v) in http.allHeaderFields {
                             headersObj.setObject(String(describing: v), forKeyedSubscript: "\(k)" as NSString)
                         }
@@ -201,7 +209,7 @@ final class LXScriptEngine {
                     }
                     let bodyText2 = data.flatMap { String(data: $0, encoding: .utf8) } ?? ""
                     respObj.setObject(bodyText2, forKeyedSubscript: "body")
-                    callback.call(withArguments: [JSValue(nullIn: ctx), respObj])
+                    callback.call(withArguments: [nonNullJS(JSValue(nullIn: ctx), undefinedJS(ctx)), respObj])
                 }
             }
             taskRef = task
@@ -232,7 +240,7 @@ final class LXScriptEngine {
 
         // setTimeout / clearTimeout / setInterval / clearInterval
         let setTimeoutBlock: @convention(block) (JSValue, Double) -> JSValue = { [weak self] fn, ms in
-            guard let self, let ctx = self.context else { return JSValue(undefinedIn: JSContext()) }
+            guard let self, let ctx = self.context else { return undefinedJS(JSContext()!) }
             self.timerCounter += 1
             let tid = self.timerCounter
             let item = DispatchWorkItem { [weak self] in
@@ -256,7 +264,7 @@ final class LXScriptEngine {
         ctx.setObject(clearTimeoutBlock, forKeyedSubscript: "clearTimeout" as NSString)
 
         let setIntervalBlock: @convention(block) (JSValue, Double) -> JSValue = { [weak self] fn, ms in
-            guard let self, let ctx = self.context else { return JSValue(undefinedIn: JSContext()) }
+            guard let self, let ctx = self.context else { return undefinedJS(JSContext()!) }
             self.timerCounter += 1
             let tid = self.timerCounter
             let interval = max(0.05, ms / 1000)
@@ -333,7 +341,7 @@ final class LXScriptEngine {
                 guard let self, let ctx = self.context else {
                     cont.resume(throwing: LXScriptError.notReady); return
                 }
-                let argValues = args.map { JSValue(object: $0, in: ctx) }
+                let argValues: [Any] = args.map { nonNullJS(JSValue(object: $0, in: ctx), undefinedJS(ctx)) }
                 guard let promise = fn.call(withArguments: argValues) else {
                     cont.resume(throwing: LXScriptError.invokeFailed); return
                 }
