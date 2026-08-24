@@ -2115,9 +2115,13 @@ struct PlayerSettingsSheet: View {
                     .tint(Color.beansAmber)
             }
             Divider().opacity(0.5)
-            settingSlider("3D 倾斜", valueText: lyricTilt < 0.5 ? "关闭" : "\(Int(lyricTilt))°") {
-                Slider(value: $lyricTilt, in: 0...45, step: 1)
-                    .tint(Color.beansAmber)
+            settingSlider("3D 倾斜", valueText: lyricTilt == 0 ? "关闭" : "\(lyricTilt)°") {
+                Slider(
+                    value: Binding(get: { Double(lyricTilt) }, set: { lyricTilt = Int($0) }),
+                    in: 0...45,
+                    step: 1
+                )
+                .tint(Color.beansAmber)
             }
             Divider().opacity(0.5)
             settingSlider("歌词发光", valueText: glowName(glowLevel)) {
