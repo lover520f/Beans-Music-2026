@@ -750,8 +750,7 @@ struct PlayerView: View {
                     }
                 }
             }
-            // 底部不再为控制栏留大块空白：歌词可滚到控制栏玻璃下方透出显示
-            .padding(.bottom, 10 + geo.safeAreaInsets.bottom)
+            .padding(.bottom, deckInset + geo.safeAreaInsets.bottom)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .id("lyricsPanel-\(song?.identityKey ?? "none")")
@@ -1068,7 +1067,7 @@ struct PlayerView: View {
     }
 
     private var layoutToolbar: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 10) {
             HStack {
                 Text("布局调整")
                     .font(BeansFont.appFont(15, .bold))
@@ -1092,10 +1091,6 @@ struct PlayerView: View {
                 }
             }
             .pickerStyle(.segmented)
-
-            // 歌词实时预览调节（始终显示：字号 / 对齐 / 模糊 / 发光，边调边看）
-            lyricAdjustPanel
-
             layoutSlider("X", value: selectedLayoutEntry.x, range: layoutXRange)
             layoutSlider("Y", value: selectedLayoutEntry.y, range: layoutYRange)
             layoutSlider("大小", value: selectedLayoutEntry.scale, range: 0.6...1.5, step: 0.05, format: "%.2f")
@@ -1114,30 +1109,16 @@ struct PlayerView: View {
                 }
                 .buttonStyle(.plain)
                 Spacer()
-                Text("编辑模式：拖动组件或滑杆实时调节")
+                Text("编辑模式：拖动组件到任意位置（X / Y）")
                     .font(BeansFont.appFont(11))
                     .foregroundStyle(palette.secondary)
             }
         }
-        .padding(12)
+        .padding(14)
         .background {
             BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .padding(.horizontal, 12)
-    }
-
-    /// 歌词实时预览调节（字号 / 对齐 / 模糊 / 发光）
-    private var lyricAdjustPanel: some View {
-        VStack(spacing: 6) {
-            layoutSlider("字号", value: Binding(get: { CGFloat(lyricFontSize) }, set: { lyricFontSize = Int($0) }), range: 12...28, step: 1)
-            Picker("对齐", selection: $lyricAlignRaw) {
-                Text("居中").tag("center")
-                Text("居左").tag("left")
-            }
-            .pickerStyle(.segmented)
-            layoutSlider("模糊", value: Binding(get: { CGFloat(lyricBlurAmount) }, set: { lyricBlurAmount = Double($0) }), range: 0...6, step: 0.1, format: "%.1f")
-            layoutSlider("发光", value: Binding(get: { CGFloat(lyricGlowLevel) }, set: { lyricGlowLevel = Int($0) }), range: 0...5, step: 1)
-        }
     }
 
     private func layoutSlider(_ title: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>, step: CGFloat = 1, format: String = "%.0f") -> some View {
@@ -1957,13 +1938,15 @@ struct PlayerSettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("播放") {
+                Section("侧边滑动切歌") {
                     Toggle("播放页上下滑动切换歌曲", isOn: $swipeSwitchSong)
                         .tint(Color.beansAmber)
                     Text("专辑界面上下滑动即可像刷视频一样切歌：上滑下一首、下滑上一首")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
-                    Picker("进度条样式", selection: $progressBarStyle) {
+                }
+                Section("进度条样式") {
+                    Picker("样式", selection: $progressBarStyle) {
                         Text("流光").tag(0)
                         Text("辉光").tag(1)
                         Text("极光").tag(2)
@@ -1973,6 +1956,8 @@ struct PlayerSettingsSheet: View {
                     Text("四种风格均自动跟随封面主色；流光带游动光点，波浪随节奏起伏")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
+                }
+                Section("背景光晕强度") {
                     HStack(spacing: 12) {
                         Image(systemName: "circle.lefthalf.filled")
                             .foregroundStyle(Color.beansAmber)
@@ -1981,12 +1966,14 @@ struct PlayerSettingsSheet: View {
                         Image(systemName: "circle.fill")
                             .foregroundStyle(Color.beansAmber)
                     }
-                    Text("背景光晕强度 \(Int((breath * 100).rounded()))%")
+                    Text("强度 \(Int((breath * 100).rounded()))%")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
-                    Toggle("DJ 节奏脉冲光效", isOn: $djVisualEnabled)
+                }
+                Section("DJ 视觉模式") {
+                    Toggle("节奏脉冲光效", isOn: $djVisualEnabled)
                         .tint(Color.beansAmber)
-                    Text("播放器封面背后随节拍扩散光环（仅播放时运行动画，暂停即静止，不发烫）")
+                    Text("开启后播放器封面背后随节拍扩散光环（仅播放时运行动画，暂停即静止，不发烫）")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
                     HStack(spacing: 12) {
@@ -1997,11 +1984,11 @@ struct PlayerSettingsSheet: View {
                         Image(systemName: "circle.fill")
                             .foregroundStyle(Color.beansAmber)
                     }
-                    Text("DJ 强度 \(Int((djVisualIntensity * 100).rounded()))%")
+                    Text("强度 \(Int((djVisualIntensity * 100).rounded()))%")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
                 }
-                Section("歌词显示") {
+                Section("歌词字号") {
                     HStack(spacing: 12) {
                         Text("A")
                             .font(BeansFont.appFont(13, .semibold))
@@ -2017,9 +2004,11 @@ struct PlayerSettingsSheet: View {
                         Text("A")
                             .font(BeansFont.appFont(22, .bold))
                     }
-                    Text("歌词字号 \(fontSize) pt")
+                    Text("\(fontSize) pt")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
+                }
+                Section("歌词行距") {
                     HStack(spacing: 12) {
                         Text("紧凑")
                             .font(BeansFont.appFont(12))
@@ -2035,35 +2024,14 @@ struct PlayerSettingsSheet: View {
                         Text("宽松")
                             .font(BeansFont.appFont(12))
                     }
-                    Text("歌词行距 \(lineSpacing) pt")
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansComment)
-                    Picker("歌词对齐样式", selection: $lyricAlignRaw) {
-                        Text("居中").tag("center")
-                        Text("全部居左").tag("left")
-                    }
-                    .pickerStyle(.segmented)
-                    Text("歌词位置（水平偏移 / 垂直重心）在布局调整弹窗中调节")
-                        .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansComment)
-                    Button("恢复歌词默认") {
-                        lyricAlignRaw = "center"
-                        lyricOffsetX = 0
-                        lyricAnchorY = 0
-                        BeansHaptics.select()
-                    }
-                    .font(BeansFont.appFont(13))
-                    .foregroundStyle(Color.beansAmber)
-                    Toggle("显示歌词翻译", isOn: $lyricTranslation)
-                        .tint(Color.beansAmber)
-                    Text("当前播放歌词下方显示译文（网易云 tlyric）")
+                    Text("\(lineSpacing) pt")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
                 }
-                Section("歌词效果") {
+                Section("歌词模糊") {
                     HStack(spacing: 12) {
                         Text("起始距离")
-                        Slider(value: Binding(get: { Double(lyricBlurStart) }, set: { lyricBlurStart = Int($0) }), in: 0...10, step: 1)
+                        Slider(value: Binding(get: { Double(lyricBlurStart) }, set: { lyricBlurStart = Int($0) }), in: 0...4, step: 1)
                             .tint(Color.beansAmber)
                         Text("\(lyricBlurStart) 行")
                             .font(BeansFont.appFont(12))
@@ -2080,6 +2048,8 @@ struct PlayerSettingsSheet: View {
                     Text(lyricBlurAmount < 0.05 ? "已关闭歌词模糊" : String(format: "模糊强度 %.1f（0 为关闭）", lyricBlurAmount))
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
+                }
+                Section("歌词发光强度") {
                     HStack(spacing: 12) {
                         Image(systemName: "sparkles")
                             .foregroundStyle(Color.beansAmber)
@@ -2095,9 +2065,11 @@ struct PlayerSettingsSheet: View {
                         Image(systemName: glowLevel > 2 ? "sparkles" : "sparkle")
                             .foregroundStyle(glowLevel > 2 ? Color.beansAmber : Color.beansComment)
                     }
-                    Text("歌词发光 \(glowName(glowLevel))")
+                    Text(glowName(glowLevel))
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
+                }
+                Section("渐变预设") {
                     VStack(spacing: 8) {
                         HStack(spacing: 8) {
                             ForEach(Array(LyricPreset.all.prefix(3).enumerated()), id: \.element.name) { _, preset in
@@ -2113,6 +2085,8 @@ struct PlayerSettingsSheet: View {
                     Text("一键应用预设的歌词渐变与发光强度；可再在下方色盘微调")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
+                }
+                Section("自定义配色") {
                     Toggle("保持自定义配色", isOn: Binding(
                         get: { gradMode == 1 },
                         set: { gradMode = $0 ? 1 : 0 }
@@ -2121,6 +2095,8 @@ struct PlayerSettingsSheet: View {
                     Text("开启后一直使用你选择的歌词颜色与渐变；关闭时自动跟随歌曲封面取色调整")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
+                }
+                Section("歌词颜色") {
                     ColorPicker("当前行颜色", selection: currentColor, supportsOpacity: false)
                     ColorPicker("未播放行颜色", selection: dimColor, supportsOpacity: false)
                     ColorPicker("歌词发光颜色", selection: glowColor, supportsOpacity: false)
@@ -2136,6 +2112,8 @@ struct PlayerSettingsSheet: View {
                     }
                     .font(BeansFont.appFont(13))
                     .foregroundStyle(Color.beansAmber)
+                }
+                Section("歌词渐变") {
                     ColorPicker("渐变起始色", selection: gradStart, supportsOpacity: false)
                     ColorPicker("渐变结束色", selection: gradEnd, supportsOpacity: false)
                     Button("恢复默认渐变") {
@@ -2147,25 +2125,6 @@ struct PlayerSettingsSheet: View {
                     .font(BeansFont.appFont(13))
                     .foregroundStyle(Color.beansAmber)
                 }
-                Section("布局") {
-                    Toggle("自定义底部布局", isOn: Binding(
-                        get: { layoutMode },
-                        set: { newValue in
-                            layoutMode = newValue
-                            // 开启后直接回到播放页进行调节
-                            if newValue { dismiss() }
-                        }
-                    ))
-                    .tint(Color.beansAmber)
-                    Text("开启后回到播放页，通过顶部悬浮窗实时拖动 / 滑杆调节各组件，支持歌词字号、显示、对齐等实时预览")
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansComment)
-                    Toggle("显示底部指示线", isOn: $deckGrabberEnabled)
-                        .tint(Color.beansAmber)
-                    Text("关闭后隐藏指示线，仍可上滑呼出评论区")
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansComment)
-                }
                 Section("封面") {
                     Toggle("圆形封面模式", isOn: $circularCover)
                         .tint(Color.beansAmber)
@@ -2175,6 +2134,50 @@ struct PlayerSettingsSheet: View {
                     Toggle("圆形封面旋转", isOn: $circularCoverSpin)
                         .tint(Color.beansAmber)
                     Text("开启后播放时封面自动匀速旋转（默认关闭）")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
+                }
+                Section("布局调整") {
+                    Toggle("自定义底部布局", isOn: Binding(
+                        get: { layoutMode },
+                        set: { newValue in
+                            layoutMode = newValue
+                            // 开启后直接回到播放页进行调节
+                            if newValue { dismiss() }
+                        }
+                    ))
+                    .tint(Color.beansAmber)
+                    Text("开启后回到播放页，可直接拖动底部组件到任意位置")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
+                    Toggle("显示底部指示线", isOn: $deckGrabberEnabled)
+                        .tint(Color.beansAmber)
+                    Text("关闭后隐藏指示线，仍可上滑呼出评论区")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
+                }
+                Section("歌词对齐") {
+                    Picker("歌词对齐样式", selection: $lyricAlignRaw) {
+                        Text("居中").tag("center")
+                        Text("全部居左").tag("left")
+                    }
+                    .pickerStyle(.segmented)
+                    Text("歌词位置（水平偏移 / 垂直重心）在布局调整弹窗中调节")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                    Button("恢复歌词默认") {
+                        lyricAlignRaw = "center"
+                        lyricOffsetX = 0
+                        lyricAnchorY = 0
+                        BeansHaptics.select()
+                    }
+                    .font(BeansFont.appFont(13))
+                    .foregroundStyle(Color.beansAmber)
+                }
+                Section("歌词翻译") {
+                    Toggle("显示歌词翻译", isOn: $lyricTranslation)
+                        .tint(Color.beansAmber)
+                    Text("当前播放歌词下方显示译文（网易云 tlyric）")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
                 }
