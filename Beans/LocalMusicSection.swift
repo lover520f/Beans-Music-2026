@@ -316,7 +316,7 @@ struct LocalSearchAddSheet: View {
 struct AddToLocalPlaylistSheet: View {
     @ObservedObject private var store = LocalLibraryStore.shared
     @EnvironmentObject private var theme: ThemeStore
-    @Environment(.dismiss) private var dismiss
+    @Environment(\.dismiss) private var dismiss
 
     let song: Song
     @State private var showCreateField = false

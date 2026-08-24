@@ -31,9 +31,9 @@ struct LogViewerSheet: View {
                     .beansScrollIndicatorsHidden()
                 } else {
                     Picker("级别", selection: $filter) {
-                        Text("全部").tag(BeansLogLevel?.none)
+                        Text("全部").tag(nil as BeansLogLevel?)
                         ForEach(BeansLogLevel.allCases, id: \.self) { level in
-                            Text(level.rawValue).tag(BeansLogLevel?.some(level))
+                            Text(level.rawValue).tag(level as BeansLogLevel?)
                         }
                     }
                     .pickerStyle(.segmented)
