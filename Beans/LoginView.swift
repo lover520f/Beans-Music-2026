@@ -61,7 +61,7 @@ struct LoginView: View {
         .onAppear { startLogin() }
         .onDisappear { timer?.invalidate() }
         .sheet(isPresented: $showWebLogin) {
-            NavigationStack {
+            BeansNavigationStack {
                 NetEaseWebLoginPanel {
                     dismiss()
                 }
@@ -73,7 +73,7 @@ struct LoginView: View {
                     }
                 }
             }
-            .presentationDetents([.large])
+            .modifier(BeansSheetModifier(detents: [.large]))
         }
     }
 

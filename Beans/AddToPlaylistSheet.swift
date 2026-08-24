@@ -12,7 +12,7 @@ struct AddToPlaylistSheet: View {
 
     var body: some View {
         let _ = theme.accent
-        NavigationStack {
+        BeansNavigationStack {
             List {
                 if auth.playlists.isEmpty {
                     Text("暂无歌单，请先创建一个")

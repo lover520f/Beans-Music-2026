@@ -36,6 +36,19 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.3.2",
+            version: "1.3.2",
+            title: "兼容 iOS 15 低版本系统",
+            features: [
+                "兼容 iOS 15+ 低版本系统：iOS 15 / 16 均可正常运行，液态玻璃自动回退磨砂玻璃",
+            ],
+            fixes: [
+                "引导登录第一页更换为 Beans 专属图标",
+                "修复相册上传壁纸在低版本系统无法使用的问题",
+            ],
+        ),
+
+        VersionLog(
             id: "1.2.2",
             version: "1.2.2",
             title: "自动检测更新 + 兼容 iOS 16 低版本",
@@ -83,7 +96,7 @@ struct WhatsNewSheet: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             ZStack {
                 GlassBackdrop(customColor: ThemeStore.shared.backgroundSyncAll ? ThemeStore.shared.customBackground : nil)
                 ScrollView {
@@ -144,7 +157,7 @@ struct WhatsNewSheet: View {
                     }
                     .padding(16)
                 }
-                .scrollIndicators(.hidden)
+                .beansScrollIndicatorsHidden()
             }
             .navigationTitle("更新说明")
             .navigationBarTitleDisplayMode(.inline)
@@ -159,7 +172,7 @@ struct WhatsNewSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .modifier(BeansSheetModifier(detents: [.medium, .large]))
     }
 }
 
@@ -169,7 +182,7 @@ struct ChangelogListView: View {
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             ZStack {
                 GlassBackdrop(customColor: ThemeStore.shared.backgroundSyncAll ? ThemeStore.shared.customBackground : nil)
                 ScrollView {
@@ -215,7 +228,7 @@ struct ChangelogListView: View {
                     }
                     .padding(16)
                 }
-                .scrollIndicators(.hidden)
+                .beansScrollIndicatorsHidden()
             }
             .navigationTitle("更新日志")
             .navigationBarTitleDisplayMode(.inline)
@@ -225,7 +238,7 @@ struct ChangelogListView: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
+        .modifier(BeansSheetModifier(detents: [.medium, .large]))
     }
 }
 
@@ -281,7 +294,7 @@ struct UsageGuideSheet: View {
     ]
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             ZStack {
                 GlassBackdrop(customColor: ThemeStore.shared.backgroundSyncAll ? ThemeStore.shared.customBackground : nil)
                 ScrollView {
@@ -319,7 +332,7 @@ struct UsageGuideSheet: View {
                     }
                     .padding(16)
                 }
-                .scrollIndicators(.hidden)
+                .beansScrollIndicatorsHidden()
             }
             .navigationTitle("软件使用说明")
             .navigationBarTitleDisplayMode(.inline)
@@ -329,6 +342,6 @@ struct UsageGuideSheet: View {
                 }
             }
         }
-        .presentationDetents([.large])
+        .modifier(BeansSheetModifier(detents: [.large]))
     }
 }

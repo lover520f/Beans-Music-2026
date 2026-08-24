@@ -92,7 +92,7 @@ struct ProfileView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 190)
             }
-            .scrollIndicators(.hidden)
+            .beansScrollIndicatorsHidden()
         }
         .task(id: auth.isLoggedIn) {
             await loadNetEaseRank()
@@ -550,7 +550,7 @@ struct AccountHubSheet: View {
     @State private var confirmQQLogout = false
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             ZStack {
                 GlassBackdrop()
                 ScrollView {
@@ -565,7 +565,7 @@ struct AccountHubSheet: View {
                     }
                     .padding(16)
                 }
-                .scrollIndicators(.hidden)
+                .beansScrollIndicatorsHidden()
             }
             .navigationTitle("账号登录")
             .navigationBarTitleDisplayMode(.inline)
@@ -710,7 +710,7 @@ struct SettingsView: View {
     @AppStorage("beans.enableUnblock") private var enableUnblock = false
 
     @State private var appearanceExpanded = false
-    @State private var bgImageItem: PhotosPickerItem?
+    @State private var showWallpaperPicker = false
     @State private var showFontImporter = false
     /// 第三方音源管理
     @ObservedObject private var unblockStore = UnblockSourceStore.shared
@@ -730,7 +730,7 @@ struct SettingsView: View {
     }
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             ZStack {
                 GlassBackdrop(customColor: theme.backgroundSyncAll ? theme.customBackground : nil)
                 ScrollView {
@@ -746,7 +746,7 @@ struct SettingsView: View {
                     .padding(.top, 8)
                     .padding(.bottom, 40)
                 }
-                .scrollIndicators(.hidden)
+                .beansScrollIndicatorsHidden()
             }
             .navigationTitle("设置")
             .navigationBarTitleDisplayMode(.inline)
@@ -756,14 +756,12 @@ struct SettingsView: View {
                 }
             }
         }
-        .onChange(of: bgImageItem) { item in
-            guard let item else { return }
-            Task {
-                if let data = try? await item.loadTransferable(type: Data.self), !data.isEmpty {
-                    theme.addWallpaper(data)
-                    BeansHaptics.success()
-                }
+        .sheet(isPresented: $showWallpaperPicker) {
+            WallpaperPhotoPicker { data in
+                theme.addWallpaper(data)
+                BeansHaptics.success()
             }
+            .ignoresSafeArea()
         }
         .sheet(isPresented: $showSourceImport) {
             ThirdPartySourceImportSheet()
@@ -934,7 +932,9 @@ struct SettingsView: View {
                             .font(.system(size: 14))
                             .foregroundStyle(Color.beansAmber)
                             .frame(width: 28)
-                        PhotosPicker(selection: $bgImageItem, matching: .images) {
+                        Button {
+                            showWallpaperPicker = true
+                        } label: {
                             HStack(spacing: 8) {
                                 Text("上传壁纸（可多张）")
                                     .font(BeansFont.appFont(15))
@@ -945,6 +945,7 @@ struct SettingsView: View {
                                     .foregroundStyle(Color.beansAmber)
                             }
                         }
+                        .buttonStyle(.plain)
                     }
                     // 壁纸库：所有已上传壁纸，点击即应用为当前背景
                     if !theme.wallpaperPaths.isEmpty {
@@ -1512,7 +1513,7 @@ struct NetEaseRankSheet: View {
     @State private var tab = 0
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             VStack(spacing: 0) {
                 Picker("范围", selection: $tab) {
                     Text("最近一周").tag(0)
@@ -1563,7 +1564,7 @@ struct NetEaseRankSheet: View {
                             .listRowSeparator(.hidden)
                         }
                     }
-                    .scrollContentBackground(.hidden)
+                    .beansScrollContentBackgroundHidden()
                     .listStyle(.plain)
                     .background(LinearGradient.beansBackdrop)
                 }
@@ -1576,8 +1577,45 @@ struct NetEaseRankSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .modifier(BeansSheetModifier(detents: [.medium, .large], dragIndicator: true))
+    }
+}
+
+// MARK: - 壁纸照片选择器（PHPicker 封装：iOS 14+ 兼容，支持多选图片）
+
+struct WallpaperPhotoPicker: UIViewControllerRepresentable {
+    let onPicked: (Data) -> Void
+
+    func makeCoordinator() -> Coordinator { Coordinator(self) }
+
+    func makeUIViewController(context: Context) -> PHPickerViewController {
+        var config = PHPickerConfiguration()
+        config.filter = .images
+        config.selectionLimit = 0 // 0 = 多选
+        let picker = PHPickerViewController(configuration: config)
+        picker.delegate = context.coordinator
+        return picker
+    }
+
+    func updateUIViewController(_ uiViewController: PHPickerViewController, context: Context) {}
+
+    final class Coordinator: NSObject, PHPickerViewControllerDelegate {
+        let parent: WallpaperPhotoPicker
+        init(_ parent: WallpaperPhotoPicker) { self.parent = parent }
+        func picker(_ picker: PHPickerViewController, didFinishPicking results: [PHPickerResult]) {
+            picker.dismiss(animated: true)
+            for result in results {
+                let provider = result.itemProvider
+                if provider.canLoadObject(ofClass: UIImage.self) {
+                    provider.loadDataRepresentation(forTypeIdentifier: UTType.image.identifier) { data, _ in
+                        guard let data, !data.isEmpty else { return }
+                        DispatchQueue.main.async {
+                            self.parent.onPicked(data)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 

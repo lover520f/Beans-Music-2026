@@ -33,7 +33,7 @@ struct CommentsSheet: View {
 
     var body: some View {
         let _ = theme.accent
-        NavigationStack {
+        BeansNavigationStack {
             Group {
                 if loading {
                     LoadingStateView()

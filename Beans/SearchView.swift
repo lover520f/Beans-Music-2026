@@ -360,8 +360,8 @@ struct SearchView: View {
             }
             .padding(.horizontal, 20)
         }
-        .scrollIndicators(.hidden)
-        .scrollDismissesKeyboard(.interactively)
+        .beansScrollIndicatorsHidden()
+        .beansScrollDismissesKeyboard()
     }
 
     /// 热搜前三名渐变配色（更亮眼：橙红 / 金黄 / 冰蓝）
@@ -482,8 +482,8 @@ struct SearchView: View {
                     .padding(.top, 4)
                     .padding(.bottom, 180)
                 }
-                .scrollIndicators(.hidden)
-                .scrollDismissesKeyboard(.interactively)
+                .beansScrollIndicatorsHidden()
+                .beansScrollDismissesKeyboard()
                 .overlay(alignment: .top) {
                     if searching {
                         ProgressView()
@@ -550,8 +550,8 @@ struct SearchView: View {
                     .padding(.top, 4)
                     .padding(.bottom, 180)
                 }
-                .scrollIndicators(.hidden)
-                .scrollDismissesKeyboard(.interactively)
+                .beansScrollIndicatorsHidden()
+                .beansScrollDismissesKeyboard()
                 .overlay(alignment: .top) {
                     if searching {
                         ProgressView()
@@ -618,8 +618,8 @@ struct SearchView: View {
                     .padding(.top, 4)
                     .padding(.bottom, 180)
                 }
-                .scrollIndicators(.hidden)
-                .scrollDismissesKeyboard(.interactively)
+                .beansScrollIndicatorsHidden()
+                .beansScrollDismissesKeyboard()
                 .overlay(alignment: .top) {
                     if searching {
                         ProgressView()

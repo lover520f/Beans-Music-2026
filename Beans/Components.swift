@@ -191,9 +191,91 @@ struct BeansSymbolReplace: ViewModifier {
     func body(content: Content) -> some View {
         if #available(iOS 17, *) {
             content.contentTransition(.symbolEffect(.replace))
-        } else {
+        } else if #available(iOS 16, *) {
             content.contentTransition(.opacity)
+        } else {
+            content
         }
+    }
+}
+
+
+// MARK: - iOS 15 兼容包装（低版本自动降级）
+
+/// iOS 16+ 使用 NavigationStack，iOS 15 回退 NavigationView（堆栈样式）
+struct BeansNavigationStack<Content: View>: View {
+    @ViewBuilder var content: () -> Content
+
+    var body: some View {
+        if #available(iOS 16, *) {
+            NavigationStack { content() }
+        } else {
+            NavigationView { content() }.navigationViewStyle(.stack)
+        }
+    }
+}
+
+/// 弹窗尺寸（自定义枚举，避免在低版本引用 iOS 16 类型）
+enum BeansDetent {
+    case medium
+    case large
+    case fraction(CGFloat)
+    case height(CGFloat)
+}
+
+/// 弹窗尺寸与拖拽指示条：iOS 16+ 生效，低版本全屏展示
+struct BeansSheetModifier: ViewModifier {
+    let detents: [BeansDetent]
+    var dragIndicator: Bool?
+
+    @available(iOS 16, *)
+    private static func makeDetents(_ detents: [BeansDetent]) -> Set<PresentationDetent> {
+        var result: Set<PresentationDetent> = []
+        for detent in detents {
+            switch detent {
+            case .medium: result.insert(.medium)
+            case .large: result.insert(.large)
+            case .fraction(let f): result.insert(.fraction(f))
+            case .height(let h): result.insert(.height(h))
+            }
+        }
+        return result
+    }
+
+    @ViewBuilder
+    func body(content: Content) -> some View {
+        if #available(iOS 16, *) {
+            if let dragIndicator {
+                content
+                    .presentationDetents(Self.makeDetents(detents))
+                    .presentationDragIndicator(dragIndicator ? .visible : .hidden)
+            } else {
+                content
+                    .presentationDetents(Self.makeDetents(detents))
+            }
+        } else {
+            content
+        }
+    }
+}
+
+extension View {
+    /// iOS 16+ 隐藏滚动条，低版本保持默认
+    @ViewBuilder
+    func beansScrollIndicatorsHidden() -> some View {
+        if #available(iOS 16, *) { self.scrollIndicators(.hidden) } else { self }
+    }
+
+    /// iOS 16+ 滚动时收起键盘，低版本保持默认
+    @ViewBuilder
+    func beansScrollDismissesKeyboard() -> some View {
+        if #available(iOS 16, *) { self.scrollDismissesKeyboard(.interactively) } else { self }
+    }
+
+    /// iOS 16+ 隐藏滚动内容默认背景，低版本保持默认
+    @ViewBuilder
+    func beansScrollContentBackgroundHidden() -> some View {
+        if #available(iOS 16, *) { self.scrollContentBackground(.hidden) } else { self }
     }
 }
 

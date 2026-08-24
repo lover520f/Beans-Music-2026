@@ -1615,7 +1615,7 @@ struct LyricsSection: View {
             }
             .frame(maxWidth: .infinity)
             .offset(x: offsetX)
-            .scrollIndicators(.hidden)
+            .beansScrollIndicatorsHidden()
             // 3D 倾斜：绕 X 轴顶部向后倒，anchor 底部固定，营造立体透视感
             .rotation3DEffect(.degrees(Double(tilt)), axis: (x: 1, y: 0, z: 0), anchor: .bottom, perspective: 0.5)
             // 左右倾斜：绕 Y 轴以中心为支点，负值向左、正值向右
@@ -1956,7 +1956,7 @@ struct PlayerSettingsSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             ScrollView {
                 VStack(spacing: 14) {
                     playingCard
@@ -1977,8 +1977,7 @@ struct PlayerSettingsSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .modifier(BeansSheetModifier(detents: [.medium, .large], dragIndicator: true))
     }
 
     // MARK: - 设置卡片（液态玻璃圆角分组，紧凑排版）

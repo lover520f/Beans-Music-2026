@@ -20,7 +20,7 @@ struct PlaylistView: View {
     @State private var sortMode: PlaylistSortMode = .original
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             Group {
                 if loading {
                     LoadingStateView()
@@ -41,7 +41,7 @@ struct PlaylistView: View {
                             }
                         }
                     }
-                    .scrollContentBackground(.hidden)
+                    .beansScrollContentBackgroundHidden()
                     .listStyle(.plain)
                     .background(LinearGradient.beansBackdrop)
                 }

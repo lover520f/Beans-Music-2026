@@ -28,7 +28,7 @@ struct ArtistHomeSheet: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             Group {
                 if loading {
                     LoadingStateView()
@@ -48,7 +48,7 @@ struct ArtistHomeSheet: View {
                         .padding(.top, 6)
                         .padding(.bottom, 16)
                     }
-                    .scrollIndicators(.hidden)
+                    .beansScrollIndicatorsHidden()
                 }
             }
             .navigationTitle("歌手主页")
@@ -60,8 +60,7 @@ struct ArtistHomeSheet: View {
             }
         }
         .task { await load() }
-        .presentationDetents([.large])
-        .presentationDragIndicator(.visible)
+        .modifier(BeansSheetModifier(detents: [.large], dragIndicator: true))
     }
 
     private var artistHeader: some View {

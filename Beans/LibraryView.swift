@@ -37,7 +37,7 @@ struct LibraryView: View {
                 .padding(.top, 8)
                 .padding(.bottom, 190)
             }
-            .scrollIndicators(.hidden)
+            .beansScrollIndicatorsHidden()
             .refreshable {
                 if source == .qq {
                     await loadQQPlaylists(force: true)

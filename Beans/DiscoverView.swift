@@ -63,7 +63,7 @@ struct DiscoverView: View {
                 .padding(.bottom, 190)
                 }
             }
-            .scrollIndicators(.hidden)
+            .beansScrollIndicatorsHidden()
             .refreshable { await load(force: true) }
             .task(id: source) { await load(force: false) }
             .onChange(of: disclaimerAccepted) { accepted in
@@ -561,7 +561,7 @@ struct QQTopListDetailView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             Group {
                 if loading {
                     LoadingStateView()
@@ -614,7 +614,7 @@ struct QQPlaylistSongsSheet: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             Group {
                 if loading {
                     LoadingStateView()
@@ -666,7 +666,7 @@ struct DailySongsSheet: View {
 
     var body: some View {
         let _ = theme.accent
-        NavigationStack {
+        BeansNavigationStack {
             Group {
                 if songs.isEmpty {
                     EmptyStateView(icon: "sparkles", text: "今日推荐加载中，下拉刷新试试")
@@ -717,7 +717,7 @@ struct TopListDetailView: View {
     @State private var errorMessage: String?
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             Group {
                 if loading {
                     LoadingStateView()

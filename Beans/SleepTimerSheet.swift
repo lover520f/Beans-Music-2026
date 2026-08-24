@@ -11,7 +11,7 @@ struct SleepTimerSheet: View {
 
     var body: some View {
         let _ = theme.accent
-        NavigationStack {
+        BeansNavigationStack {
             List {
                 if player.sleepTimerRemaining > 0 {
                     Section("当前定时") {

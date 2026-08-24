@@ -113,7 +113,7 @@ struct LocalPlaylistDetailSheet: View {
     }
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             Group {
                 if let playlist {
                     List {
@@ -204,8 +204,7 @@ struct LocalPlaylistDetailSheet: View {
             }
             Button("取消", role: .cancel) {}
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .modifier(BeansSheetModifier(detents: [.medium, .large], dragIndicator: true))
     }
 }
 
@@ -225,7 +224,7 @@ struct LocalSearchAddSheet: View {
     @State private var task: Task<Void, Never>?
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             VStack(spacing: 0) {
                 HStack(spacing: 8) {
                     TextField("输入歌名搜索", text: $keyword)
@@ -286,8 +285,7 @@ struct LocalSearchAddSheet: View {
                 }
             }
         }
-        .presentationDetents([.medium, .large])
-        .presentationDragIndicator(.visible)
+        .modifier(BeansSheetModifier(detents: [.medium, .large], dragIndicator: true))
     }
 
     private func runSearch() {

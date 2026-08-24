@@ -11,7 +11,7 @@ struct ThirdPartySourceImportSheet: View {
 
     var body: some View {
         let _ = theme.accent
-        NavigationStack {
+        BeansNavigationStack {
             VStack(alignment: .leading, spacing: 10) {
                 Text("粘贴第三方解锁源 JSON 配置")
                     .font(BeansFont.appFont(13, .semibold))
@@ -60,7 +60,7 @@ struct ThirdPartySourceImportSheet: View {
                 }
                 TextEditor(text: $jsonText)
                     .font(.system(size: 12, design: .monospaced))
-                    .scrollContentBackground(.hidden)
+                    .beansScrollContentBackgroundHidden()
                     .padding(8)
                     .frame(minHeight: 150)
                     .background(RoundedRectangle(cornerRadius: 14, style: .continuous).fill(Color.beansGlassFill))

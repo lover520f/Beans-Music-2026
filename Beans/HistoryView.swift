@@ -4,7 +4,7 @@ struct HistoryView: View {
     @EnvironmentObject private var player: PlayerManager
 
     var body: some View {
-        NavigationStack {
+        BeansNavigationStack {
             Group {
                 if player.history.isEmpty {
                     EmptyStateView(icon: "clock.arrow.circlepath", text: "暂无播放历史")
@@ -21,7 +21,7 @@ struct HistoryView: View {
                             player.removeHistory(at: offsets)
                         }
                     }
-                    .scrollContentBackground(.hidden)
+                    .beansScrollContentBackgroundHidden()
                     .listStyle(.plain)
                     .background(LinearGradient.beansBackdrop)
                 }

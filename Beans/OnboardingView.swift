@@ -140,7 +140,7 @@ struct OnboardingView: View {
         VStack(spacing: 24) {
             Spacer()
             // 真实 App 图标
-            Image("AppIcon")
+            Image("OnboardingLogo")
                 .resizable()
                 .scaledToFill()
                 .frame(width: 132, height: 132)

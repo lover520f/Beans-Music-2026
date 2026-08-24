@@ -7,7 +7,7 @@ struct QueueView: View {
 
     var body: some View {
         let _ = theme.accent
-        NavigationStack {
+        BeansNavigationStack {
             Group {
                 if player.queue.isEmpty {
                     EmptyStateView(icon: "music.note.list", text: "播放队列为空")
@@ -27,7 +27,7 @@ struct QueueView: View {
                             }
                         }
                     }
-                    .scrollContentBackground(.hidden)
+                    .beansScrollContentBackgroundHidden()
                     .listStyle(.plain)
                     .background(LinearGradient.beansBackdrop)
                 }
