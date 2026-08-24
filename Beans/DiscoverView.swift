@@ -117,7 +117,7 @@ struct DiscoverView: View {
                         .foregroundStyle(Color.beansLabel)
                     Text(auth.user?.nickname ?? "发现好音乐")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Spacer()
                 GlassIconButton(systemName: "arrow.clockwise") {
@@ -143,7 +143,7 @@ struct DiscoverView: View {
                         Text(p.rawValue)
                             .font(BeansFont.appFont(13, .semibold))
                     }
-                    .foregroundStyle(source == p ? Color.white : Color.beansSecondary)
+                    .foregroundStyle(source == p ? Color.white : Color.beansComment)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 9)
                     .background {
@@ -236,7 +236,7 @@ struct DiscoverView: View {
             VStack(spacing: 0) {
                 if ranksExpanded {
                     rankToggleButton(label: "收起", icon: "chevron.up")
-                    Divider().overlay(Color.beansSecondary.opacity(0.12))
+                    Divider().overlay(Color.beansComment.opacity(0.12))
                 }
                 rankRowsContent
                 if !ranksExpanded, visibleRankCount > 3 {
@@ -263,7 +263,7 @@ struct DiscoverView: View {
                     BeansHaptics.tap()
                     selectedTopList = topList
                 }
-                Divider().overlay(Color.beansSecondary.opacity(0.12))
+                Divider().overlay(Color.beansComment.opacity(0.12))
             }
         } else if source == .qq {
             ForEach(Array(qqTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, info in
@@ -271,7 +271,7 @@ struct DiscoverView: View {
                     BeansHaptics.tap()
                     selectedQQTopList = info
                 }
-                Divider().overlay(Color.beansSecondary.opacity(0.12))
+                Divider().overlay(Color.beansComment.opacity(0.12))
             }
         } else {
             ForEach(Array(kugouTopLists.prefix(displayedRankCount).enumerated()), id: \.element.id) { index, info in
@@ -279,7 +279,7 @@ struct DiscoverView: View {
                     BeansHaptics.tap()
                     selectedKugouTopList = info
                 }
-                Divider().overlay(Color.beansSecondary.opacity(0.12))
+                Divider().overlay(Color.beansComment.opacity(0.12))
             }
         }
     }
@@ -311,7 +311,7 @@ struct DiscoverView: View {
             HStack(spacing: 12) {
                 Text("\(index + 1)")
                     .font(BeansFont.appFont(16, .bold, .rounded))
-                    .foregroundStyle(index < 3 ? Color.beansAmber : Color.beansSecondary)
+                    .foregroundStyle(index < 3 ? Color.beansAmber : Color.beansComment)
                     .frame(width: 24)
                 CoverImage(url: coverURL, size: 52, cornerRadius: 12)
                 VStack(alignment: .leading, spacing: 3) {
@@ -321,13 +321,13 @@ struct DiscoverView: View {
                         .lineLimit(1)
                     Text(subtitle)
                         .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 8)
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                    .foregroundStyle(Color.beansComment.opacity(0.6))
             }
             .padding(.vertical, 8)
             .contentShape(Rectangle())
@@ -388,7 +388,7 @@ struct DiscoverView: View {
                                     .frame(width: 108, alignment: .leading)
                                 Text(song.artists.isEmpty ? song.album : song.artists)
                                     .font(BeansFont.appFont(10))
-                                    .foregroundStyle(Color.beansSecondary)
+                                    .foregroundStyle(Color.beansComment)
                                     .lineLimit(1)
                                     .frame(width: 108, alignment: .leading)
                             }
@@ -427,7 +427,7 @@ struct DiscoverView: View {
                             } label: {
                                 Text(cat)
                                     .font(BeansFont.appFont(12, .medium))
-                                    .foregroundStyle(neteaseCat == cat ? Color.white : Color.beansSecondary)
+                                    .foregroundStyle(neteaseCat == cat ? Color.white : Color.beansComment)
                                     .padding(.horizontal, 12)
                                     .padding(.vertical, 6)
                                     .background {
@@ -832,10 +832,10 @@ struct TopListDetailView: View {
                     .foregroundStyle(Color.beansLabel)
                 Text(topList.updateFrequency)
                     .font(BeansFont.appFont(12))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                 Text("\(tracks.count) 首")
                     .font(BeansFont.appFont(12))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             }
             Spacer()
         }

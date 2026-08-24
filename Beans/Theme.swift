@@ -52,6 +52,13 @@ extension Color {
     static let beansCard = Color(uiColor: .beansCard)
     static let beansLabel = Color(uiColor: .beansLabel)
     static let beansSecondary = Color(uiColor: .beansSecondary)
+
+    /// 全局说明文字（注释）颜色：可在「我的 → 外观」中自定义；默认跟随次要文字色
+    static var beansComment: Color {
+        if let raw = UserDefaults.standard.string(forKey: "beans.commentColorHex"),
+           let c = Color(hex: raw) { return c }
+        return .beansSecondary
+    }
     /// 全局着色：跟随当前配色主题即时变化（所有页面统一生效）
     static var beansAmber: Color { Color(uiColor: .beansAmber) }
     static let beansSage = Color(uiColor: .beansSage)

@@ -53,7 +53,7 @@ struct SleepTimerSheet: View {
                             Text("自定义")
                             Spacer()
                             Text("\(customMinutes) 分钟")
-                                .foregroundStyle(Color.beansSecondary)
+                                .foregroundStyle(Color.beansComment)
                         }
                     }
                     Button {

@@ -28,7 +28,7 @@ struct QQLoginSheet: View {
             GlassBackdrop()
             VStack(spacing: 16) {
                 Capsule()
-                    .fill(Color.beansSecondary.opacity(0.3))
+                    .fill(Color.beansComment.opacity(0.3))
                     .frame(width: 38, height: 4)
                     .padding(.top, 12)
 
@@ -43,7 +43,7 @@ struct QQLoginSheet: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 22))
-                            .foregroundStyle(Color.beansSecondary)
+                            .foregroundStyle(Color.beansComment)
                     }
                     .buttonStyle(GlassPressButtonStyle(scale: 0.9))
                 }
@@ -79,7 +79,7 @@ struct QQLoginSheet: View {
         VStack(spacing: 20) {
             Text("使用手机 QQ 扫描二维码\n登录后可播放更多 QQ 音乐歌曲（含 VIP 试听）")
                 .font(BeansFont.appFont(13))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
                 .multilineTextAlignment(.center)
 
             qrArea
@@ -136,7 +136,7 @@ struct QQLoginSheet: View {
             case .waiting:
                 Label("请使用手机 QQ 扫码", systemImage: "qrcode.viewfinder")
                     .font(BeansFont.appFont(13))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             case .scanned:
                 Label("已扫码，请在手机上确认登录", systemImage: "checkmark.circle")
                     .font(BeansFont.appFont(13))
@@ -148,7 +148,7 @@ struct QQLoginSheet: View {
             case .expired:
                 Text("二维码已过期，请点击刷新")
                     .font(BeansFont.appFont(13))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             case .error(let message):
                 Text(message)
                     .font(BeansFont.appFont(12))

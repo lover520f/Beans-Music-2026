@@ -35,6 +35,20 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.9.2",
+            version: "1.9.2",
+            title: "注释配色 · 布局优化",
+            features: [
+                "新增「注释文字颜色」：我的 → 外观可自定义全 App 说明文字颜色",
+                "布局调整：指示线可直接拖动，位置与滑块联动同步",
+            ],
+            fixes: [
+                "修复布局调整弹窗触摸穿透问题",
+                "播放器设置「布局调整」分区重组，消除说明文字下方空白",
+                "移除布局编辑时指示线的描边，界面更清爽",
+            ]
+        ),
+        VersionLog(
             id: "1.9.1",
             version: "1.9.1",
             title: "布局整合 · 个性化升级",
@@ -110,7 +124,7 @@ struct WhatsNewSheet: View {
                                     .foregroundStyle(Color.beansLabel)
                                 Text("已更新至 \(log.version) · \(log.title)")
                                     .font(BeansFont.appFont(13))
-                                    .foregroundStyle(Color.beansSecondary)
+                                    .foregroundStyle(Color.beansComment)
                             }
                             .frame(maxWidth: .infinity, alignment: .leading)
 
@@ -131,7 +145,7 @@ struct WhatsNewSheet: View {
                                     }
                                 }
                                 if !log.fixes.isEmpty {
-                                    Divider().overlay(Color.beansSecondary.opacity(0.15))
+                                    Divider().overlay(Color.beansComment.opacity(0.15))
                                     Text("问题修复")
                                         .font(BeansFont.appFont(14, .bold))
                                         .foregroundStyle(Color.beansAmber)
@@ -202,7 +216,7 @@ struct ChangelogListView: View {
                                 ForEach(log.features, id: \.self) { item in
                                     HStack(alignment: .top, spacing: 6) {
                                         Text("·")
-                                            .foregroundStyle(Color.beansSecondary)
+                                            .foregroundStyle(Color.beansComment)
                                         Text(item)
                                             .font(BeansFont.appFont(12))
                                             .foregroundStyle(Color.beansLabel)
@@ -328,7 +342,7 @@ struct UsageGuideSheet: View {
                         }
                         Text("Beans Music · 仅供学习交流，纯 AI 实现此应用 · 接入网易云音乐、QQ 音乐、酷狗音乐等公开接口")
                             .font(BeansFont.appFont(11))
-                            .foregroundStyle(Color.beansSecondary.opacity(0.8))
+                            .foregroundStyle(Color.beansComment.opacity(0.8))
                             .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
                     }

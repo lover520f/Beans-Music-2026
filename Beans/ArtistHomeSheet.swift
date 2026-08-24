@@ -72,7 +72,7 @@ struct ArtistHomeSheet: View {
                 } else {
                     Image(systemName: "person.fill")
                         .font(.system(size: 30))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
             }
             .frame(width: 72, height: 72)
@@ -88,7 +88,7 @@ struct ArtistHomeSheet: View {
                      ? "热门歌曲 \(hotSongs.count) 首 · 专辑 \(albums.count) 张"
                      : "热门歌曲 \(hotSongs.count) 首")
                     .font(BeansFont.appFont(12))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             }
             Spacer()
         }
@@ -104,7 +104,7 @@ struct ArtistHomeSheet: View {
             if hotSongs.isEmpty {
                 Text("暂无歌曲")
                     .font(BeansFont.appFont(13))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                     .padding(.horizontal, 16)
             } else {
                 LazyVStack(spacing: 0) {
@@ -116,7 +116,7 @@ struct ArtistHomeSheet: View {
                             HStack(spacing: 12) {
                                 Text("\(index + 1)")
                                     .font(BeansFont.appFont(13, .semibold, .rounded))
-                                    .foregroundStyle(index < 3 ? Color.beansAmber : Color.beansSecondary)
+                                    .foregroundStyle(index < 3 ? Color.beansAmber : Color.beansComment)
                                     .frame(width: 22)
                                 CoverImage(url: song.coverURL, size: 40, cornerRadius: 8)
                                 VStack(alignment: .leading, spacing: 2) {
@@ -126,7 +126,7 @@ struct ArtistHomeSheet: View {
                                         .lineLimit(1)
                                     Text(song.album)
                                         .font(BeansFont.appFont(11))
-                                        .foregroundStyle(Color.beansSecondary)
+                                        .foregroundStyle(Color.beansComment)
                                         .lineLimit(1)
                                 }
                                 Spacer()
@@ -151,7 +151,7 @@ struct ArtistHomeSheet: View {
             if albums.isEmpty {
                 Text("暂无专辑")
                     .font(BeansFont.appFont(13))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                     .padding(.horizontal, 16)
             } else {
                 LazyVGrid(columns: [GridItem(.adaptive(minimum: 100), spacing: 10)], spacing: 12) {
@@ -169,7 +169,7 @@ struct ArtistHomeSheet: View {
                                 if let count = album.trackCount {
                                     Text("\(count) 首")
                                         .font(BeansFont.appFont(10))
-                                        .foregroundStyle(Color.beansSecondary)
+                                        .foregroundStyle(Color.beansComment)
                                 }
                             }
                             .padding(6)

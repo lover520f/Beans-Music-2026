@@ -83,7 +83,7 @@ struct LibraryView: View {
                         .foregroundStyle(Color.beansLabel)
                     Text(source == .netease ? "网易云歌单" : source == .qq ? "QQ 音乐收藏与歌单" : "酷狗音乐歌单")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Spacer()
                 GlassIconButton(systemName: "arrow.clockwise") {
@@ -124,12 +124,12 @@ struct LibraryView: View {
                                         .lineLimit(1)
                                     Text("\(playlist.trackCount) 首")
                                         .font(BeansFont.appFont(12))
-                                        .foregroundStyle(Color.beansSecondary)
+                                        .foregroundStyle(Color.beansComment)
                                 }
                                 Spacer(minLength: 8)
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                                    .foregroundStyle(Color.beansComment.opacity(0.6))
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
@@ -144,7 +144,7 @@ struct LibraryView: View {
                                 Label("删除歌单", systemImage: "trash")
                             }
                         }
-                        Divider().overlay(Color.beansSecondary.opacity(0.12))
+                        Divider().overlay(Color.beansComment.opacity(0.12))
                     }
                     // 新建歌单行
                     Button {
@@ -156,15 +156,15 @@ struct LibraryView: View {
                             ZStack {
                                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                                     .strokeBorder(style: StrokeStyle(lineWidth: 1.2, dash: [5, 3]))
-                                    .foregroundStyle(Color.beansSecondary.opacity(0.45))
+                                    .foregroundStyle(Color.beansComment.opacity(0.45))
                                     .frame(width: 56, height: 56)
                                 Image(systemName: "plus")
                                     .font(.system(size: 18, weight: .medium))
-                                    .foregroundStyle(Color.beansSecondary)
+                                    .foregroundStyle(Color.beansComment)
                             }
                             Text("新建歌单")
                                 .font(BeansFont.appFont(15, .medium))
-                                .foregroundStyle(Color.beansSecondary)
+                                .foregroundStyle(Color.beansComment)
                             Spacer()
                         }
                         .padding(.horizontal, 14)
@@ -193,15 +193,15 @@ struct LibraryView: View {
                 ZStack {
                     RoundedRectangle(cornerRadius: 16, style: .continuous)
                         .strokeBorder(style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
-                        .foregroundStyle(Color.beansSecondary.opacity(0.45))
+                        .foregroundStyle(Color.beansComment.opacity(0.45))
                         .frame(width: 160, height: 160)
                     Image(systemName: "plus")
                         .font(.system(size: 26, weight: .medium))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Text("新建歌单")
                     .font(BeansFont.appFont(12, .medium))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             }
             .padding(8)
             .frame(maxWidth: .infinity)
@@ -225,7 +225,7 @@ struct LibraryView: View {
                         SongCell(song: song) {
                             playFromHistory(song)
                         }
-                        Divider().overlay(Color.beansSecondary.opacity(0.15))
+                        Divider().overlay(Color.beansComment.opacity(0.15))
                     }
                 }
                 .padding(.horizontal, 14)
@@ -252,7 +252,7 @@ struct LibraryView: View {
                         Text(p.rawValue)
                             .font(BeansFont.appFont(13, .semibold))
                     }
-                    .foregroundStyle(source == p ? Color.white : Color.beansSecondary)
+                    .foregroundStyle(source == p ? Color.white : Color.beansComment)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 9)
                     .background {
@@ -313,12 +313,12 @@ struct LibraryView: View {
                                         .lineLimit(1)
                                     Text("\(playlist.trackCount) 首")
                                         .font(BeansFont.appFont(12))
-                                        .foregroundStyle(Color.beansSecondary)
+                                        .foregroundStyle(Color.beansComment)
                                 }
                                 Spacer(minLength: 8)
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                                    .foregroundStyle(Color.beansComment.opacity(0.6))
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
@@ -333,7 +333,7 @@ struct LibraryView: View {
                                 Label("删除歌单", systemImage: "trash")
                             }
                         }
-                        Divider().overlay(Color.beansSecondary.opacity(0.12))
+                        Divider().overlay(Color.beansComment.opacity(0.12))
                     }
                 }
                 .padding(.vertical, 6)
@@ -358,7 +358,7 @@ struct LibraryView: View {
                         SongCell(song: song) {
                             player.play(songs: mergedQQFavorites, startAt: index)
                         }
-                        Divider().overlay(Color.beansSecondary.opacity(0.15))
+                        Divider().overlay(Color.beansComment.opacity(0.15))
                     }
                 }
                 .padding(.horizontal, 14)
@@ -418,19 +418,19 @@ struct LibraryView: View {
                                         .lineLimit(1)
                                     Text("\(playlist.trackCount) 首")
                                         .font(BeansFont.appFont(12))
-                                        .foregroundStyle(Color.beansSecondary)
+                                        .foregroundStyle(Color.beansComment)
                                 }
                                 Spacer(minLength: 8)
                                 Image(systemName: "chevron.right")
                                     .font(.system(size: 12, weight: .semibold))
-                                    .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                                    .foregroundStyle(Color.beansComment.opacity(0.6))
                             }
                             .padding(.horizontal, 14)
                             .padding(.vertical, 10)
                             .contentShape(Rectangle())
                         }
                         .buttonStyle(.plain)
-                        Divider().overlay(Color.beansSecondary.opacity(0.12))
+                        Divider().overlay(Color.beansComment.opacity(0.12))
                     }
                 }
                 .padding(.vertical, 6)
@@ -455,7 +455,7 @@ struct LibraryView: View {
                         SongCell(song: song) {
                             player.play(songs: favorites.kugouFavoriteSongs, startAt: index)
                         }
-                        Divider().overlay(Color.beansSecondary.opacity(0.15))
+                        Divider().overlay(Color.beansComment.opacity(0.15))
                     }
                 }
                 .padding(.horizontal, 14)

@@ -62,7 +62,7 @@ struct QueueView: View {
                     .lineLimit(1)
                 Text(song.artists)
                     .font(BeansFont.appFont(12))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                     .lineLimit(1)
             }
             Spacer()
@@ -77,7 +77,7 @@ struct QueueView: View {
             } else {
                 Text(song.formattedDuration)
                     .font(BeansFont.appFont(12, .regular, .monospaced))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             }
         }
         .padding(.horizontal, 12)

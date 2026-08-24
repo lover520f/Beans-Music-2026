@@ -39,7 +39,7 @@ struct SongCell: View {
                 }
                 Text(song.artists.isEmpty ? song.album : song.artists)
                     .font(BeansFont.appFont(12))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                     .lineLimit(1)
             }
             Spacer(minLength: 8)
@@ -48,7 +48,7 @@ struct SongCell: View {
             } else {
                 Text(song.formattedDuration)
                     .font(BeansFont.appFont(12, .regular, .monospaced))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             }
         }
         .padding(.vertical, 6)

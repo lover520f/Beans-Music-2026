@@ -182,6 +182,7 @@ struct PlayerView: View {
                 // 布局编辑工具栏：组件选择 + X/Y/Z 滑杆 + 恢复默认 + 完成
                 if layoutMode {
                     layoutToolbar
+                        .contentShape(Rectangle())
                         .frame(maxWidth: .infinity)
                         .frame(maxHeight: .infinity, alignment: .top)
                         .padding(.top, 10)
@@ -753,20 +754,11 @@ struct PlayerView: View {
             .padding(.bottom, 8)
             .contentShape(Rectangle())
             .offset(x: grabberEntry.x, y: grabberEntry.y)
-            .overlay(alignment: .topLeading) {
-                // 布局编辑模式：描边框提示可拖动
-                if layoutMode {
-                    RoundedRectangle(cornerRadius: 8, style: .continuous)
-                        .strokeBorder(Color.beansAmber.opacity(0.9), lineWidth: 1.5)
-                        .frame(width: 60, height: 26)
-                        .offset(x: -10, y: -12)
-                        .allowsHitTesting(false)
-                }
-            }
             .gesture(
                 layoutMode
                     ? AnyGesture(DragGesture(minimumDistance: 0)
                         .onChanged { value in
+                            layoutPart = .grabber
                             var e = layoutData["grabber"] ?? PlayerLayoutEntry()
                             e.x = value.translation.width
                             e.y = value.translation.height
@@ -1729,7 +1721,7 @@ struct PlayerSettingsSheet: View {
             VStack(spacing: 5) {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(LinearGradient(
-                        colors: [(Color(hex: preset.start) ?? Color.beansAmber), (Color(hex: preset.end) ?? Color.beansSecondary)],
+                        colors: [(Color(hex: preset.start) ?? Color.beansAmber), (Color(hex: preset.end) ?? Color.beansComment)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
@@ -1766,7 +1758,7 @@ struct PlayerSettingsSheet: View {
         Binding(
             get: {
                 if dimColorRaw.hasPrefix("#"), let c = Color(hex: dimColorRaw) { return c }
-                return Color.beansSecondary
+                return Color.beansComment
             },
             set: { newValue in
                 dimColorRaw = "#" + UIColor(newValue).hexString
@@ -1807,7 +1799,7 @@ struct PlayerSettingsSheet: View {
         Binding(
             get: {
                 if gradEndRaw.hasPrefix("#"), let c = Color(hex: gradEndRaw) { return c }
-                return Color.beansSecondary
+                return Color.beansComment
             },
             set: { newValue in
                 gradEndRaw = "#" + UIColor(newValue).hexString
@@ -1829,7 +1821,7 @@ struct PlayerSettingsSheet: View {
                     .pickerStyle(.segmented)
                     Text("四种风格均自动跟随封面主色；流光带游动光点，波浪随节奏起伏")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Section("背景光晕强度") {
                     HStack(spacing: 12) {
@@ -1842,7 +1834,7 @@ struct PlayerSettingsSheet: View {
                     }
                     Text("强度 \(Int((breath * 100).rounded()))%")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Section("歌词字号") {
                     HStack(spacing: 12) {
@@ -1862,7 +1854,7 @@ struct PlayerSettingsSheet: View {
                     }
                     Text("\(fontSize) pt")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Section("歌词行距") {
                     HStack(spacing: 12) {
@@ -1882,7 +1874,7 @@ struct PlayerSettingsSheet: View {
                     }
                     Text("\(lineSpacing) pt")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Section("歌词发光强度") {
                     HStack(spacing: 12) {
@@ -1898,11 +1890,11 @@ struct PlayerSettingsSheet: View {
                         )
                         .tint(Color.beansAmber)
                         Image(systemName: glowLevel > 2 ? "sparkles" : "sparkle")
-                            .foregroundStyle(glowLevel > 2 ? Color.beansAmber : Color.beansSecondary)
+                            .foregroundStyle(glowLevel > 2 ? Color.beansAmber : Color.beansComment)
                     }
                     Text(glowName(glowLevel))
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Section("渐变预设") {
                     VStack(spacing: 8) {
@@ -1919,7 +1911,7 @@ struct PlayerSettingsSheet: View {
                     }
                     Text("一键应用预设的歌词渐变与发光强度；可再在下方色盘微调")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Section("自定义配色") {
                     Toggle("保持自定义配色", isOn: Binding(
@@ -1929,7 +1921,7 @@ struct PlayerSettingsSheet: View {
                     .tint(Color.beansAmber)
                     Text("开启后一直使用你选择的歌词颜色与渐变；关闭时自动跟随歌曲封面取色调整")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Section("歌词颜色") {
                     ColorPicker("当前行颜色", selection: currentColor, supportsOpacity: false)
@@ -1937,7 +1929,7 @@ struct PlayerSettingsSheet: View {
                     ColorPicker("歌词发光颜色", selection: glowColor, supportsOpacity: false)
                     Text("自定义发光颜色；恢复默认后跟随当前行颜色 / 封面取色")
                         .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                     Button("恢复默认颜色") {
                         currentColorRaw = ""
                         dimColorRaw = ""
@@ -1972,13 +1964,14 @@ struct PlayerSettingsSheet: View {
                     .tint(Color.beansAmber)
                     Text("开启后回到播放页，可直接拖动底部组件到任意位置")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                     Toggle("显示底部指示线", isOn: $deckGrabberEnabled)
                         .tint(Color.beansAmber)
                     Text("关闭后隐藏指示线，仍可上滑呼出评论区")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
-                    Divider()
+                        .foregroundStyle(Color.beansComment)
+                }
+                Section("歌词对齐") {
                     Picker("歌词对齐样式", selection: $lyricAlignRaw) {
                         Text("居中").tag("center")
                         Text("全部居左").tag("left")
@@ -1986,7 +1979,7 @@ struct PlayerSettingsSheet: View {
                     .pickerStyle(.segmented)
                     Text("歌词位置（水平偏移 / 垂直重心）在布局调整弹窗中调节")
                         .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                     Button("恢复歌词默认") {
                         lyricAlignRaw = "center"
                         lyricOffsetX = 0
@@ -2001,7 +1994,7 @@ struct PlayerSettingsSheet: View {
                         .tint(Color.beansAmber)
                     Text("当前播放歌词下方显示译文（网易云 tlyric）")
                         .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
             }
             .navigationTitle("播放器设置")

@@ -57,7 +57,7 @@ struct ProfileView: View {
                     .foregroundStyle(Color.beansLabel)
                 Text("网易云 / QQ 音乐账号与外观设置")
                     .font(BeansFont.appFont(13))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             }
             Spacer()
             GlassIconButton(systemName: "gearshape.fill") {
@@ -137,7 +137,7 @@ struct ProfileView: View {
                         } else {
                             Image(systemName: "person.fill")
                                 .font(.system(size: 26))
-                                .foregroundStyle(Color.beansSecondary)
+                                .foregroundStyle(Color.beansComment)
                         }
                     }
                     .frame(width: 64, height: 64)
@@ -156,13 +156,13 @@ struct ProfileView: View {
                         }
                         Text(accountStatusLine)
                             .font(BeansFont.appFont(12, .regular, .monospaced))
-                            .foregroundStyle(Color.beansSecondary)
+                            .foregroundStyle(Color.beansComment)
                             .lineLimit(1)
                     }
                     Spacer()
                     Image(systemName: "chevron.right")
                         .font(.system(size: 13, weight: .semibold))
-                        .foregroundStyle(Color.beansSecondary.opacity(0.7))
+                        .foregroundStyle(Color.beansComment.opacity(0.7))
                 }
                 .contentShape(Rectangle())
             }
@@ -205,7 +205,7 @@ struct ProfileView: View {
                 .foregroundStyle(Color.beansLabel)
             Text(status)
                 .font(BeansFont.appFont(11))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
                 .lineLimit(1)
             if let badge {
                 VIPBadgeView(text: badge)
@@ -256,7 +256,7 @@ struct ProfileView: View {
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(.ultraThinMaterial))
                     .clipShape(Circle())
@@ -312,7 +312,7 @@ struct ProfileView: View {
                         .lineLimit(1)
                     Text(subtitle)
                         .font(BeansFont.appFont(11))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                         .lineLimit(1)
                 }
                 Spacer(minLength: 0)
@@ -355,12 +355,12 @@ struct ProfileView: View {
                         .foregroundStyle(Color.beansLabel)
                     Text("了解多平台切换、账号、播放与个性化玩法")
                         .font(BeansFont.appFont(11))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Spacer()
                 Image(systemName: "chevron.right")
                     .font(.system(size: 12, weight: .semibold))
-                    .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                    .foregroundStyle(Color.beansComment.opacity(0.6))
             }
             .padding(16)
             .background {
@@ -380,11 +380,11 @@ struct ProfileView: View {
                     .foregroundStyle(Color.beansLabel)
                 Text("网易云 / QQ音乐 / 酷狗音乐 第三方客户端 · 仅供学习研究")
                     .font(BeansFont.appFont(12))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                     .multilineTextAlignment(.center)
                 Text("只用作个人学习研究，禁止用于商业及非法用途，如产生法律纠纷与本人无关")
                     .font(BeansFont.appFont(11))
-                    .foregroundStyle(Color.beansSecondary.opacity(0.85))
+                    .foregroundStyle(Color.beansComment.opacity(0.85))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
             }
@@ -409,7 +409,7 @@ struct ProfileView: View {
                 Text("音乐 API 来自 GitHub 开源项目，非官方版 API；本软件不提供任何音频存储服务，如需下载音频，请支持正版！")
             }
             .font(BeansFont.appFont(11))
-            .foregroundStyle(Color.beansSecondary)
+            .foregroundStyle(Color.beansComment)
             .frame(maxWidth: .infinity, alignment: .leading)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.top, 6)
@@ -463,7 +463,7 @@ struct AccountHubSheet: View {
                         kugouCard
                         Text("网易云登录可同步歌单、收藏与听歌排行；QQ 音乐 / 酷狗音乐登录可播放更多歌曲")
                             .font(BeansFont.appFont(11))
-                            .foregroundStyle(Color.beansSecondary)
+                            .foregroundStyle(Color.beansComment)
                             .padding(.horizontal, 4)
                     }
                     .padding(16)
@@ -538,7 +538,7 @@ struct AccountHubSheet: View {
                     HStack(spacing: 6) {
                         Text(auth.isLoggedIn ? (auth.user?.nickname ?? "已登录") : "未登录 · 扫码登录同步歌单")
                             .font(BeansFont.appFont(12))
-                            .foregroundStyle(Color.beansSecondary)
+                            .foregroundStyle(Color.beansComment)
                             .lineLimit(1)
                         if auth.isLoggedIn, let badge = auth.user?.vipBadge {
                             VIPBadgeView(text: badge)
@@ -586,7 +586,7 @@ struct AccountHubSheet: View {
                     HStack(spacing: 6) {
                         Text(qqAuth.isLoggedIn ? (qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname) : "未登录 · 网页 / 扫码 / Cookie 登录")
                             .font(BeansFont.appFont(12))
-                            .foregroundStyle(Color.beansSecondary)
+                            .foregroundStyle(Color.beansComment)
                             .lineLimit(1)
                         if qqAuth.isLoggedIn, let badge = qqAuth.vipBadge {
                             VIPBadgeView(text: badge)
@@ -634,7 +634,7 @@ struct AccountHubSheet: View {
                     HStack(spacing: 6) {
                         Text(kugouAuth.isLoggedIn ? (kugouAuth.nickname.isEmpty ? "已登录" : kugouAuth.nickname) : "未登录 · 网页 / Cookie 登录")
                             .font(BeansFont.appFont(12))
-                            .foregroundStyle(Color.beansSecondary)
+                            .foregroundStyle(Color.beansComment)
                             .lineLimit(1)
                         if kugouAuth.isLoggedIn, let badge = kugouAuth.vipBadge {
                             VIPBadgeView(text: badge)
@@ -770,7 +770,7 @@ struct SettingsView: View {
                     Spacer()
                     Image(systemName: appearanceExpanded ? "chevron.up" : "chevron.down")
                         .font(.system(size: 11, weight: .semibold))
-                        .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                        .foregroundStyle(Color.beansComment.opacity(0.6))
                 }
                 .padding(.horizontal, 14)
                 .padding(.vertical, 13)
@@ -801,7 +801,7 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Divider().overlay(Color.beansSecondary.opacity(0.15))
+                Divider().overlay(Color.beansComment.opacity(0.15))
 
                 HStack {
                     Image(systemName: "eyedropper.halffull")
@@ -834,10 +834,10 @@ struct SettingsView: View {
                     Spacer()
                     Text(theme.customAccentHex == nil ? "使用预设主题" : "已自定义")
                         .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
 
-                    Divider().overlay(Color.beansSecondary.opacity(0.15))
+                    Divider().overlay(Color.beansComment.opacity(0.15))
 
                     HStack {
                         Image(systemName: "photo.fill")
@@ -883,10 +883,10 @@ struct SettingsView: View {
                         HStack(spacing: 12) {
                             Image(systemName: "photo.stack")
                                 .font(.system(size: 13))
-                                .foregroundStyle(Color.beansSecondary)
+                                .foregroundStyle(Color.beansComment)
                             Text("还没有壁纸，上传后会显示在这里")
                                 .font(BeansFont.appFont(12))
-                                .foregroundStyle(Color.beansSecondary)
+                                .foregroundStyle(Color.beansComment)
                             Spacer()
                         }
                     }
@@ -908,7 +908,7 @@ struct SettingsView: View {
                         Spacer()
                         Text(theme.customBackgroundImage == nil ? "当前：默认背景" : "当前：已应用壁纸")
                             .font(BeansFont.appFont(12))
-                            .foregroundStyle(Color.beansSecondary)
+                            .foregroundStyle(Color.beansComment)
                     }
                 Toggle(isOn: Binding(
                     get: { theme.backgroundSyncAll },
@@ -926,7 +926,7 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .tint(Color.beansAmber)
 
-                Divider().overlay(Color.beansSecondary.opacity(0.15))
+                Divider().overlay(Color.beansComment.opacity(0.15))
 
                 HStack {
                     Button {
@@ -944,7 +944,47 @@ struct SettingsView: View {
                     Spacer()
                 }
 
-                Divider().overlay(Color.beansSecondary.opacity(0.15))
+                Divider().overlay(Color.beansComment.opacity(0.15))
+
+                HStack {
+                    Image(systemName: "text.quote")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.beansAmber)
+                        .frame(width: 28)
+                    Text("注释文字颜色")
+                        .font(BeansFont.appFont(15))
+                        .foregroundStyle(Color.beansLabel)
+                    Spacer()
+                    ColorPicker("", selection: Binding(
+                        get: {
+                            if let raw = UserDefaults.standard.string(forKey: "beans.commentColorHex"),
+                               let c = Color(hex: raw) { return c }
+                            return Color.beansComment
+                        },
+                        set: { UserDefaults.standard.set($0.hexString, forKey: "beans.commentColorHex") }
+                    ))
+                    .labelsHidden()
+                }
+                HStack(spacing: 12) {
+                    Button {
+                        UserDefaults.standard.removeObject(forKey: "beans.commentColorHex")
+                        BeansHaptics.select()
+                    } label: {
+                        Text("恢复默认")
+                            .font(BeansFont.appFont(13, .medium))
+                            .foregroundStyle(Color.beansAmber)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    Spacer()
+                    Text("全 App 说明文字颜色")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                }
+
+                Divider().overlay(Color.beansComment.opacity(0.15))
 
                 HStack {
                     Image(systemName: "textformat")
@@ -957,7 +997,7 @@ struct SettingsView: View {
                     Spacer()
                     Text(FontManager.installedFontName ?? "系统默认")
                         .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 HStack(spacing: 12) {
                     Button {
@@ -988,7 +1028,7 @@ struct SettingsView: View {
                 }
                 Text("支持 ttf / otf 字体，上传后全局生效（含歌词），重启保留")
                     .font(BeansFont.appFont(12))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
 
             }
             .padding(16)
@@ -1023,10 +1063,10 @@ struct SettingsView: View {
                     .pickerStyle(.segmented)
                     Text("无损与 Hi-Res 需要黑胶 VIP，未开通时自动回落到可用音质")
                         .font(BeansFont.appFont(11))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
 
-                Divider().overlay(Color.beansSecondary.opacity(0.15))
+                Divider().overlay(Color.beansComment.opacity(0.15))
 
                 Toggle(isOn: $enableUnblock) {
                     HStack(spacing: 12) {
@@ -1040,7 +1080,7 @@ struct SettingsView: View {
                                 .foregroundStyle(Color.beansLabel)
                             Text("灰色 / VIP / 周杰伦等版权歌曲自动从第三方音源匹配播放（默认关闭，手动开启）")
                                 .font(BeansFont.appFont(11))
-                                .foregroundStyle(Color.beansSecondary)
+                                .foregroundStyle(Color.beansComment)
                         }
                     }
                 }
@@ -1066,7 +1106,7 @@ struct SettingsView: View {
                 unblockSourceToggle(id: "kugou", icon: "music.note.list", title: "酷狗音乐音源", subtitle: "酷狗音乐搜索 + 播放直链")
                 unblockSourceToggle(id: "bodian", icon: "waveform.badge.plus", title: "波点音源", subtitle: "波点签名取流（Splayer 解锁插件）")
 
-                Divider().overlay(Color.beansSecondary.opacity(0.15))
+                Divider().overlay(Color.beansComment.opacity(0.15))
 
                 Button {
                     BeansHaptics.tap()
@@ -1083,7 +1123,7 @@ struct SettingsView: View {
                         Spacer()
                         Image(systemName: "chevron.right")
                             .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                            .foregroundStyle(Color.beansComment.opacity(0.6))
                     }
                 }
                 .buttonStyle(.plain)
@@ -1091,7 +1131,7 @@ struct SettingsView: View {
                 if unblockStore.customSources.isEmpty {
                     Text("尚未导入自定义音源（JSON 配置：请求模板 + 播放地址字段路径）")
                         .font(BeansFont.appFont(11))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 } else {
                     ForEach(unblockStore.customSources) { source in
                         HStack(spacing: 10) {
@@ -1106,7 +1146,7 @@ struct SettingsView: View {
                                     .lineLimit(1)
                                 Text(source.kind == "netease-id" ? "按网易云 ID 查询" : "关键词查询")
                                     .font(BeansFont.appFont(10))
-                                    .foregroundStyle(Color.beansSecondary)
+                                    .foregroundStyle(Color.beansComment)
                             }
                             Spacer()
                             Button(role: .destructive) {
@@ -1149,7 +1189,7 @@ struct SettingsView: View {
                         .foregroundStyle(Color.beansLabel)
                     Text(subtitle)
                         .font(BeansFont.appFont(10))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
             }
         }
@@ -1175,10 +1215,10 @@ struct SettingsView: View {
                     Spacer()
                     Text("v\(ChangelogStore.currentVersion)")
                         .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                     Image(systemName: "chevron.right")
                         .font(.system(size: 12, weight: .semibold))
-                        .foregroundStyle(Color.beansSecondary.opacity(0.6))
+                        .foregroundStyle(Color.beansComment.opacity(0.6))
                 }
                 .padding(16)
                 .background {
@@ -1194,10 +1234,10 @@ struct SettingsView: View {
         VStack(spacing: 6) {
             Text("Beans Music · 仅供学习交流，纯 AI 实现此应用")
                 .font(BeansFont.appFont(11))
-                .foregroundStyle(Color.beansSecondary.opacity(0.7))
+                .foregroundStyle(Color.beansComment.opacity(0.7))
             Text("接入网易云音乐、QQ 音乐、酷狗音乐等公开接口")
                 .font(BeansFont.appFont(11))
-                .foregroundStyle(Color.beansSecondary.opacity(0.7))
+                .foregroundStyle(Color.beansComment.opacity(0.7))
         }
         .frame(maxWidth: .infinity)
         .padding(.top, 4)
@@ -1241,7 +1281,7 @@ struct SettingsView: View {
             } label: {
                 Image(systemName: "xmark.circle.fill")
                     .font(.system(size: 16, weight: .semibold))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                     .frame(width: 28, height: 28)
                     .background(Circle().fill(.ultraThinMaterial))
                     .clipShape(Circle())
@@ -1287,7 +1327,7 @@ struct NetEaseRankSheet: View {
                                 HStack(spacing: 12) {
                                     Text("\(index + 1)")
                                         .font(BeansFont.appFont(13, .bold, .rounded))
-                                        .foregroundStyle(index < 3 ? Color.beansAmber : Color.beansSecondary)
+                                        .foregroundStyle(index < 3 ? Color.beansAmber : Color.beansComment)
                                         .frame(width: 24)
                                     VStack(alignment: .leading, spacing: 2) {
                                         Text(item.song.name)
@@ -1296,13 +1336,13 @@ struct NetEaseRankSheet: View {
                                             .lineLimit(1)
                                         Text(item.song.artists)
                                             .font(BeansFont.appFont(12))
-                                            .foregroundStyle(Color.beansSecondary)
+                                            .foregroundStyle(Color.beansComment)
                                             .lineLimit(1)
                                     }
                                     Spacer()
                                     Text("\(item.playCount) 次")
                                         .font(BeansFont.appFont(12, .regular, .monospaced))
-                                        .foregroundStyle(Color.beansSecondary)
+                                        .foregroundStyle(Color.beansComment)
                                 }
                                 .padding(.horizontal, 12)
                                 .padding(.vertical, 8)

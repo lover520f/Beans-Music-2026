@@ -56,7 +56,7 @@ struct MiniPlayerView: View {
                     }
                     Text(currentLyricLine?.text ?? player.currentSong?.artists ?? "")
                         .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                         .lineLimit(1)
                         .truncationMode(.tail)
                         .animation(.easeInOut(duration: 0.25), value: currentLyricLine?.text)

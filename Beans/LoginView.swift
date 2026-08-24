@@ -31,7 +31,7 @@ struct LoginView: View {
                     .foregroundStyle(Color.beansLabel)
                 Text("登录网易云音乐，同步你的歌单")
                     .font(BeansFont.appFont(14))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
 
                 qrArea
                     .frame(width: 250, height: 250)
@@ -81,11 +81,11 @@ struct LoginView: View {
             case .loading:
                 Text("正在生成二维码…")
                     .font(BeansFont.appFont(13))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             case .waiting:
                 Label("请使用网易云音乐 App 扫码", systemImage: "qrcode.viewfinder")
                     .font(BeansFont.appFont(13))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             case .scanned:
                 Label("已扫码，请在手机上确认登录", systemImage: "checkmark.circle")
                     .font(BeansFont.appFont(13))
@@ -97,7 +97,7 @@ struct LoginView: View {
             case .expired:
                 Text("二维码已过期")
                     .font(BeansFont.appFont(13))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             case .error(let message):
                 Text(message)
                     .font(BeansFont.appFont(13))

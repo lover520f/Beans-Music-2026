@@ -223,7 +223,7 @@ struct CoverImage: View {
             if let emptyHint {
                 Text(emptyHint)
                     .font(BeansFont.appFont(max(11, min(size * 0.09, 15)), .medium))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .padding(.horizontal, 8)
@@ -231,7 +231,7 @@ struct CoverImage: View {
                 // 中性等待图标（不再使用音乐音符）
                 Image(systemName: "waveform")
                     .font(.system(size: size * 0.28, weight: .medium))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
             }
         }
         .frame(width: size, height: size)
@@ -335,7 +335,7 @@ struct SectionHeader: View {
                         Image(systemName: "chevron.right")
                             .font(.system(size: 10, weight: .semibold))
                     }
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                 }
                 .buttonStyle(GlassPressButtonStyle(scale: 0.9))
             }
@@ -353,10 +353,10 @@ struct EmptyStateView: View {
         VStack(spacing: 12) {
             Image(systemName: icon)
                 .font(.system(size: 44, weight: .light))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
             Text(text)
                 .font(BeansFont.appFont(14))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
@@ -372,10 +372,10 @@ struct ErrorStateView: View {
         VStack(spacing: 14) {
             Image(systemName: "wifi.exclamationmark")
                 .font(.system(size: 40, weight: .light))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
             Text(message)
                 .font(BeansFont.appFont(14))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
                 .multilineTextAlignment(.center)
             GlassButton(title: "重试", systemName: "arrow.clockwise", action: retry)
         }
@@ -470,7 +470,7 @@ struct ProgressLine: View {
         let _ = theme.accent
         GeometryReader { geo in
             ZStack(alignment: .leading) {
-                Capsule().fill(Color.beansSecondary.opacity(0.25))
+                Capsule().fill(Color.beansComment.opacity(0.25))
                 Capsule()
                     .fill(
                         LinearGradient(

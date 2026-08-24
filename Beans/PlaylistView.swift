@@ -64,11 +64,11 @@ struct PlaylistView: View {
                     if !playlist.creatorName.isEmpty {
                         Text(playlist.creatorName)
                             .font(BeansFont.appFont(12))
-                            .foregroundStyle(Color.beansSecondary)
+                            .foregroundStyle(Color.beansComment)
                     }
                     Text("\(tracks.count) 首")
                         .font(BeansFont.appFont(12))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 }
                 Spacer(minLength: 0)
             }
@@ -86,7 +86,7 @@ struct PlaylistView: View {
                 HStack(spacing: 8) {
                     Image(systemName: "magnifyingglass")
                         .font(.system(size: 13))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                     TextField("搜索歌单内歌曲", text: $searchText)
                         .font(BeansFont.appFont(14))
                         .autocorrectionDisabled()
@@ -96,7 +96,7 @@ struct PlaylistView: View {
                         } label: {
                             Image(systemName: "xmark.circle.fill")
                                 .font(.system(size: 13))
-                                .foregroundStyle(Color.beansSecondary)
+                                .foregroundStyle(Color.beansComment)
                         }
                         .buttonStyle(.plain)
                     }

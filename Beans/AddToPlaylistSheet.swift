@@ -16,7 +16,7 @@ struct AddToPlaylistSheet: View {
             List {
                 if auth.playlists.isEmpty {
                     Text("暂无歌单，请先创建一个")
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                 } else {
                     Section("选择歌单") {
                         ForEach(auth.playlists) { playlist in
@@ -32,7 +32,7 @@ struct AddToPlaylistSheet: View {
                                             .lineLimit(1)
                                         Text("\(playlist.trackCount) 首")
                                             .font(BeansFont.appFont(11))
-                                            .foregroundStyle(Color.beansSecondary)
+                                            .foregroundStyle(Color.beansComment)
                                     }
                                     Spacer()
                                 }

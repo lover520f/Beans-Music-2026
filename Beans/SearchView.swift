@@ -170,7 +170,7 @@ struct SearchView: View {
                 Spacer(minLength: 0)
                 Label(provider.rawValue, systemImage: provider.icon)
                     .font(BeansFont.appFont(12, .semibold))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                     .padding(.horizontal, 12)
                     .padding(.vertical, 6)
                     .background { BeansGlass(shape: Capsule()) }
@@ -199,7 +199,7 @@ struct SearchView: View {
         HStack(spacing: 10) {
             Image(systemName: "magnifyingglass")
                 .font(.system(size: 15, weight: .medium))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
             // UIKit 输入框：回车/点搜索时先 unmarkText 强制提交拼音，再读取最新文本，
             // 根治 SwiftUI TextField 在中文组字中 onSubmit 后输入消失、搜索无结果的问题
             SearchTextField(
@@ -232,7 +232,7 @@ struct SearchView: View {
                 } label: {
                     Image(systemName: "xmark.circle.fill")
                         .font(.system(size: 15))
-                        .foregroundStyle(Color.beansSecondary.opacity(0.85))
+                        .foregroundStyle(Color.beansComment.opacity(0.85))
                 }
                 .buttonStyle(.plain)
             }
@@ -277,7 +277,7 @@ struct SearchView: View {
                         Text(p.rawValue)
                             .font(BeansFont.appFont(13, .semibold))
                     }
-                    .foregroundStyle(provider == p ? Color.white : Color.beansSecondary)
+                    .foregroundStyle(provider == p ? Color.white : Color.beansComment)
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 9)
                     .background {
@@ -321,7 +321,7 @@ struct SearchView: View {
                 } label: {
                     Text(type.rawValue)
                         .font(BeansFont.appFont(13, .semibold))
-                        .foregroundStyle(resultType == type ? Color.beansLabel : Color.beansSecondary)
+                        .foregroundStyle(resultType == type ? Color.beansLabel : Color.beansComment)
                         .frame(maxWidth: .infinity)
                         .padding(.vertical, 8)
                         .background {
@@ -405,12 +405,12 @@ struct SearchView: View {
                 } else {
                     Text("\(index + 1)")
                         .font(BeansFont.appFont(11, .bold, .rounded))
-                        .foregroundStyle(Color.beansSecondary)
+                        .foregroundStyle(Color.beansComment)
                         .frame(width: 18, height: 18)
                 }
                 Text(word)
                     .font(BeansFont.appFont(top3 ? 15 : 14, top3 ? .bold : .medium))
-                    .foregroundStyle(top3 ? Color.beansLabel : Color.beansSecondary)
+                    .foregroundStyle(top3 ? Color.beansLabel : Color.beansComment)
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
@@ -451,7 +451,7 @@ struct SearchView: View {
                         HStack {
                             Text("找到 \(songResults.count) 首 · \(provider.rawValue)")
                                 .font(BeansFont.appFont(12))
-                                .foregroundStyle(Color.beansSecondary)
+                                .foregroundStyle(Color.beansComment)
                             Spacer()
                             Button {
                                 BeansHaptics.tap()
@@ -511,7 +511,7 @@ struct SearchView: View {
                         HStack {
                             Text("找到 \(artistResults.count) 位 · \(provider.rawValue)")
                                 .font(BeansFont.appFont(12))
-                                .foregroundStyle(Color.beansSecondary)
+                                .foregroundStyle(Color.beansComment)
                             Spacer()
                         }
                         .padding(.vertical, 8)
@@ -530,12 +530,12 @@ struct SearchView: View {
                                             .lineLimit(1)
                                         Text("查看歌手主页")
                                             .font(BeansFont.appFont(12))
-                                            .foregroundStyle(Color.beansSecondary)
+                                            .foregroundStyle(Color.beansComment)
                                     }
                                     Spacer(minLength: 8)
                                     Image(systemName: "chevron.right")
                                         .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(Color.beansSecondary)
+                                        .foregroundStyle(Color.beansComment)
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 8)
@@ -579,7 +579,7 @@ struct SearchView: View {
                         HStack {
                             Text("找到 \(albumResults.count) 张 · \(provider.rawValue)")
                                 .font(BeansFont.appFont(12))
-                                .foregroundStyle(Color.beansSecondary)
+                                .foregroundStyle(Color.beansComment)
                             Spacer()
                         }
                         .padding(.vertical, 8)
@@ -598,12 +598,12 @@ struct SearchView: View {
                                             .lineLimit(1)
                                         Text(album.artistName.isEmpty ? "未知歌手" : album.artistName)
                                             .font(BeansFont.appFont(12))
-                                            .foregroundStyle(Color.beansSecondary)
+                                            .foregroundStyle(Color.beansComment)
                                     }
                                     Spacer(minLength: 8)
                                     Image(systemName: "magnifyingglass")
                                         .font(.system(size: 13, weight: .semibold))
-                                        .foregroundStyle(Color.beansSecondary)
+                                        .foregroundStyle(Color.beansComment)
                                 }
                                 .padding(.horizontal, 10)
                                 .padding(.vertical, 8)

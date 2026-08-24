@@ -19,7 +19,7 @@ struct QQWebLoginPanel: View {
         VStack(spacing: 10) {
             Text("在下方网页右上角点「登录」，用手机 QQ 扫码或 QQ 号密码登录，完成后自动同步")
                 .font(BeansFont.appFont(12))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
 
@@ -143,7 +143,7 @@ struct QQCookieImportPanel: View {
         VStack(spacing: 12) {
             Text("电脑浏览器打开 https://y.qq.com 登录 QQ 后，按 F12 → Network → 刷新页面，点任意请求，复制 Request Headers 里的整段 Cookie 粘贴到下方")
                 .font(BeansFont.appFont(12))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
 

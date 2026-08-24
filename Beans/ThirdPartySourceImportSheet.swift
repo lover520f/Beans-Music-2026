@@ -29,7 +29,7 @@ struct ThirdPartySourceImportSheet: View {
                 }
                 Text("字段：name 名称；kind 查询方式（netease-id 按网易云 ID / keyword 按关键词）；template 请求模板；urlPath 响应里播放地址的字段路径（如 url、data.url）；headers 可选请求头。\n占位符：{id} 网易云ID、{name} 歌名、{artist} 歌手、{keyword} 歌名+歌手。")
                     .font(BeansFont.appFont(11))
-                    .foregroundStyle(Color.beansSecondary)
+                    .foregroundStyle(Color.beansComment)
                 Button {
                     importSource()
                 } label: {

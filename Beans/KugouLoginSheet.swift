@@ -24,7 +24,7 @@ struct KugouLoginSheet: View {
             GlassBackdrop()
             VStack(spacing: 16) {
                 Capsule()
-                    .fill(Color.beansSecondary.opacity(0.3))
+                    .fill(Color.beansComment.opacity(0.3))
                     .frame(width: 38, height: 4)
                     .padding(.top, 12)
 
@@ -39,7 +39,7 @@ struct KugouLoginSheet: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(.system(size: 22))
-                            .foregroundStyle(Color.beansSecondary)
+                            .foregroundStyle(Color.beansComment)
                     }
                     .buttonStyle(GlassPressButtonStyle(scale: 0.9))
                 }
@@ -82,7 +82,7 @@ struct KugouWebLoginPanel: View {
         VStack(spacing: 10) {
             Text("在下方网页右上角点「登录」，支持手机号 / 扫码 / 账号密码登录，完成后自动同步")
                 .font(BeansFont.appFont(12))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
 
@@ -204,7 +204,7 @@ struct KugouCookieImportPanel: View {
         VStack(spacing: 12) {
             Text("电脑浏览器打开 https://www.kugou.com 登录酷狗音乐后，按 F12 → Network → 刷新页面，点任意请求，复制 Request Headers 里的整段 Cookie 粘贴到下方")
                 .font(BeansFont.appFont(12))
-                .foregroundStyle(Color.beansSecondary)
+                .foregroundStyle(Color.beansComment)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
 
