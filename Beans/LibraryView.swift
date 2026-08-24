@@ -28,7 +28,7 @@ struct LibraryView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     providerPicker
-                    LocalMusicSection
+                    LocalMusicSection()
                     if source == .netease { playlistsSection } else { qqSection }
                     historySection
                 }
