@@ -16,7 +16,6 @@ struct LoginView: View {
     @State private var key: String?
     @State private var status: QRStatus = .loading
     @State private var timer: Timer?
-    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         let _ = theme.accent
@@ -171,8 +170,6 @@ struct LoginView: View {
             Task {
                 do {
                     try await auth.finishLogin()
-                    // 登录成功：二维码区域自动收起，无需手动下拉关闭
-                    dismiss()
                 } catch {
                     status = .error(error.localizedDescription)
                 }
