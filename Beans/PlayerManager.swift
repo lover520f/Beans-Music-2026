@@ -328,20 +328,13 @@ final class PlayerManager: NSObject, ObservableObject {
             let strictUnlock = shouldLockOfficialOnly(song)
             let quality = BeansAudioQuality.current
             if song.source == .qq, let mid = song.qqMid {
-                // VIP 歌曲：登录了 VIP/SVIP 账号时 vkey 可返回完整音轨（官方直链，优先使用）；
-                // 未登录或无会员时 vkey 只会返回试听片段，直接走网易云同名兜底（免费听 VIP）
-                if song.isVIP, QQMusicAuth.shared.isLoggedIn, QQMusicAuth.shared.vipBadge != nil {
-                    urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
-                    if urlString == nil {
-                        (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
-                    }
-                } else if song.isVIP {
+                // 优先 QQ 官方直链：登录了 VIP/SVIP 账号时 vkey 返回完整音轨；
+                // 未登录/无会员时 VIP 歌曲官方 vkey 不返回地址。
+                // 只有开启「免费听歌」（灰色歌曲解锁）时，官方直链失败才允许兜底
+                // （网易云同名歌曲 → 第三方解锁）。未开启时绝不静默替换为其他平台的音频。
+                urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
+                if urlString == nil, enableUnblock {
                     (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
-                } else {
-                    urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
-                    if urlString == nil {
-                        (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
-                    }
                 }
             } else {
                 (urlString, resolvedThirdParty) = await neteaseResolve(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
@@ -362,6 +355,9 @@ final class PlayerManager: NSObject, ObservableObject {
                     if self.shouldLockOfficialOnly(song) {
                         BeansLogger.shared.log("播放失败：\(song.name) - 未找到原唱音源（官方受限），拒绝翻唱版本", level: .error)
                         ToastCenter.shared.show("《\(song.name)》未找到原唱音源（官方受限），已停止播放，拒绝翻唱版本")
+                    } else if song.source == .qq && song.isVIP && !enableUnblock {
+                        BeansLogger.shared.log("播放失败：\(song.name) - QQ VIP 歌曲未开启免费听歌", level: .error)
+                        ToastCenter.shared.show("《\(song.name)》为 QQ VIP 歌曲，未开启「免费听歌」，无法播放完整音轨")
                     } else {
                         BeansLogger.shared.log("播放失败：\(song.name) - 无法解析播放地址", level: .error)
                     }
@@ -468,7 +464,8 @@ final class PlayerManager: NSObject, ObservableObject {
            abs(hit.duration - target) < 20 {
             return hit
         }
-        return results.first
+        // 没有任何歌名/歌手/时长关联的命中直接放弃，绝不盲匹配，避免播到与原版无关的音频
+        return nil
     }
 
 
