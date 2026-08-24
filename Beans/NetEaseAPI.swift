@@ -234,6 +234,69 @@ final class NetEaseAPI {
         return user
     }
 
+    // MARK: - 登录（手机号，weapi）
+
+    /// 发送短信验证码（未注册手机号验证通过后会自动创建账号）
+    func sendSMSCode(phone: String, countryCode: String = "86") async throws {
+        let json = try await request("/api/sms/captcha/sent", payload: ["ctcode": countryCode, "cellphone": phone], crypto: "weapi")
+        let code = json["code"] as? Int ?? -1
+        guard code == 200 else {
+            switch code {
+            case 400: throw NetEaseError.unknown("手机号错误")
+            case 404: throw NetEaseError.unknown("手机号未注册")
+            case 603: throw NetEaseError.unknown("手机号已注册")
+            case 509: throw NetEaseError.unknown("验证码发送过于频繁，请稍后再试")
+            default:
+                let message = json["message"] as? String ?? ""
+                throw NetEaseError.unknown("发送验证码失败（\(code)）\(message)")
+            }
+        }
+    }
+
+    /// 密码登录：密码以 MD5 明文形式加密后提交
+    func loginByPassword(phone: String, password: String, countryCode: String = "86") async throws {
+        let json = try await request("/api/login/cellphone", payload: [
+            "phone": phone,
+            "countrycode": countryCode,
+            "password": Data(password.utf8).md5Hex(),
+            "rememberLogin": true,
+        ], crypto: "weapi")
+        try Self.throwIfLoginFailed(json)
+    }
+
+    /// 验证码登录
+    func loginByCaptcha(phone: String, captcha: String, countryCode: String = "86") async throws {
+        let json = try await request("/api/login/cellphone", payload: [
+            "phone": phone,
+            "countrycode": countryCode,
+            "captcha": captcha,
+            "rememberLogin": true,
+        ], crypto: "weapi")
+        try Self.throwIfLoginFailed(json)
+    }
+
+    /// 统一映射手机号登录接口的常见业务错误码
+    private static func throwIfLoginFailed(_ json: [String: Any]) throws {
+        let code = json["code"] as? Int ?? -1
+        guard code == 200 else {
+            switch code {
+            case 400:
+                throw NetEaseError.unknown("手机号错误")
+            case 301, 302:
+                throw NetEaseError.unknown("密码错误")
+            case 502:
+                throw NetEaseError.unknown("验证码错误")
+            case 509:
+                throw NetEaseError.needsCaptcha
+            case 503, 507:
+                throw NetEaseError.unknown("服务繁忙，请稍后重试")
+            default:
+                let message = json["message"] as? String ?? ""
+                throw NetEaseError.unknown("登录失败（\(code)）\(message)")
+            }
+        }
+    }
+
     // MARK: - 音乐库
 
     func userPlaylists(uid: Int) async throws -> [Playlist] {
@@ -546,6 +609,7 @@ enum NetEaseError: LocalizedError {
     case httpStatus(Int, String)
     case decoding(String)
     case unknown(String)
+    case needsCaptcha
 
     var errorDescription: String? {
         switch self {
@@ -555,6 +619,7 @@ enum NetEaseError: LocalizedError {
         case .decoding(let snippet):
             return snippet.isEmpty ? "数据解析失败" : "数据解析失败：\(snippet)"
         case .unknown(let message): return message
+        case .needsCaptcha: return "需要短信验证码，请切换验证码登录"
         }
     }
 }
