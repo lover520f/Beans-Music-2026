@@ -77,8 +77,6 @@ struct PlayerView: View {
     @State private var swipeOffset: CGFloat = 0
     /// 歌词显示更多：歌词视口上下留白（越大露出越多行歌词；底部歌词可透过控制栏玻璃）
     @AppStorage("beans.lyricViewportPad") private var lyricViewportPad = 210
-    /// 顶部歌词透出：歌词视口顶部额外留白（0~160，默认 24），越小首行歌词越靠近顶栏玻璃
-    @AppStorage("beans.lyricTopPad") private var lyricTopPad = 24
 
     private var song: Song? { player.currentSong }
     private let rateOptions: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -188,16 +186,11 @@ struct PlayerView: View {
                 background
                     .ignoresSafeArea()
 
-                // 内容区铺满全屏：专辑页保留顶栏占位（顶部 padding 54），歌词页全屏铺底，
-                // 歌词可滚到顶栏玻璃下方透出显示，底部滚到控制栏玻璃下方透出显示
-                content(geo: geo)
-                    .frame(maxWidth: .infinity, maxHeight: .infinity)
-                    .foregroundStyle(palette.text)
-
-                // 顶栏悬浮于内容上方（液态玻璃按钮），不占布局空间
-                headerBar
-                    .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-                    .foregroundStyle(palette.text)
+                VStack(spacing: 0) {
+                    headerBar
+                    content(geo: geo)
+                }
+                .foregroundStyle(palette.text)
 
                 controlDeck(bottomInset: geo.safeAreaInsets.bottom)
                     .frame(maxWidth: .infinity)
@@ -459,13 +452,11 @@ struct PlayerView: View {
         ZStack {
             if song == nil {
                 placeholderView
-                    .padding(.top, 54)
             } else if showLyrics {
                 lyricsPanel(geo: geo)
                     .transition(.opacity)
             } else {
                 albumPanel(geo: geo)
-                    .padding(.top, 54)
                     .transition(.opacity)
             }
         }
@@ -688,25 +679,9 @@ struct PlayerView: View {
     }
 
 
-    /// 歌词模式：顶部信息条悬浮 + 全屏歌词滚动（歌词可滚到顶栏玻璃与底栏玻璃下方透出显示）
+    /// 歌词模式：左上小封面 + 歌名信息条 + 居中歌词（自动布局，歌词可滚动到底部透过底栏玻璃）
     private func lyricsPanel(geo: GeometryProxy) -> some View {
-        ZStack(alignment: .top) {
-            // 歌词滚动区铺满全屏：顶部/底部都能滚到玻璃下方透出显示
-            Group {
-                if lyrics.isEmpty {
-                    emptyLyricsView
-                } else {
-                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor, blurStart: CGFloat(lyricBlurStart), blurAmount: lyricBlurAmount, viewportPad: CGFloat(lyricViewportPad), topPad: CGFloat(lyricTopPad)) { line in
-                        BeansHaptics.tap()
-                        player.seek(to: line.time)
-                    }
-                }
-            }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
-            // 底部不再为控制栏留大块空白：歌词可滚到控制栏玻璃下方透出显示
-            .padding(.bottom, 10 + geo.safeAreaInsets.bottom)
-
-            // 顶部信息条：悬浮在歌词上方（顶栏下方），歌词滚动时可从其下方的玻璃透出
+        VStack(spacing: 0) {
             HStack(spacing: 12) {
                 Button {
                     toggleLyrics()
@@ -763,16 +738,22 @@ struct PlayerView: View {
                 .buttonStyle(GlassPressButtonStyle())
             }
             .padding(.horizontal, 20)
-            .padding(.top, 54 + 4)
+            .padding(.top, 4)
             .padding(.bottom, 3)
-            // 顶部轻微渐变：歌词从信息条下方透出时保持可读，同时保留清透感
-            .background(
-                LinearGradient(
-                    colors: [.black.opacity(0.34), .clear],
-                    startPoint: .top, endPoint: .bottom
-                )
-                .allowsHitTesting(false)
-            )
+
+            // 歌词视口截止到底栏上方：当前行在可见区居中（26 版风格，无渐隐遮挡）
+            Group {
+                if lyrics.isEmpty {
+                    emptyLyricsView
+                } else {
+                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor, blurStart: CGFloat(lyricBlurStart), blurAmount: lyricBlurAmount, viewportPad: CGFloat(lyricViewportPad)) { line in
+                        BeansHaptics.tap()
+                        player.seek(to: line.time)
+                    }
+                }
+            }
+            // 底部不再为控制栏留大块空白：歌词可滚到控制栏玻璃下方透出显示
+            .padding(.bottom, 10 + geo.safeAreaInsets.bottom)
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .id("lyricsPanel-\(song?.identityKey ?? "none")")
@@ -1053,7 +1034,7 @@ struct PlayerView: View {
                 case .lyric:
                     return PlayerLayoutEntry(x: CGFloat(lyricOffsetX), y: CGFloat(lyricAnchorY), scale: CGFloat(lyricScale))
                 default:
-                    return layoutData[layoutPart.rawValue] ?? layoutPart.defaultEntry
+                    return layoutData[layoutPart.rawValue] ?? PlayerLayoutEntry()
                 }
             },
             set: { newValue in
@@ -1071,7 +1052,7 @@ struct PlayerView: View {
 
     /// 指示线位置（存于布局数据字典，X / Y 偏移）
     private var grabberEntry: PlayerLayoutEntry {
-        layoutData[PlayerLayoutPart.grabber.rawValue] ?? PlayerLayoutPart.grabber.defaultEntry
+        layoutData[PlayerLayoutPart.grabber.rawValue] ?? PlayerLayoutEntry()
     }
 
     /// 各组件 X 滑杆范围
@@ -1089,77 +1070,67 @@ struct PlayerView: View {
     }
 
     private var layoutToolbar: some View {
-        ScrollView {
-            VStack(spacing: 10) {
-                HStack {
-                    Text("布局调整")
-                        .font(BeansFont.appFont(15, .bold))
-                    Spacer()
-                    Button {
-                        BeansHaptics.select()
-                        withAnimation(.spring(duration: 0.3)) { layoutMode = false }
-                    } label: {
-                        Text("完成")
-                            .font(BeansFont.appFont(13, .semibold))
-                            .foregroundStyle(Color.beansAmber)
-                            .padding(.horizontal, 16)
-                            .padding(.vertical, 7)
-                            .background(.ultraThinMaterial, in: Capsule())
-                    }
-                    .buttonStyle(.plain)
+        VStack(spacing: 8) {
+            HStack {
+                Text("布局调整")
+                    .font(BeansFont.appFont(15, .bold))
+                Spacer()
+                Button {
+                    BeansHaptics.select()
+                    withAnimation(.spring(duration: 0.3)) { layoutMode = false }
+                } label: {
+                    Text("完成")
+                        .font(BeansFont.appFont(13, .semibold))
+                        .foregroundStyle(Color.beansAmber)
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 7)
+                        .background(.ultraThinMaterial, in: Capsule())
                 }
-                Picker("组件", selection: $layoutPart) {
-                    ForEach(PlayerLayoutPart.allCases) { part in
-                        Text(part.rawValue).tag(part)
-                    }
-                }
-                .pickerStyle(.segmented)
-
-                // 歌词组件：字号 / 显示多少 / 对齐 / 模糊 / 发光（悬浮窗实时预览，不用再开设置面板）
-                if layoutPart == .lyric {
-                    lyricAdjustPanel
-                }
-                // 进度条组件：样式 + 背景光晕强度实时预览
-                if layoutPart == .progress {
-                    progressAdjustPanel
-                }
-
-                layoutSlider("X", value: selectedLayoutEntry.x, range: layoutXRange)
-                layoutSlider("Y", value: selectedLayoutEntry.y, range: layoutYRange)
-                layoutSlider("大小", value: selectedLayoutEntry.scale, range: 0.6...1.5, step: 0.05, format: "%.2f")
-                HStack(spacing: 10) {
-                    Button {
-                        layoutData = [:]
-                        PlayerLayoutStore.save(layoutData)
-                        lyricOffsetX = 0
-                        lyricAnchorY = 0
-                        lyricScale = 1
-                        BeansHaptics.success()
-                    } label: {
-                        Label("恢复默认", systemImage: "arrow.counterclockwise")
-                            .font(BeansFont.appFont(13, .medium))
-                            .foregroundStyle(Color.beansAmber)
-                    }
-                    .buttonStyle(.plain)
-                    Spacer()
-                    Text("编辑模式：拖动组件或滑杆实时调节")
-                        .font(BeansFont.appFont(11))
-                        .foregroundStyle(palette.secondary)
+                .buttonStyle(.plain)
+            }
+            Picker("组件", selection: $layoutPart) {
+                ForEach(PlayerLayoutPart.allCases) { part in
+                    Text(part.rawValue).tag(part)
                 }
             }
-            .padding(14)
+            .pickerStyle(.segmented)
+
+            // 歌词实时预览调节（始终显示：字号 / 显示多少 / 对齐 / 模糊 / 发光，边调边看）
+            lyricAdjustPanel
+
+            layoutSlider("X", value: selectedLayoutEntry.x, range: layoutXRange)
+            layoutSlider("Y", value: selectedLayoutEntry.y, range: layoutYRange)
+            layoutSlider("大小", value: selectedLayoutEntry.scale, range: 0.6...1.5, step: 0.05, format: "%.2f")
+            HStack(spacing: 10) {
+                Button {
+                    layoutData = [:]
+                    PlayerLayoutStore.save(layoutData)
+                    lyricOffsetX = 0
+                    lyricAnchorY = 0
+                    lyricScale = 1
+                    BeansHaptics.success()
+                } label: {
+                    Label("恢复默认", systemImage: "arrow.counterclockwise")
+                        .font(BeansFont.appFont(13, .medium))
+                        .foregroundStyle(Color.beansAmber)
+                }
+                .buttonStyle(.plain)
+                Spacer()
+                Text("编辑模式：拖动组件或滑杆实时调节")
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(palette.secondary)
+            }
         }
-        .scrollIndicators(.hidden)
+        .padding(12)
         .background {
             BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
         }
         .padding(.horizontal, 12)
-        .frame(maxHeight: layoutPart == .lyric ? 470 : (layoutPart == .progress ? 360 : 300))
     }
 
-    /// 歌词组件专属调节（悬浮窗实时预览：字号 / 显示多少 / 对齐 / 模糊 / 发光）
+    /// 歌词实时预览调节（字号 / 显示多少 / 对齐 / 模糊 / 发光）
     private var lyricAdjustPanel: some View {
-        VStack(spacing: 8) {
+        VStack(spacing: 6) {
             layoutSlider("字号", value: Binding(get: { CGFloat(lyricFontSize) }, set: { lyricFontSize = Int($0) }), range: 12...28, step: 1)
             layoutSlider("显示", value: Binding(get: { CGFloat(lyricViewportPad) }, set: { lyricViewportPad = Int($0) }), range: 100...320, step: 5)
             Picker("对齐", selection: $lyricAlignRaw) {
@@ -1169,31 +1140,6 @@ struct PlayerView: View {
             .pickerStyle(.segmented)
             layoutSlider("模糊", value: Binding(get: { CGFloat(lyricBlurAmount) }, set: { lyricBlurAmount = Double($0) }), range: 0...6, step: 0.1, format: "%.1f")
             layoutSlider("发光", value: Binding(get: { CGFloat(lyricGlowLevel) }, set: { lyricGlowLevel = Int($0) }), range: 0...5, step: 1)
-        }
-    }
-
-    /// 进度条组件专属调节：样式 + 背景光晕强度实时预览
-    private var progressAdjustPanel: some View {
-        VStack(spacing: 8) {
-            Picker("样式", selection: $progressBarStyle) {
-                Text("流光").tag(0)
-                Text("辉光").tag(1)
-                Text("极光").tag(2)
-                Text("波浪").tag(3)
-            }
-            .pickerStyle(.segmented)
-            HStack(spacing: 10) {
-                Text("光晕")
-                    .font(BeansFont.appFont(12, .medium))
-                    .foregroundStyle(palette.secondary)
-                    .frame(width: 56, alignment: .leading)
-                Slider(value: $playerBreath, in: 0...1, step: 0.05)
-                    .tint(Color.beansAmber)
-                Text("\(Int((playerBreath * 100).rounded()))%")
-                    .font(BeansFont.appFont(11, .regular, .monospaced))
-                    .foregroundStyle(palette.secondary)
-                    .frame(width: 34, alignment: .trailing)
-            }
         }
     }
 
@@ -1612,8 +1558,6 @@ struct LyricsSection: View {
     var blurAmount: CGFloat = 1.1
     /// 歌词视口上下留白：越大露出越多行歌词，底部歌词可透过控制栏玻璃
     var viewportPad: CGFloat = 210
-    /// 顶部额外留白：控制首行歌词相对顶栏的位置（越小越靠近顶栏玻璃，实现顶部透出）
-    var topPad: CGFloat = 24
     let onTapLine: (LyricLine) -> Void
 
     /// 长按歌词进入多选复制模式（可多选 / 全选复制）
@@ -1682,19 +1626,19 @@ struct LyricsSection: View {
                             .id(index)
                     }
                 }
-                .padding(.top, topPad + viewportPad)
-                .padding(.bottom, viewportPad)
+                .padding(.vertical, viewportPad)
                 .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity)
             .offset(x: offsetX)
             .scrollIndicators(.hidden)
-            // 歌词可透过顶栏/底栏玻璃显示：顶部不再渐隐遮挡，底部仅保留极细淡出过渡
+            // 上下渐隐遮罩（借鉴 Kumone 歌词界面）：歌词接近顶部/底部时自然淡出
             .mask(
                 LinearGradient(
                     stops: [
-                        .init(color: .black, location: 0.0),
-                        .init(color: .black, location: 0.985),
+                        .init(color: .clear, location: 0.0),
+                        .init(color: .black, location: 0.10),
+                        .init(color: .black, location: 0.90),
                         .init(color: .clear, location: 1.0)
                     ],
                     startPoint: .top, endPoint: .bottom
@@ -1915,7 +1859,6 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricBlurStart") private var lyricBlurStart = 1
     @AppStorage("beans.lyricBlurAmount") private var lyricBlurAmount = 1.1
     @AppStorage("beans.lyricViewportPad") private var lyricViewportPad = 210
-    @AppStorage("beans.lyricTopPad") private var lyricTopPad = 24
     @Environment(\.dismiss) private var dismiss
 
     /// 预设按钮：点击应用渐变起止色 + 发光强度
@@ -2114,21 +2057,6 @@ struct PlayerSettingsSheet: View {
                             .font(BeansFont.appFont(12))
                     }
                     Text("上下留白 \(lyricViewportPad) pt：越大歌词露出越多；歌词可滚到控制栏玻璃下方透出显示")
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansComment)
-                    HStack(spacing: 12) {
-                        Text("顶部少")
-                            .font(BeansFont.appFont(12))
-                        Slider(
-                            value: Binding(get: { Double(lyricTopPad) }, set: { lyricTopPad = Int($0) }),
-                            in: 0...160,
-                            step: 5
-                        )
-                        .tint(Color.beansAmber)
-                        Text("顶部多")
-                            .font(BeansFont.appFont(12))
-                    }
-                    Text("顶部留白 \(lyricTopPad) pt：越小首行歌词越靠近顶栏玻璃，实现顶部歌词透出显示")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
                     Picker("歌词对齐样式", selection: $lyricAlignRaw) {
