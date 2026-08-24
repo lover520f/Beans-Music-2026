@@ -37,11 +37,6 @@ struct RootView: View {
 
     @State private var selection: RootTab = .discover
     @State private var showPlayer = false
-    /// 首次启动免责声明：输入指定文字后才放行（UserDefaults 持久化，二次启动不再弹出）
-    @AppStorage("beans.disclaimerAccepted") private var disclaimerAccepted = false
-    @State private var disclaimerInput = ""
-    @State private var showDisclaimer = false
-
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
     }
@@ -90,33 +85,6 @@ struct RootView: View {
         .animation(.spring(duration: 0.4), value: player.currentSong?.id)
         .overlay(alignment: .bottom) {
             ToastView(center: ToastCenter.shared)
-        }
-        .onAppear {
-            if !disclaimerAccepted {
-                showDisclaimer = true
-            }
-        }
-        .alert("免责声明", isPresented: $showDisclaimer) {
-            TextField("请输入：我已了解并继续使用此软件", text: $disclaimerInput)
-                .autocorrectionDisabled()
-                .textInputAutocapitalization(.never)
-            Button("进入软件", role: .cancel) {
-                if disclaimerInput == "我已了解并继续使用此软件" {
-                    disclaimerAccepted = true
-                    BeansHaptics.success()
-                } else {
-                    disclaimerInput = ""
-                    showDisclaimer = false
-                    ToastCenter.shared.show("请输入：我已了解并继续使用此软件")
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        if !disclaimerAccepted {
-                            showDisclaimer = true
-                        }
-                    }
-                }
-            }
-        } message: {
-            Text("Beans Music 只用作个人学习研究，禁止用于商业及非法用途，如产生法律纠纷与本人无关。\n音乐 API 来自于 GitHub，非官方版 API；本软件不提供任何音频存储服务，如需下载音频，请支持正版！\n音乐版权归各网站所有，本站不承担任何法律责任和连带责任。")
         }
     }
 }

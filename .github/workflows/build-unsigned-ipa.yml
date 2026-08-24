@@ -28,8 +28,10 @@ jobs:
               content = f.read()
 
           def bump_version(m):
-              # marketing version fixed to 1.2 (user specified); only bump build number
-              return "MARKETING_VERSION: \"" + m.group(1) + "\""
+              # each build bumps the last part of marketing version (1.2 -> 1.2.1 -> ...)
+              parts = m.group(1).split('.')
+              parts[-1] = str(int(parts[-1]) + 1)
+              return 'MARKETING_VERSION: "' + '.'.join(parts) + '"'
 
           def bump_build(m):
               return 'CURRENT_PROJECT_VERSION: "' + str(int(m.group(1)) + 1) + '"'
