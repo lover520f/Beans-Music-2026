@@ -77,6 +77,8 @@ struct PlayerView: View {
     @AppStorage("beans.lyricBlurAmount") private var lyricBlurAmount = 1.1
     /// 侧边滑动手势当前位移（刷视频式切歌过渡）
     @State private var swipeOffset: CGFloat = 0
+    /// 歌词显示更多：歌词视口上下留白（越大露出越多行歌词；底部歌词可透过控制栏玻璃）
+    @AppStorage("beans.lyricViewportPad") private var lyricViewportPad = 210
 
     private var song: Song? { player.currentSong }
     private let rateOptions: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -755,7 +757,7 @@ struct PlayerView: View {
                 if lyrics.isEmpty {
                     emptyLyricsView
                 } else {
-                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor, blurStart: CGFloat(lyricBlurStart), blurAmount: lyricBlurAmount) { line in
+                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor, blurStart: CGFloat(lyricBlurStart), blurAmount: lyricBlurAmount, viewportPad: CGFloat(lyricViewportPad)) { line in
                         BeansHaptics.tap()
                         player.seek(to: line.time)
                     }
@@ -1141,6 +1143,7 @@ struct PlayerView: View {
     private var lyricAdjustPanel: some View {
         VStack(spacing: 6) {
             layoutSlider("字号", value: Binding(get: { CGFloat(lyricFontSize) }, set: { lyricFontSize = Int($0) }), range: 12...28, step: 1)
+            layoutSlider("显示", value: Binding(get: { CGFloat(lyricViewportPad) }, set: { lyricViewportPad = Int($0) }), range: 100...320, step: 5)
             Picker("对齐", selection: $lyricAlignRaw) {
                 Text("居中").tag("center")
                 Text("居左").tag("left")
@@ -1566,6 +1569,8 @@ struct LyricsSection: View {
     /// 歌词模糊控制：距当前行几行后开始模糊 + 模糊强度（0 = 完全关闭模糊）
     var blurStart: CGFloat = 1
     var blurAmount: CGFloat = 1.1
+    /// 歌词视口上下留白：越大露出越多行歌词，底部歌词可透过控制栏玻璃
+    var viewportPad: CGFloat = 210
     let onTapLine: (LyricLine) -> Void
 
     /// 长按歌词进入多选复制模式（可多选 / 全选复制）
@@ -1634,7 +1639,7 @@ struct LyricsSection: View {
                             .id(index)
                     }
                 }
-                .padding(.vertical, 210)
+                .padding(.vertical, viewportPad)
                 .frame(maxWidth: .infinity)
             }
             .frame(maxWidth: .infinity)
@@ -1866,6 +1871,7 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.swipeSwitchSong") private var swipeSwitchSong = true
     @AppStorage("beans.lyricBlurStart") private var lyricBlurStart = 1
     @AppStorage("beans.lyricBlurAmount") private var lyricBlurAmount = 1.1
+    @AppStorage("beans.lyricViewportPad") private var lyricViewportPad = 210
     @Environment(\.dismiss) private var dismiss
 
     /// 预设按钮：点击应用渐变起止色 + 发光强度
@@ -2049,6 +2055,21 @@ struct PlayerSettingsSheet: View {
                             .font(BeansFont.appFont(12))
                     }
                     Text("歌词行距 \(lineSpacing) pt")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
+                    HStack(spacing: 12) {
+                        Text("显示少")
+                            .font(BeansFont.appFont(12))
+                        Slider(
+                            value: Binding(get: { Double(lyricViewportPad) }, set: { lyricViewportPad = Int($0) }),
+                            in: 100...320,
+                            step: 5
+                        )
+                        .tint(Color.beansAmber)
+                        Text("显示多")
+                            .font(BeansFont.appFont(12))
+                    }
+                    Text("上下留白 \(lyricViewportPad) pt：越大歌词露出越多；歌词可滚到控制栏玻璃下方透出显示")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
                     Picker("歌词对齐样式", selection: $lyricAlignRaw) {
