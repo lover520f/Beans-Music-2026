@@ -58,6 +58,20 @@ enum PlayerLayoutStore {
     static func reset() {
         UserDefaults.standard.removeObject(forKey: dataKey)
     }
+
+    /// 各组件默认位置 / 大小（相对原始布局的偏移与缩放）
+    static func defaultEntry(for part: PlayerLayoutPart) -> PlayerLayoutEntry {
+        switch part {
+        case .progress:
+            return PlayerLayoutEntry(x: 0, y: 22, scale: 1)
+        case .controls:
+            return PlayerLayoutEntry(x: 0, y: 22, scale: 1.15)
+        case .grabber:
+            return PlayerLayoutEntry(x: 0, y: 34, scale: 1)
+        case .lyric:
+            return PlayerLayoutEntry(x: 0, y: 0, scale: 1)
+        }
+    }
 }
 
 /// 让组件可自由拖动并应用自定义位置与大小（x / y 偏移 + scale 缩放）
@@ -69,7 +83,7 @@ struct Layoutable: ViewModifier {
     @Binding var data: [String: PlayerLayoutEntry]
 
     func body(content: Content) -> some View {
-        let entry = data[part.rawValue] ?? PlayerLayoutEntry()
+        let entry = data[part.rawValue] ?? PlayerLayoutStore.defaultEntry(for: part)
         content
             .scaleEffect(entry.scale)
             .offset(x: entry.x, y: entry.y)
@@ -77,7 +91,7 @@ struct Layoutable: ViewModifier {
                 enabled
                     ? DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            var e = data[part.rawValue] ?? PlayerLayoutEntry()
+                            var e = data[part.rawValue] ?? PlayerLayoutStore.defaultEntry(for: part)
                             e.x = value.translation.width
                             e.y = value.translation.height
                             data[part.rawValue] = e

@@ -851,7 +851,7 @@ struct PlayerView: View {
                     ? AnyGesture(DragGesture(minimumDistance: 0)
                         .onChanged { value in
                             layoutPart = .grabber
-                            var e = layoutData[PlayerLayoutPart.grabber.rawValue] ?? PlayerLayoutEntry()
+                            var e = layoutData[PlayerLayoutPart.grabber.rawValue] ?? PlayerLayoutStore.defaultEntry(for: .grabber)
                             e.x = value.translation.width
                             e.y = value.translation.height
                             layoutData[PlayerLayoutPart.grabber.rawValue] = e
@@ -1031,7 +1031,7 @@ struct PlayerView: View {
                 case .lyric:
                     return PlayerLayoutEntry(x: CGFloat(lyricOffsetX), y: CGFloat(lyricAnchorY), scale: CGFloat(lyricScale))
                 default:
-                    return layoutData[layoutPart.rawValue] ?? PlayerLayoutEntry()
+                    return layoutData[layoutPart.rawValue] ?? PlayerLayoutStore.defaultEntry(for: layoutPart)
                 }
             },
             set: { newValue in
@@ -1049,7 +1049,7 @@ struct PlayerView: View {
 
     /// 指示线位置（存于布局数据字典，X / Y 偏移）
     private var grabberEntry: PlayerLayoutEntry {
-        layoutData[PlayerLayoutPart.grabber.rawValue] ?? PlayerLayoutEntry()
+        layoutData[PlayerLayoutPart.grabber.rawValue] ?? PlayerLayoutStore.defaultEntry(for: .grabber)
     }
 
     /// 各组件 X 滑杆范围
@@ -2137,7 +2137,7 @@ struct PlayerSettingsSheet: View {
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
                 }
-                Section("布局调整") {
+                Section("布局") {
                     Toggle("自定义底部布局", isOn: Binding(
                         get: { layoutMode },
                         set: { newValue in
@@ -2155,8 +2155,6 @@ struct PlayerSettingsSheet: View {
                     Text("关闭后隐藏指示线，仍可上滑呼出评论区")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
-                }
-                Section("歌词对齐") {
                     Picker("歌词对齐样式", selection: $lyricAlignRaw) {
                         Text("居中").tag("center")
                         Text("全部居左").tag("left")
