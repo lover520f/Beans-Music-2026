@@ -738,7 +738,8 @@ struct PlayerView: View {
     }
 
     /// 底部指示线：只有在指示线附近上滑才呼出评论区（避免误触控制按钮）
-    /// 指示线可关闭（透明但保留热区，仍可上滑呼出评论区），位置可随布局调整
+    /// 指示线可关闭（透明但保留热区，仍可上滑呼出评论区）
+    /// 布局模式下可直接拖动调整位置（与底部其他组件一致），滑杆同步可用
     private var deckGrabber: some View {
         Capsule()
             .fill(deckGrabberEnabled ? palette.secondary.opacity(0.5) : .clear)
@@ -752,14 +753,32 @@ struct PlayerView: View {
             .padding(.bottom, 8)
             .contentShape(Rectangle())
             .offset(x: grabberEntry.x, y: grabberEntry.y)
+            .overlay(alignment: .topLeading) {
+                // 布局编辑模式：描边框提示可拖动
+                if layoutMode {
+                    RoundedRectangle(cornerRadius: 8, style: .continuous)
+                        .strokeBorder(Color.beansAmber.opacity(0.9), lineWidth: 1.5)
+                        .frame(width: 60, height: 26)
+                        .offset(x: -10, y: -12)
+                        .allowsHitTesting(false)
+                }
+            }
             .gesture(
-                DragGesture(minimumDistance: 25)
-                    .onEnded { value in
-                        if value.translation.height < -50, song != nil {
-                            BeansHaptics.medium()
-                            showComments = true
+                layoutMode
+                    ? DragGesture(minimumDistance: 0)
+                        .onChanged { value in
+                            var e = layoutData["grabber"] ?? PlayerLayoutEntry()
+                            e.x = value.translation.width
+                            e.y = value.translation.height
+                            layoutData["grabber"] = e
                         }
-                    }
+                    : DragGesture(minimumDistance: 25)
+                        .onEnded { value in
+                            if value.translation.height < -50, song != nil {
+                                BeansHaptics.medium()
+                                showComments = true
+                            }
+                        }
             )
     }
 
@@ -1951,12 +1970,12 @@ struct PlayerSettingsSheet: View {
                         }
                     ))
                     .tint(Color.beansAmber)
-                    Text("开启后自动回到播放页，可自由拖动底部组件到任意位置（X / Y），并随时恢复默认")
+                    Text("开启后回到播放页，可直接拖动底部组件到任意位置")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
                     Toggle("显示底部指示线", isOn: $deckGrabberEnabled)
                         .tint(Color.beansAmber)
-                    Text("关闭后播放页底部不显示指示线，仍可在原位置上滑呼出评论区")
+                    Text("关闭后隐藏指示线，仍可上滑呼出评论区")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
                     Divider()
@@ -1965,7 +1984,7 @@ struct PlayerSettingsSheet: View {
                         Text("全部居左").tag("left")
                     }
                     .pickerStyle(.segmented)
-                    Text("歌词位置（水平偏移 / 垂直重心）请在开启「自定义底部布局」后的播放页弹窗中调整")
+                    Text("歌词位置（水平偏移 / 垂直重心）在布局调整弹窗中调节")
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansSecondary)
                     Button("恢复歌词默认") {
