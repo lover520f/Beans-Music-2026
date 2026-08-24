@@ -487,6 +487,11 @@ struct ProfileView: View {
                     .foregroundStyle(Color.beansComment.opacity(0.85))
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
+                Text("本软件完全免费，全部功能开源 · GitHub：XIaodou0416/Beans-Music")
+                    .font(BeansFont.appFont(11, .semibold))
+                    .foregroundStyle(Color.beansAmber)
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity)
             .padding(16)

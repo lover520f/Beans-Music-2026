@@ -36,6 +36,16 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.3.3",
+            version: "1.3.3",
+            title: "关于页新增免费开源提示",
+            features: [
+                "关于页新增提示：本软件完全免费，全部功能开源于 GitHub",
+            ],
+            fixes: []
+        ),
+
+        VersionLog(
             id: "1.3.2",
             version: "1.3.2",
             title: "检查更新自动下载新版 IPA",
