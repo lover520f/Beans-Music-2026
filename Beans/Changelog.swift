@@ -35,6 +35,15 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.9.14",
+            version: "1.9.14",
+            title: "下载即分享 · 不再本地保存",
+            features: [
+                "下载歌曲改为下载完成后直接弹出系统原生分享面板（微信 / 隔空投送 / 存储到文件等），不再保存到本地，不占用设备存储",
+            ],
+            fixes: []
+        ),
+        VersionLog(
             id: "1.9.13",
             version: "1.9.13",
             title: "修复播放器按钮穿透 · 扫码登录自动收起",
