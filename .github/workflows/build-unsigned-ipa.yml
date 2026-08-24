@@ -61,6 +61,8 @@ jobs:
           VER=$(grep -oE 'MARKETING_VERSION: "[^"]+"' project.yml | sed -E 's/.*"([^"]+)"/\1/')
           BUILD=$(grep -oE 'CURRENT_PROJECT_VERSION: "[0-9]+"' project.yml | sed -E 's/.*"([0-9]+)"/\1/')
           echo "Building with MARKETING_VERSION=$VER CURRENT_PROJECT_VERSION=$BUILD"
+          echo "BUILD_NUMBER=$BUILD" >> "$GITHUB_ENV"
+          echo "VERSION_LABEL=$VER ($BUILD)" >> "$GITHUB_ENV"
           xcodebuild \
             -project Beans.xcodeproj \
             -scheme Beans \
@@ -92,6 +94,30 @@ jobs:
         with:
           name: Beans-unsigned-ipa
           path: Beans-unsigned.ipa
+
+      - name: Publish Release
+        if: success()
+        uses: softprops/action-gh-release@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v1.0.${{ env.BUILD_NUMBER }}
+          name: Beans Music ${{ env.VERSION_LABEL }}
+          body: |
+            ## Beans Music ${{ env.VERSION_LABEL }}
+
+            自动构建的未签名 IPA（Unsigned），需自签安装。
+
+            ### 安装说明
+            - 要求 iOS 26+（依赖原生液态玻璃）
+            - 未签名 IPA 请使用 Sideloadly / AltStore / 爱思助手 用 Apple ID 自行签名安装（免费自签 7 天有效）
+            - Bundle ID：com.beans.app
+
+            ### 免责声明
+            本应用仅供个人学习研究使用，禁止用于商业及非法用途。
+            音乐 API 来自 GitHub 开源的非官方接口实现，本软件不提供任何音频存储服务。
+            音乐版权归各平台所有，请支持正版。
+          files: Beans-unsigned.ipa
 
       - name: Commit version bump back
         if: success()
