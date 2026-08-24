@@ -10,23 +10,30 @@
 
 **👀 在线预览（HTML 介绍页）：** https://xiaodou0416.github.io/Beans-Music/
 
+## 🧑‍💻 关于作者
+
+- 作者本人**什么都不会**，连这篇介绍都是 **AI 写的** 🤡
+- 本软件由 **OpenAI Codex** 编程助手开发，从需求分析、UI 设计到代码实现全程由 AI 完成
+- **不喜勿喷**，纯新手小学生，欢迎温柔指教 🙏
+- 软件完全开源（MIT License），欢迎任何人学习、修改、二次开发
+
 ## 📱 界面预览
 
 <p align="center">
-  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxZhqjEoIbqHJg1ug6W5StuKEQ6wklQACNDMAAg-uYVRtp4bEtmfTZT0E.jpg" width="320" alt="首页">
-  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaJqjErkqY231RffZMnFS1tAwB_yOwACPzMAAg-uYVSQWkZF93Uuiz0E.png" width="320" alt="首页（浅色）">
+  <img src="docs/screenshots/home.png" width="320" alt="首页">
+  <img src="docs/screenshots/home-light.png" width="320" alt="首页（浅色）">
 </p>
 <p align="center">
-  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaNqjEsCeieAguWVE5KJTwQCc3axuAACQDMAAg-uYVQR8wYPW4JoPT0E.jpg" width="320" alt="歌词页">
-  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaVqjEshJIRepNG5uXkFVibz6fdGIAACQjMAAg-uYVRn9kbUmKr6Pz0E.jpg" width="320" alt="播放封面页">
+  <img src="docs/screenshots/lyrics.png" width="320" alt="歌词页">
+  <img src="docs/screenshots/player.png" width="320" alt="播放封面页">
 </p>
 <p align="center">
-  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxapqjEuPdyQ-j_OQQAk93CFZk3pSxQACRzMAAg-uYVT9sIJWJqpucD0E.jpg" width="320" alt="搜索页面">
-  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaxqjEvN4uNfcKYnfUZO_7t8TK19cgACSTMAAg-uYVTx8jMaR93Asz0E.jpg" width="320" alt="音乐库">
+  <img src="docs/screenshots/search.png" width="320" alt="搜索页面">
+  <img src="docs/screenshots/library.png" width="320" alt="音乐库">
 </p>
 <p align="center">
-  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxZpqjEovcWhx6YImnT6XZEYV5JGBQwACNjMAAg-uYVR_di0PshsBXz0E.jpg" width="320" alt="全局设置">
-  <img src="https://img.remit.ee/api/file/BQACAgUAAyEGAASHRsPbAAEZxaBqjEqxUK5BLTA511N14csnASzwswACPTMAAg-uYVQMQSjKbO3t9T0E.jpg" width="320" alt="主题设置（浅色）">
+  <img src="docs/screenshots/settings.png" width="320" alt="全局设置">
+  <img src="docs/screenshots/theme-light.png" width="320" alt="主题设置（浅色）">
 </p>
 
 ---
@@ -164,12 +171,6 @@ ditto -c -k --sequesterRsrc --keepParent Payload Beans-unsigned.ipa
 - “QQ”、“QQ音乐”及企鹅形象等文字、图形和商业标识，其著作权或商标权归腾讯公司所有
 - “网易云”、“网易云音乐”等文字、图形和商业标识，其著作权或商标权归网易公司所有
 - 具体内容请参考各平台用户协议
-
-## 🧑‍💻 关于作者
-
-- 作者本人**什么都不会**，连这篇介绍都是 **AI 写的** 🤡
-- 本软件由 **OpenAI Codex** 编程助手开发，从需求分析、UI 设计到代码实现全程由 AI 完成
-- 软件完全开源（MIT License），欢迎任何人学习、修改、二次开发
 
 ## 📄 License
 
