@@ -111,6 +111,20 @@ final class NetEaseAPI {
         UserDefaults.standard.removeObject(forKey: cookiesKey)
     }
 
+    /// 应用内网页登录：将 WKWebView 中 music.163.com 的 Cookie 合并进登录态并持久化
+    func importWebCookies(_ cookies: [String: String]) {
+        var changed = false
+        for (key, value) in cookies where !value.isEmpty {
+            if storedCookies[key] != value {
+                storedCookies[key] = value
+                changed = true
+            }
+        }
+        if changed, let data = try? JSONEncoder().encode(storedCookies) {
+            UserDefaults.standard.set(data, forKey: cookiesKey)
+        }
+    }
+
     private func storeCookies(from response: HTTPURLResponse) {
         var changed = false
         for (key, value) in response.allHeaderFields {

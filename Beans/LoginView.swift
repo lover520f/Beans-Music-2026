@@ -16,6 +16,7 @@ struct LoginView: View {
     @State private var key: String?
     @State private var status: QRStatus = .loading
     @State private var timer: Timer?
+    @State private var showWebLogin = false
     @Environment(\.dismiss) private var dismiss
 
     var body: some View {
@@ -42,12 +43,38 @@ struct LoginView: View {
                     .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
 
                 statusView
+
+                Button {
+                    BeansHaptics.tap()
+                    showWebLogin = true
+                } label: {
+                    Label("网页登录", systemImage: "globe")
+                        .font(BeansFont.appFont(13, .medium))
+                        .foregroundStyle(Color.beansAmber)
+                }
+                .buttonStyle(GlassPressButtonStyle(scale: 0.94))
+
                 Spacer()
             }
             .padding(.horizontal, 28)
         }
         .onAppear { startLogin() }
         .onDisappear { timer?.invalidate() }
+        .sheet(isPresented: $showWebLogin) {
+            NavigationStack {
+                NetEaseWebLoginPanel {
+                    dismiss()
+                }
+                .environmentObject(auth)
+                .environmentObject(theme)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("完成") { showWebLogin = false }
+                    }
+                }
+            }
+            .presentationDetents([.large])
+        }
     }
 
     @ViewBuilder
