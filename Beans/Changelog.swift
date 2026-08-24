@@ -35,6 +35,18 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.9.5",
+            version: "1.9.5",
+            title: "布局调整修复",
+            features: [
+                "布局调整弹窗下移至封面下方，不遮挡顶栏",
+            ],
+            fixes: [
+                "修复指示线 X/Y 滑块调整无效（拖动与滑块数据已同步）",
+                "移除布局编辑时的全部黄色描边，界面更清爽",
+            ]
+        ),
+        VersionLog(
             id: "1.9.4",
             version: "1.9.4",
             title: "注释配色 · 布局优化",

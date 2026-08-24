@@ -56,14 +56,6 @@ struct Layoutable: ViewModifier {
         let entry = data[part.rawValue] ?? PlayerLayoutEntry()
         content
             .offset(x: entry.x, y: entry.y)
-            .overlay(alignment: .topLeading) {
-                if enabled {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .strokeBorder(Color.beansAmber.opacity(0.9), lineWidth: 1.5)
-                        .padding(-7)
-                        .allowsHitTesting(false)
-                }
-            }
             .gesture(
                 enabled
                     ? DragGesture(minimumDistance: 0)

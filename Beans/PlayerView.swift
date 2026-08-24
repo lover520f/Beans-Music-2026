@@ -185,7 +185,7 @@ struct PlayerView: View {
                         .contentShape(Rectangle())
                         .frame(maxWidth: .infinity)
                         .frame(maxHeight: .infinity, alignment: .top)
-                        .padding(.top, 10)
+                        .padding(.top, 54)
                         .transition(.opacity)
                 }
             }
@@ -759,10 +759,10 @@ struct PlayerView: View {
                     ? AnyGesture(DragGesture(minimumDistance: 0)
                         .onChanged { value in
                             layoutPart = .grabber
-                            var e = layoutData["grabber"] ?? PlayerLayoutEntry()
+                            var e = layoutData[PlayerLayoutPart.grabber.rawValue] ?? PlayerLayoutEntry()
                             e.x = value.translation.width
                             e.y = value.translation.height
-                            layoutData["grabber"] = e
+                            layoutData[PlayerLayoutPart.grabber.rawValue] = e
                         })
                     : AnyGesture(DragGesture(minimumDistance: 25)
                         .onEnded { value in
@@ -956,7 +956,7 @@ struct PlayerView: View {
 
     /// 指示线位置（存于布局数据字典，X / Y 偏移）
     private var grabberEntry: PlayerLayoutEntry {
-        layoutData["grabber"] ?? PlayerLayoutEntry()
+        layoutData[PlayerLayoutPart.grabber.rawValue] ?? PlayerLayoutEntry()
     }
 
     /// 各组件 X 滑杆范围
