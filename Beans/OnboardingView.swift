@@ -80,30 +80,39 @@ struct OnboardingView: View {
                         .foregroundStyle(Color.beansSecondary)
                 }
             } else {
-                // 免责确认输入框
-                HStack(spacing: 10) {
-                    Image(systemName: "lock.shield.fill")
-                        .font(.system(size: 15))
-                        .foregroundStyle(LinearGradient.beansAccent)
-                    TextField(confirmText, text: $typed)
-                        .font(BeansFont.appFont(14))
-                        .textFieldStyle(.plain)
-                        .autocorrectionDisabled()
-                        .textInputAutocapitalization(.never)
+                // 免责确认输入框（上方固定提示，输入时不会消失）
+                VStack(alignment: .leading, spacing: 8) {
+                    Text("请输入：\(confirmText)")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansHighlight)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+
+                    HStack(spacing: 10) {
+                        Image(systemName: "lock.shield.fill")
+                            .font(.system(size: 15))
+                            .foregroundStyle(LinearGradient.beansAccent)
+                        TextField(confirmText, text: $typed)
+                            .font(BeansFont.appFont(14))
+                            .textFieldStyle(.plain)
+                            .autocorrectionDisabled()
+                            .textInputAutocapitalization(.never)
+                    }
+                    .padding(.horizontal, 14)
+                    .frame(height: 50)
+                    .background(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color.beansCard.opacity(0.85))
+                    )
+                    .overlay(
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .strokeBorder(
+                                Color.beansHighlight.opacity(typed.isEmpty ? 0.3 : 0.75),
+                                lineWidth: 1.2
+                            )
+                    )
                 }
-                .padding(.horizontal, 14)
-                .frame(height: 50)
-                .background(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color.beansCard.opacity(0.85))
-                )
-                .overlay(
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .strokeBorder(
-                            Color.beansHighlight.opacity(typed.isEmpty ? 0.3 : 0.75),
-                            lineWidth: 1.2
-                        )
-                )
 
                 Button {
                     onFinish()
@@ -130,20 +139,12 @@ struct OnboardingView: View {
     private var welcomePage: some View {
         VStack(spacing: 24) {
             Spacer()
-            // 图标玻璃卡片
-            RoundedRectangle(cornerRadius: 34, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: AccentTheme.current.gradientColors,
-                        startPoint: .topLeading, endPoint: .bottomTrailing
-                    )
-                )
+            // 真实 App 图标
+            Image("AppIcon")
+                .resizable()
+                .scaledToFill()
                 .frame(width: 132, height: 132)
-                .overlay(
-                    Image(systemName: "beats.headphones")
-                        .font(.system(size: 58, weight: .semibold))
-                        .foregroundStyle(.white)
-                )
+                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
                 .shadow(color: Color.beansHighlight.opacity(0.45), radius: 24, y: 12)
                 .padding(.bottom, 6)
 
@@ -252,10 +253,10 @@ struct OnboardingView: View {
                 .foregroundStyle(Color.beansSecondary)
 
             VStack(spacing: 12) {
-                platformRow(icon: "music.note", tint: Color(red: 0.87, green: 0.23, blue: 0.23),
+                platformRow(imageName: "BrandNetease", tint: Color(red: 0.87, green: 0.23, blue: 0.23),
                             title: "网易云音乐",
                             detail: "扫码 / 网页登录，同步歌单、收藏、听歌排行、VIP")
-                platformRow(icon: "qq.fill", tint: Color(red: 0.13, green: 0.51, blue: 0.95),
+                platformRow(imageName: "BrandQQ", tint: Color(red: 0.13, green: 0.51, blue: 0.95),
                             title: "QQ 音乐",
                             detail: "扫码 / 网页 / Cookie 登录，同步歌单与 VIP")
             }
@@ -266,15 +267,16 @@ struct OnboardingView: View {
         }
     }
 
-    private func platformRow(icon: String, tint: Color, title: String, detail: String) -> some View {
+    private func platformRow(imageName: String, tint: Color, title: String, detail: String) -> some View {
         HStack(spacing: 14) {
             RoundedRectangle(cornerRadius: 14, style: .continuous)
                 .fill(tint.opacity(0.16))
                 .frame(width: 46, height: 46)
                 .overlay(
-                    Image(systemName: icon)
-                        .font(.system(size: 20, weight: .medium))
-                        .foregroundStyle(tint)
+                    Image(imageName)
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 30, height: 30)
                 )
             VStack(alignment: .leading, spacing: 3) {
                 Text(title)
@@ -330,7 +332,7 @@ struct OnboardingView: View {
             )
             .padding(.horizontal, 28)
 
-            Text("输入上方提示文字后即可进入软件")
+            Text("请按输入框上方的提示，完整输入指定文字后进入软件")
                 .font(BeansFont.appFont(12))
                 .foregroundStyle(Color.beansSecondary.opacity(0.8))
 
