@@ -612,6 +612,13 @@ struct SettingsView: View {
     @State private var showSourceImport = false
     /// 更新日志
     @State private var showChangelog = false
+    /// 配置备份与恢复
+    @State private var showShareBackup = false
+    @State private var backupFileURL: URL?
+    @State private var showRestorePicker = false
+    @State private var pendingRestore: [String: Any]?
+    @State private var showRestoreConfirm = false
+    @State private var backupMessage: String?
 
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
@@ -627,6 +634,7 @@ struct SettingsView: View {
                         playbackSection
                         unblockSection
                         changelogSection
+                        backupSection
                         footerNote
                     }
                     .padding(.horizontal, 16)
@@ -664,6 +672,32 @@ struct SettingsView: View {
         }
         .sheet(isPresented: $showChangelog) {
             ChangelogListView()
+        }
+        .sheet(isPresented: $showShareBackup) {
+            if let backupFileURL {
+                ShareSheet(items: [backupFileURL])
+            }
+        }
+        .fileImporter(isPresented: $showRestorePicker, allowedContentTypes: [.json, .plainText], allowsMultipleSelection: false) { result in
+            switch result {
+            case .success(let urls):
+                guard let url = urls.first else { return }
+                guard let data = try? Data(contentsOf: url),
+                      let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+                    ToastCenter.shared.show("备份文件解析失败")
+                    return
+                }
+                pendingRestore = json
+                showRestoreConfirm = true
+            case .failure(let error):
+                ToastCenter.shared.show("导入失败：\(error.localizedDescription)")
+            }
+        }
+        .confirmationDialog("导入备份将覆盖当前部分设置，是否继续？", isPresented: $showRestoreConfirm, titleVisibility: .visible) {
+            Button("恢复", role: .destructive) {
+                applyRestore(pendingRestore)
+            }
+            Button("取消", role: .cancel) {}
         }
     }
 
@@ -1161,6 +1195,130 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .beansCardShadow(radius: 8, y: 3)
         }
+    }
+
+    /// 配置备份与恢复：导出全部 beans.* 设置为 JSON 分享；导入后写回 UserDefaults
+    private var backupSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "备份与恢复")
+            HStack(spacing: 10) {
+                backupActionButton(icon: "square.and.arrow.up", title: "导出备份") {
+                    BeansHaptics.tap()
+                    exportBackup()
+                }
+                backupActionButton(icon: "square.and.arrow.down", title: "导入恢复") {
+                    BeansHaptics.tap()
+                    showRestorePicker = true
+                }
+            }
+            if let backupMessage {
+                Text(backupMessage)
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(Color.beansComment)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+        }
+    }
+
+    private func backupActionButton(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title)
+            }
+            .font(BeansFont.appFont(14, .semibold))
+            .foregroundStyle(Color.beansLabel)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 12)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.95))
+    }
+
+    /// 导出：收集 beans.* 设置写入临时 JSON 并调起系统分享
+    private func exportBackup() {
+        let defaults = UserDefaults.standard
+        var payload: [String: Any] = [:]
+        for (key, value) in defaults.dictionaryRepresentation() {
+            guard key.hasPrefix("beans.") else { continue }
+            // 跳过壁纸数据（含 base64 图片，恢复后路径失效）与超大值
+            if key.hasPrefix("beans.wallpapers.") { continue }
+            if let data = value as? Data, data.count > 200 * 1024 { continue }
+            payload[key] = backupJSONSafe(value)
+        }
+        let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
+        payload["beans.backup.meta"] = [
+            "app": "Beans Music",
+            "created": ISO8601DateFormatter().string(from: Date()),
+            "version": version,
+        ] as [String: Any]
+        guard let data = try? JSONSerialization.data(withJSONObject: payload, options: [.prettyPrinted, .sortedKeys]) else {
+            ToastCenter.shared.show("备份生成失败")
+            return
+        }
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyy-MM-dd"
+        let fileName = "Beans设置备份-\(formatter.string(from: Date())).json"
+        let url = FileManager.default.temporaryDirectory.appendingPathComponent(fileName)
+        do {
+            try data.write(to: url)
+        } catch {
+            ToastCenter.shared.show("备份生成失败")
+            return
+        }
+        backupFileURL = url
+        backupMessage = nil
+        showShareBackup = true
+    }
+
+    /// 恢复：把 JSON 备份中 beans.* 键写回 UserDefaults
+    private func applyRestore(_ json: [String: Any]?) {
+        guard let json else { return }
+        let defaults = UserDefaults.standard
+        var count = 0
+        for (key, value) in json {
+            guard key.hasPrefix("beans."), key != "beans.backup.meta" else { continue }
+            if key.hasPrefix("beans.wallpapers.") { continue }
+            guard let restored = backupPlistSafe(value) else { continue }
+            defaults.set(restored, forKey: key)
+            count += 1
+        }
+        if count > 0 {
+            BeansHaptics.success()
+            backupMessage = "已恢复 \(count) 项设置，部分设置需重启应用后完全生效"
+            ToastCenter.shared.show("已恢复 \(count) 项设置")
+        } else {
+            backupMessage = "备份中未找到可恢复的设置"
+        }
+    }
+
+    /// 任意 UserDefaults 值 → JSON 可序列化（Data 转 base64、Date 转时间戳）
+    private func backupJSONSafe(_ value: Any) -> Any {
+        if let data = value as? Data { return data.base64EncodedString() }
+        if let date = value as? Date { return date.timeIntervalSince1970 }
+        if let dict = value as? [String: Any] { return dict.mapValues { backupJSONSafe($0) } }
+        if let array = value as? [Any] { return array.map { backupJSONSafe($0) } }
+        if let dict = value as? [String: String] { return dict }
+        if let array = value as? [String] { return array }
+        return value
+    }
+
+    /// JSON 值 → UserDefaults 可存类型（只保留 plist 兼容类型）
+    private func backupPlistSafe(_ value: Any) -> Any? {
+        if value is String || value is NSNumber { return value }
+        if let array = value as? [Any] {
+            let mapped = array.compactMap { backupPlistSafe($0) }
+            return mapped.count == array.count ? mapped : nil
+        }
+        if let dict = value as? [String: Any] {
+            var result: [String: Any] = [:]
+            for (k, v) in dict {
+                guard let mv = backupPlistSafe(v) else { return nil }
+                result[k] = mv
+            }
+            return result
+        }
+        return nil
     }
 
     private var footerNote: some View {
