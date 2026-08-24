@@ -825,11 +825,37 @@ struct PlayerView: View {
                 .modifier(Layoutable(part: .controls, enabled: layoutMode, data: $layoutData))
             deckGrabber
         }
-        .padding(.horizontal, 24)
-        .padding(.top, 0)
+        .padding(.horizontal, 20)
+        .padding(.top, 6)
         .padding(.bottom, bottomInset)
         .frame(maxWidth: .infinity)
-        // 底部控件直接悬浮在模糊背景上：旋律可视化 + 进度 + 单行控制 + 指示线，歌词视口更大
+        // iOS 26 原生液态玻璃底栏：歌词滑入底栏下方后由玻璃层模糊遮盖，不再直接透出歌词
+        .background {
+            ZStack {
+                // 半透明底色：保证歌词从底栏下方经过时不会清晰透出
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .fill(palette.backgroundBottom.opacity(0.32))
+                // 液态玻璃材质（跟随全局 液态/磨砂 设置）
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 28, style: .continuous))
+            }
+            .overlay {
+                LinearGradient(
+                    colors: [.white.opacity(0.22), .clear, .white.opacity(0.04)],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+            }
+            .overlay {
+                RoundedRectangle(cornerRadius: 28, style: .continuous)
+                    .strokeBorder(
+                        LinearGradient(
+                            colors: [.white.opacity(0.40), .white.opacity(0.08)],
+                            startPoint: .top, endPoint: .bottom
+                        ),
+                        lineWidth: 0.8
+                    )
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 28, style: .continuous))
     }
 
     /// 底部指示线：只有在指示线附近上滑才呼出评论区（避免误触控制按钮）
