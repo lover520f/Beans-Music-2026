@@ -56,10 +56,14 @@ struct PlayerView: View {
     @AppStorage("beans.lyricAlignRaw") private var lyricAlignRaw = "center"
     @AppStorage("beans.lyricOffsetX") private var lyricOffsetX = 0.0
     @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
+    /// 歌词大小缩放（布局调整弹窗「大小」滑杆）
+    @AppStorage("beans.lyricScale") private var lyricScale = 1.0
     /// 底部指示线开关（上滑呼出评论区）
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
     /// 圆形封面模式（播放器大封面 / 歌词页左上角小封面）
     @AppStorage("beans.circularCover") private var circularCover = true
+    /// 圆形封面自动旋转（默认关闭）
+    @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = false
     /// 歌词自定义发光颜色（留空跟随当前行颜色 / 封面取色）
     @AppStorage("beans.lyricGlowColorRaw") private var lyricGlowColorRaw = ""
 
@@ -462,6 +466,7 @@ struct PlayerView: View {
                     // 封面（静态）
                     CoverImage(url: song?.coverURL, size: size, cornerRadius: coverRadius, emptyHint: player.isBuffering ? "等待开始播放…" : nil)
                         .matchedGeometryEffect(id: "playerCover", in: coverNS)
+                        .modifier(CoverSpin(enabled: circularCover && circularCoverSpin, isPlaying: player.isPlaying))
                         .overlay {
                             RoundedRectangle(cornerRadius: coverRadius, style: .continuous)
                                 .strokeBorder(.white.opacity(0.28), lineWidth: 1)
@@ -606,6 +611,7 @@ struct PlayerView: View {
                 } label: {
                     CoverImage(url: song?.coverURL, size: 48, cornerRadius: circularCover ? 24 : 12)
                         .matchedGeometryEffect(id: "playerCover", in: coverNS)
+                        .modifier(CoverSpin(enabled: circularCover && circularCoverSpin, isPlaying: player.isPlaying))
                         .overlay {
                             RoundedRectangle(cornerRadius: circularCover ? 24 : 12, style: .continuous)
                                 .strokeBorder(.white.opacity(0.2), lineWidth: 1)
@@ -663,7 +669,7 @@ struct PlayerView: View {
                 if lyrics.isEmpty {
                     emptyLyricsView
                 } else {
-                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor) { line in
+                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor) { line in
                         BeansHaptics.tap()
                         player.seek(to: line.time)
                     }
@@ -763,6 +769,7 @@ struct PlayerView: View {
             .padding(.top, 6)
             .padding(.bottom, 8)
             .contentShape(Rectangle())
+            .scaleEffect(grabberEntry.scale)
             .offset(x: grabberEntry.x, y: grabberEntry.y)
             .gesture(
                 layoutMode
@@ -947,7 +954,7 @@ struct PlayerView: View {
             get: {
                 switch layoutPart {
                 case .lyric:
-                    return PlayerLayoutEntry(x: CGFloat(lyricOffsetX), y: CGFloat(lyricAnchorY))
+                    return PlayerLayoutEntry(x: CGFloat(lyricOffsetX), y: CGFloat(lyricAnchorY), scale: CGFloat(lyricScale))
                 default:
                     return layoutData[layoutPart.rawValue] ?? PlayerLayoutEntry()
                 }
@@ -957,6 +964,7 @@ struct PlayerView: View {
                 case .lyric:
                     lyricOffsetX = Double(newValue.x)
                     lyricAnchorY = Double(newValue.y)
+                    lyricScale = Double(newValue.scale)
                 default:
                     layoutData[layoutPart.rawValue] = newValue
                 }
@@ -1010,12 +1018,14 @@ struct PlayerView: View {
             .pickerStyle(.segmented)
             layoutSlider("X", value: selectedLayoutEntry.x, range: layoutXRange)
             layoutSlider("Y", value: selectedLayoutEntry.y, range: layoutYRange)
+            layoutSlider("大小", value: selectedLayoutEntry.scale, range: 0.6...1.5, step: 0.05, format: "%.2f")
             HStack(spacing: 10) {
                 Button {
                     layoutData = [:]
                     PlayerLayoutStore.save(layoutData)
                     lyricOffsetX = 0
                     lyricAnchorY = 0
+                    lyricScale = 1
                     BeansHaptics.success()
                 } label: {
                     Label("恢复默认", systemImage: "arrow.counterclockwise")
@@ -1036,7 +1046,7 @@ struct PlayerView: View {
         .padding(.horizontal, 12)
     }
 
-    private func layoutSlider(_ title: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>, step: CGFloat = 1) -> some View {
+    private func layoutSlider(_ title: String, value: Binding<CGFloat>, range: ClosedRange<CGFloat>, step: CGFloat = 1, format: String = "%.0f") -> some View {
         HStack(spacing: 10) {
             Text(title)
                 .font(BeansFont.appFont(12, .medium))
@@ -1044,7 +1054,7 @@ struct PlayerView: View {
                 .frame(width: 56, alignment: .leading)
             Slider(value: value, in: range, step: step)
                 .tint(Color.beansAmber)
-            Text(String(format: "%.0f", value.wrappedValue))
+            Text(String(format: format, value.wrappedValue))
                 .font(BeansFont.appFont(11, .regular, .monospaced))
                 .foregroundStyle(palette.secondary)
                 .frame(width: 34, alignment: .trailing)
@@ -1717,6 +1727,7 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
     @AppStorage("beans.circularCover") private var circularCover = true
+    @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = false
     @AppStorage("beans.lyricGlowColorRaw") private var glowColorRaw = ""
     @Environment(\.dismiss) private var dismiss
 
@@ -1969,6 +1980,11 @@ struct PlayerSettingsSheet: View {
                     Text("播放器封面与歌词页左上角封面显示为圆形")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansComment)
+                    Toggle("圆形封面旋转", isOn: $circularCoverSpin)
+                        .tint(Color.beansAmber)
+                    Text("开启后播放时封面自动匀速旋转（默认关闭）")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
                 }
                 Section("布局调整") {
                     Toggle("自定义底部布局", isOn: Binding(
@@ -2055,4 +2071,23 @@ struct ShareSheet: UIViewControllerRepresentable {
     }
 
     func updateUIViewController(_ uiViewController: UIActivityViewController, context: Context) {}
+}
+
+// MARK: - 圆形封面旋转（播放中匀速旋转，暂停即停）
+struct CoverSpin: ViewModifier {
+    let enabled: Bool
+    let isPlaying: Bool
+
+    func body(content: Content) -> some View {
+        if enabled {
+            TimelineView(.animation(minimumInterval: 1.0 / 30.0, paused: !isPlaying)) { context in
+                let angle = (context.date.timeIntervalSinceReferenceDate * 15)
+                    .truncatingRemainder(dividingBy: 360)
+                return content
+                    .rotationEffect(.degrees(angle))
+            }
+        } else {
+            content
+        }
+    }
 }

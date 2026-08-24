@@ -538,7 +538,24 @@ struct LibraryView: View {
                 }
             }
         case .kugou:
-            ToastCenter.shared.show("酷狗暂不支持创建歌单")
+            guard kugouAuth.isLoggedIn else {
+                ToastCenter.shared.show("请先登录酷狗音乐后再创建歌单")
+                return
+            }
+            Task {
+                do {
+                    let ok = try await KugouMusicAPI.shared.createPlaylist(name: name)
+                    if ok {
+                        ToastCenter.shared.show("歌单「\(name)」已创建")
+                        newPlaylistName = ""
+                        await loadKugouPlaylists()
+                    } else {
+                        ToastCenter.shared.show("创建失败，请确认已登录酷狗音乐")
+                    }
+                } catch {
+                    ToastCenter.shared.show("创建失败：\(error.localizedDescription)")
+                }
+            }
         }
     }
 
@@ -579,7 +596,19 @@ struct LibraryView: View {
                 }
             }
         case .kugou:
-            ToastCenter.shared.show("酷狗暂不支持删除歌单")
+            Task {
+                do {
+                    let ok = try await KugouMusicAPI.shared.deletePlaylist(pid: playlist.id)
+                    if ok {
+                        ToastCenter.shared.show("已删除歌单「\(playlist.name)」")
+                        await loadKugouPlaylists()
+                    } else {
+                        ToastCenter.shared.show("删除失败，请确认已登录酷狗音乐")
+                    }
+                } catch {
+                    ToastCenter.shared.show("删除失败：\(error.localizedDescription)")
+                }
+            }
         }
     }
 

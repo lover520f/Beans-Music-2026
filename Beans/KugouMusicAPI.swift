@@ -452,6 +452,58 @@ final class KugouMusicAPI {
         }
     }
 
+    /// 创建歌单（mobilecdn v3 playlist/create，需登录 Cookie；status=1 视为成功）
+    func createPlaylist(name: String) async throws -> Bool {
+        let kgAuth = KugouMusicAuth.shared
+        guard kgAuth.isLoggedIn, !kgAuth.userID.isEmpty else { return false }
+        var comps = URLComponents(string: "https://mobilecdn.kugou.com/api/v3/playlist/create")!
+        var items = [
+            URLQueryItem(name: "userid", value: kgAuth.userID),
+            URLQueryItem(name: "mid", value: kgAuth.mid),
+            URLQueryItem(name: "specialname", value: name),
+            URLQueryItem(name: "plat", value: "0"),
+            URLQueryItem(name: "version", value: "9100"),
+        ]
+        if !kgAuth.token.isEmpty {
+            items.append(URLQueryItem(name: "token", value: kgAuth.token))
+        }
+        comps.queryItems = items
+        let data = try await get(comps.url!.absoluteString, referer: "https://m.kugou.com/", cookie: kgAuth.cookieHeader)
+        guard let obj = json(data) else {
+            throw NetEaseError.decoding("酷狗创建歌单解析失败")
+        }
+        if let status = obj["status"] as? Int { return status == 1 }
+        if let code = obj["err_code"] as? Int { return code == 0 }
+        if let code = obj["error_code"] as? Int { return code == 0 }
+        return false
+    }
+
+    /// 删除歌单（mobilecdn v3 playlist/remove，需登录 Cookie）
+    func deletePlaylist(pid: Int) async throws -> Bool {
+        let kgAuth = KugouMusicAuth.shared
+        guard kgAuth.isLoggedIn, !kgAuth.userID.isEmpty else { return false }
+        var comps = URLComponents(string: "https://mobilecdn.kugou.com/api/v3/playlist/remove")!
+        var items = [
+            URLQueryItem(name: "userid", value: kgAuth.userID),
+            URLQueryItem(name: "mid", value: kgAuth.mid),
+            URLQueryItem(name: "specialid", value: String(pid)),
+            URLQueryItem(name: "plat", value: "0"),
+            URLQueryItem(name: "version", value: "9100"),
+        ]
+        if !kgAuth.token.isEmpty {
+            items.append(URLQueryItem(name: "token", value: kgAuth.token))
+        }
+        comps.queryItems = items
+        let data = try await get(comps.url!.absoluteString, referer: "https://m.kugou.com/", cookie: kgAuth.cookieHeader)
+        guard let obj = json(data) else {
+            throw NetEaseError.decoding("酷狗删除歌单解析失败")
+        }
+        if let status = obj["status"] as? Int { return status == 1 }
+        if let code = obj["err_code"] as? Int { return code == 0 }
+        if let code = obj["error_code"] as? Int { return code == 0 }
+        return false
+    }
+
     /// 歌单内歌曲（爬取酷狗歌单页 global.data，仅供学习交流）
     func playlistSongs(pid: Int) async throws -> [Song] {
         let url = "http://www2.kugou.kugou.com/yueku/v9/special/single/\(pid)-6-1084.html"

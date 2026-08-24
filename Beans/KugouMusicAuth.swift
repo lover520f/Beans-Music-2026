@@ -15,6 +15,7 @@ final class KugouMusicAuth: ObservableObject {
     @Published private(set) var vipBadge: String?
 
     private var cookies: [String: String] = [:]
+    private let session: URLSession
 
     private let defaults = UserDefaults.standard
     private let cookieKey = "beans.kugou.cookie.v1"
@@ -23,6 +24,9 @@ final class KugouMusicAuth: ObservableObject {
     private let vipKey = "beans.kugou.vip.v1"
 
     private init() {
+        let config = URLSessionConfiguration.default
+        config.timeoutIntervalForRequest = 20
+        session = URLSession(configuration: config)
         if let saved = defaults.dictionary(forKey: cookieKey) as? [String: String], !saved.isEmpty {
             cookies = saved
             isLoggedIn = true
@@ -49,6 +53,11 @@ final class KugouMusicAuth: ObservableObject {
             if let v = cookies[key], !v.isEmpty { return v }
         }
         return ""
+    }
+
+    /// 登录 token（部分写操作接口需要；Cookie 中没有则为空）
+    var token: String {
+        cookies["token"] ?? ""
     }
 
     /// 发给 kugou.com 接口的 Cookie 串
@@ -82,6 +91,8 @@ final class KugouMusicAuth: ObservableObject {
         let badge = Self.vipBadge(from: dict)
         vipBadge = badge
         if let badge { defaults.set(badge, forKey: vipKey) } else { defaults.removeObject(forKey: vipKey) }
+        // 登录成功后异步拉取真实昵称（失败静默保留兜底文案）
+        Task { await self.fetchProfile() }
     }
 
     /// 是否包含账号登录态（网页自动检测只用这个，避免设备 Cookie 误判登录）
@@ -140,6 +151,54 @@ final class KugouMusicAuth: ObservableObject {
         case "1": return "VIP"
         default: return nil
         }
+    }
+
+    /// 拉取酷狗真实昵称（mobilecdn v3 user/info；网页/Cookie 登录后调用，失败静默保留兜底）
+    @MainActor
+    func fetchProfile() async {
+        guard isLoggedIn, !userID.isEmpty else { return }
+        do {
+            var comps = URLComponents(string: "https://mobilecdn.kugou.com/api/v3/user/info")!
+            comps.queryItems = [
+                URLQueryItem(name: "userid", value: userID),
+                URLQueryItem(name: "mid", value: mid),
+                URLQueryItem(name: "plat", value: "0"),
+                URLQueryItem(name: "version", value: "9100"),
+            ]
+            var request = URLRequest(url: comps.url!)
+            request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.6 Mobile/15E148 Safari/604.1", forHTTPHeaderField: "User-Agent")
+            request.setValue("https://m.kugou.com/", forHTTPHeaderField: "Referer")
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                  let obj = (try? JSONSerialization.jsonObject(with: data)) as? [String: Any] else { return }
+            guard let nick = Self.extractNickname(obj), !nick.isEmpty, nick != nickname else { return }
+            nickname = nick
+            defaults.set(nick, forKey: nickKey)
+        } catch {
+            // 尽力而为：接口波动不影响登录
+        }
+    }
+
+    /// 从酷狗用户信息响应中提取昵称（user_name / nickname / nick 递归查找）
+    private static func extractNickname(_ json: [String: Any]) -> String? {
+        var found: String?
+        func walk(_ value: Any) {
+            if found != nil { return }
+            if let dict = value as? [String: Any] {
+                for key in ["user_name", "nickname", "nick"] {
+                    if let v = dict[key] as? String, !v.isEmpty, !v.contains("酷狗音乐用户") {
+                        found = v
+                        return
+                    }
+                }
+                for (_, v) in dict { walk(v) }
+            } else if let arr = value as? [Any] {
+                for v in arr { walk(v) }
+            }
+        }
+        walk(json)
+        return found
     }
 
     /// 生成酷狗 mid：md5(uuid)

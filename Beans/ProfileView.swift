@@ -32,17 +32,21 @@ struct ProfileView: View {
         return "Beans Music · \(ver)"
     }
 
-    /// 两个平台登录状态的合并提示
+    /// 三个平台登录状态的合并提示（展示各平台真实昵称）
     private var accountStatusLine: String {
         var parts: [String] = []
         if auth.isLoggedIn {
-            parts.append("网易云 UID \(auth.user?.uid ?? 0)")
+            if let nick = auth.user?.nickname, !nick.isEmpty {
+                parts.append("网易云 \(nick)")
+            } else {
+                parts.append("网易云 UID \(auth.user?.uid ?? 0)")
+            }
         }
         if kugouAuth.isLoggedIn {
-            parts.append("酷狗音乐已登录")
+            parts.append(kugouAuth.nickname.isEmpty ? "酷狗音乐已登录" : kugouAuth.nickname)
         }
         if qqAuth.isLoggedIn {
-            parts.append(qqAuth.nickname.isEmpty ? "QQ 已登录" : "QQ \(qqAuth.nickname)")
+            parts.append(qqAuth.nickname.isEmpty ? "QQ 已登录" : qqAuth.nickname)
         }
         if parts.isEmpty { return "登录后可同步网易云歌单 / 播放 QQ 歌曲" }
         return parts.joined(separator: " · ")

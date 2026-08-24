@@ -90,8 +90,9 @@ final class QQMusicAuth: ObservableObject {
         self.nickname = nickname ?? Self.fallbackNickname(dict)
         defaults.set(cookies, forKey: cookieKey)
         defaults.set(self.nickname, forKey: nickKey)
-        // 登录成功后异步刷新会员标识（失败静默降级）
+        // 登录成功后异步刷新会员标识与真实昵称（失败静默降级）
         Task { await self.fetchVIPStatus() }
+        Task { await self.fetchProfile() }
     }
 
     /// Cookie 是否包含有效登录态（uin 非空且带任一有效凭证）
@@ -214,6 +215,7 @@ final class QQMusicAuth: ObservableObject {
             defaults.set(cookies, forKey: cookieKey)
             defaults.set(nickname, forKey: nickKey)
             Task { await self.fetchVIPStatus() }
+            Task { await self.fetchProfile() }
             return .success(parsed.nickname)
         case "65", "68":
             return .expired
@@ -363,6 +365,53 @@ final class QQMusicAuth: ObservableObject {
         if svipFlag || vipLevel >= 11 { return "SVIP" }
         if vipLevel > 0 { return "VIP" }
         return nil
+    }
+
+    /// 拉取 QQ 音乐真实昵称（fcg_get_profile_homepage；扫码/网页/Cookie 登录后调用，失败静默保留旧昵称）
+    @MainActor
+    func fetchProfile() async {
+        guard isLoggedIn, !uin.isEmpty, uin != "0" else { return }
+        do {
+            let urlString = "https://c.y.qq.com/rsc/fcgi-bin/fcg_get_profile_homepage.fcg?format=json&inCharset=utf8&outCharset=utf-8&g_tk=\(gtk)&uin=\(uin)"
+            guard let url = URL(string: urlString) else { return }
+            var request = URLRequest(url: url)
+            request.setValue(Self.ua, forHTTPHeaderField: "User-Agent")
+            request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                  let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else { return }
+            let code = obj["code"] as? Int ?? -1
+            guard code == 0 else { return }
+            guard let nick = Self.extractNickname(obj), !nick.isEmpty, nick != nickname else { return }
+            nickname = nick
+            defaults.set(nick, forKey: nickKey)
+        } catch {
+            // 尽力而为：接口波动不影响登录
+        }
+    }
+
+    /// 从个人主页响应中提取昵称（data.mymusic.info.nick 优先，其次递归找 nick/nickname）
+    private static func extractNickname(_ json: [String: Any]) -> String? {
+        if let data = json["data"] as? [String: Any],
+           let mymusic = data["mymusic"] as? [String: Any],
+           let info = mymusic["info"] as? [String: Any],
+           let nick = info["nick"] as? String, !nick.isEmpty {
+            return nick
+        }
+        var found: String?
+        func walk(_ value: Any) {
+            if found != nil { return }
+            if let dict = value as? [String: Any] {
+                if let nick = dict["nick"] as? String, !nick.isEmpty, !nick.contains("QQ音乐用户") { found = nick; return }
+                if let nick = dict["nickname"] as? String, !nick.isEmpty, !nick.contains("QQ音乐用户") { found = nick; return }
+                for (_, v) in dict { walk(v) }
+            } else if let arr = value as? [Any] {
+                for v in arr { walk(v) }
+            }
+        }
+        walk(json)
+        return found
     }
 
     /// musicu.fcg 统一 POST（携带当前登录 Cookie）

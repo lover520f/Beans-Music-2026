@@ -1,6 +1,6 @@
 import SwiftUI
 
-// MARK: - 播放器底部 UI 自由调整（x / y / z）
+// MARK: - 播放器底部 UI 自由调整（x / y / 大小）
 
 /// 可自由调整的底部组件
 enum PlayerLayoutPart: String, CaseIterable, Identifiable {
@@ -12,10 +12,26 @@ enum PlayerLayoutPart: String, CaseIterable, Identifiable {
     var id: String { rawValue }
 }
 
-/// 单个组件的自定义位置（相对默认位置的偏移）
+/// 单个组件的自定义位置（相对默认位置的偏移）与缩放
 struct PlayerLayoutEntry: Codable, Equatable {
     var x: CGFloat = 0
     var y: CGFloat = 0
+    /// 组件大小缩放（1 为原始大小）
+    var scale: CGFloat = 1
+
+    init(x: CGFloat = 0, y: CGFloat = 0, scale: CGFloat = 1) {
+        self.x = x
+        self.y = y
+        self.scale = scale
+    }
+
+    /// 兼容旧存档（老版本没有 scale 字段，缺省为 1）
+    init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+        x = try c.decodeIfPresent(CGFloat.self, forKey: .x) ?? 0
+        y = try c.decodeIfPresent(CGFloat.self, forKey: .y) ?? 0
+        scale = try c.decodeIfPresent(CGFloat.self, forKey: .scale) ?? 1
+    }
 }
 
 /// 播放器底部布局调整存储（UserDefaults JSON，持久化）
@@ -44,7 +60,7 @@ enum PlayerLayoutStore {
     }
 }
 
-/// 让组件可自由拖动并应用自定义位置（x / y 偏移 + z 层级）
+/// 让组件可自由拖动并应用自定义位置与大小（x / y 偏移 + scale 缩放）
 struct Layoutable: ViewModifier {
     let part: PlayerLayoutPart
     /// 编辑模式开关：开启时可拖动，未开启时完全无影响
@@ -55,6 +71,7 @@ struct Layoutable: ViewModifier {
     func body(content: Content) -> some View {
         let entry = data[part.rawValue] ?? PlayerLayoutEntry()
         content
+            .scaleEffect(entry.scale)
             .offset(x: entry.x, y: entry.y)
             .gesture(
                 enabled

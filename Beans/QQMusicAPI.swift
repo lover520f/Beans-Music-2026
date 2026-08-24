@@ -95,17 +95,20 @@ final class QQMusicAPI {
         return json
     }
 
-    /// 兼容纯 JSON 与 JSONP（`callback({...})`）两种响应
+    /// 兼容纯 JSON 与 JSONP（`callback({...})`）两种响应；QQ 部分老接口会前置 `while(1);` 防护前缀
     private func parseJSON(_ data: Data) -> [String: Any]? {
         if let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
             return obj
         }
-        guard let text = String(data: data, encoding: .utf8),
-              let start = text.firstIndex(of: "{"),
+        guard var text = String(data: data, encoding: .utf8) else { return nil }
+        text = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        if text.hasPrefix("while(1);") {
+            text = String(text.dropFirst("while(1);".count))
+        }
+        guard let start = text.firstIndex(of: "{"),
               let end = text.lastIndex(of: "}") else { return nil }
         let slice = text[start...end]
-        guard let obj = try? JSONSerialization.jsonObject(with: Data(slice.utf8)) as? [String: Any] else { return nil }
-        return obj
+        return try? JSONSerialization.jsonObject(with: Data(slice.utf8)) as? [String: Any]
     }
 
     private static func photoURL(_ mid: String?, size: String = "300x300") -> URL? {
@@ -299,16 +302,17 @@ final class QQMusicAPI {
     // MARK: - 歌单管理（创建 / 删除 / 我喜欢）
 
     /// 创建歌单（create_playlist.fcg，需登录；code 0 成功 / 21 重名 / 1 未登录）
+    /// URL 与表单同时携带 format=json/outCharset，兼容 while(1); 与 JSONP 响应，code 支持 Int/String 两种形态
     func createPlaylist(name: String) async throws -> Bool {
         let qqAuth = QQMusicAuth.shared
         guard qqAuth.isLoggedIn else { return false }
         let gtk = qqAuth.gtk
-        let json = try await postForm("https://c.y.qq.com/splcloud/fcgi-bin/create_playlist.fcg?g_tk=\(gtk)", body: [
+        let json = try await postForm("https://c.y.qq.com/splcloud/fcgi-bin/create_playlist.fcg?g_tk=\(gtk)&format=json&inCharset=utf8&outCharset=utf-8", body: [
             "loginUin": qqAuth.rawUin,
             "hostUin": 0,
             "format": "json",
             "inCharset": "utf8",
-            "outCharset": "utf8",
+            "outCharset": "utf-8",
             "notice": 0,
             "platform": "yqq",
             "needNewCode": 0,
@@ -320,8 +324,17 @@ final class QQMusicAPI {
             "utf8": 1,
             "qzreferrer": "https://y.qq.com/portal/profile.html#sub=other&tab=create&",
         ], cookie: qqAuth.cookieHeader)
-        let code = json["code"] as? Int ?? -1
+        let code = Self.extractCode(json) ?? -1
         return code == 0
+    }
+
+    /// 宽松提取接口 code（兼容 Int / String / "code":"0" 等形态）
+    private static func extractCode(_ json: [String: Any]) -> Int? {
+        if let n = json["code"] as? Int { return n }
+        if let s = json["code"] as? String, let n = Int(s) { return n }
+        if let n = json["ret"] as? Int { return n }
+        if let s = json["ret"] as? String, let n = Int(s) { return n }
+        return nil
     }
 
     /// 删除歌单（fcg_fav_modsongdir.fcg，需登录；返回 JSONP，parseJSON 自动剥离）
@@ -679,26 +692,34 @@ final class QQMusicAPI {
     }
 
     /// 用户创建的歌单（fcg_user_created_songlist；登录后带 Cookie 可拉取完整列表）
+    /// 携带 g_tk/utf8 参数，解析兼容 data.diss / data.list 等不同响应结构
     func userPlaylists(uin: String) async throws -> [Playlist] {
-        let urlString = "https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_songlist.fcg?format=json&uin=\(uin)"
+        let qqAuth = QQMusicAuth.shared
+        let gtk = qqAuth.gtk
+        let urlString = "https://c.y.qq.com/rsc/fcgi-bin/fcg_user_created_songlist.fcg?format=json&inCharset=utf8&outCharset=utf-8&utf8=1&g_tk=\(gtk)&uin=\(uin)"
         guard let url = URL(string: urlString) else { throw NetEaseError.unknown("请求地址无效") }
         var request = URLRequest(url: url)
         request.setValue("Mozilla/5.0 (iPhone; CPU iPhone OS 16_6 like Mac OS X) AppleWebKit/605.1.15 (KHTML, like Gecko) Mobile/15E148 QQMusic/9.0.5", forHTTPHeaderField: "User-Agent")
         request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
-        let qqAuth = QQMusicAuth.shared
         request.setValue(qqAuth.isLoggedIn ? qqAuth.cookieHeader : "uin=0; qqmusic_fromtag=66", forHTTPHeaderField: "Cookie")
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw NetEaseError.network }
         guard let json = parseJSON(data) else { throw NetEaseError.decoding("QQ 歌单解析失败") }
         let dataObj = json["data"] as? [String: Any] ?? [:]
-        let diss = dataObj["diss"] as? [[String: Any]] ?? []
+        var diss = dataObj["diss"] as? [[String: Any]] ?? []
+        if diss.isEmpty {
+            diss = dataObj["list"] as? [[String: Any]] ?? []
+        }
+        if diss.isEmpty {
+            diss = dataObj["disslist"] as? [[String: Any]] ?? []
+        }
         var playlists: [Playlist] = []
         for item in diss {
-            guard let id = item["dissid"] as? Int ?? (item["tid"] as? Int) else { continue }
-            let name = item["diss_name"] as? String ?? (item["title"] as? String ?? "")
-            var cover = item["diss_cover"] as? String ?? (item["cover"] as? String ?? "")
+            guard let id = item["dissid"] as? Int ?? (item["tid"] as? Int) ?? Int(item["dissid"] as? String ?? "") else { continue }
+            let name = item["diss_name"] as? String ?? (item["title"] as? String ?? item["name"] as? String ?? "")
+            var cover = item["diss_cover"] as? String ?? (item["cover"] as? String ?? item["pic_url"] as? String ?? "")
             if cover.hasPrefix("http://") { cover = "https://" + cover.dropFirst(7) }
-            let count = item["songcnt"] as? Int ?? 0
+            let count = item["songcnt"] as? Int ?? (item["songnum"] as? Int ?? 0)
             playlists.append(Playlist(id: id, name: name, coverURL: cover.isEmpty ? nil : URL(string: cover), trackCount: count, source: .qq))
         }
         return playlists
