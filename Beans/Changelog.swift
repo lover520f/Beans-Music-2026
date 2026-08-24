@@ -35,6 +35,18 @@ enum ChangelogStore {
 
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
+    static let logs: [VersionLog] = [
+        VersionLog(
+            id: "1.3.5",
+            version: "1.3.5",
+            title: "修复第三方音源导入提示",
+            features: [],
+            fixes: [
+                "修复导入落雪音乐 LX 脚本音源（JS 程序）时提示不明确的问题：现在会识别并提示「App 暂不支持直接运行 JS 脚本」，并说明可用的 JSON / 落雪 API 服务器配置方式",
+                "导入解析兼容带 BOM 的 JSON 文件",
+            ]
+        ),
+
         VersionLog(
             id: "1.3.4",
             version: "1.3.4",

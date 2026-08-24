@@ -120,7 +120,7 @@ struct ThirdPartySourceImportSheet: View {
     private func importSource() {
         let sources = parseSources(jsonText)
         guard !sources.isEmpty else {
-            errorMessage = "解析失败，请检查格式（JSON 或 JS 文件内容）"
+            errorMessage = Self.friendlyParseError(jsonText)
             return
         }
         for source in sources {
@@ -141,7 +141,7 @@ struct ThirdPartySourceImportSheet: View {
         jsonText = text
         let sources = parseSources(text)
         guard !sources.isEmpty else {
-            errorMessage = "文件中未找到可用的音源配置（JSON 对象 / 数组）"
+            errorMessage = Self.friendlyParseError(text)
             return
         }
         for source in sources {
@@ -153,9 +153,27 @@ struct ThirdPartySourceImportSheet: View {
         dismiss()
     }
 
+    /// 解析失败时的友好提示：识别落雪 LX 脚本源等常见情况
+    private static func friendlyParseError(_ text: String) -> String {
+        if looksLikeLXScript(text) {
+            return "检测到落雪音乐 LX 脚本音源（JS 程序）。App 暂不支持直接运行 JS 脚本，请改用 JSON 音源配置或落雪 API 服务器（kind=lx）地址。"
+        }
+        return "未找到可用的音源配置。支持：JSON 对象 / JSON 数组，或 JS 文件中内嵌的 JSON 配置。"
+    }
+
+    /// 检测是否为落雪音乐 LX 脚本音源（JS 程序：含 @name 头注释、EVENT_NAMES / httpFetch 等协议特征）
+    private static func looksLikeLXScript(_ text: String) -> Bool {
+        let lower = text.lowercased()
+        if lower.contains("@name"), lower.contains("音源") || lower.contains("音乐源") { return true }
+        if lower.contains("event_names"),
+           lower.contains("httpfetch") || lower.contains("musicsearch") || lower.contains("musicsource") { return true }
+        return false
+    }
+
     /// 解析音源列表：支持单个 JSON 对象、JSON 数组、以及从 JS 代码中提取 JSON
     private func parseSources(_ text: String) -> [ThirdPartySource] {
         let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
+            .replacingOccurrences(of: "\u{FEFF}", with: "")
         guard !trimmed.isEmpty, let data = trimmed.data(using: .utf8) else { return [] }
         if let list = try? JSONDecoder().decode([ThirdPartySource].self, from: data), !list.isEmpty {
             return list
