@@ -35,6 +35,16 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.9.12",
+            version: "1.9.12",
+            title: "播放器设置全面整合 · 卡片式排版",
+            features: [
+                "播放器设置重排为「播放 / 歌词显示 / 歌词效果 / 布局 / 封面」五张液态玻璃卡片，全部设置一眼可见，无需大幅滚动",
+                "进度条样式改为四宫格图标选择，滑块数值行内显示，说明文字精简",
+            ],
+            fixes: []
+        ),
+        VersionLog(
             id: "1.9.11",
             version: "1.9.11",
             title: "播放器设置布局整合 · 底栏默认位置优化",
