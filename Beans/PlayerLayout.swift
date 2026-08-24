@@ -11,15 +11,6 @@ enum PlayerLayoutPart: String, CaseIterable, Identifiable {
 
     var id: String { rawValue }
 
-    /// 各组件出厂默认布局（用户指定：进度条 X0 Y116 原始大小、控制按钮 X0 Y22 1.2 倍、指示线 X0 Y-57 0.85 倍）
-    var defaultEntry: PlayerLayoutEntry {
-        switch self {
-        case .progress: return PlayerLayoutEntry(x: 0, y: 116, scale: 1)
-        case .controls: return PlayerLayoutEntry(x: 0, y: 22, scale: 1.2)
-        case .grabber: return PlayerLayoutEntry(x: 0, y: -57, scale: 0.85)
-        case .lyric: return PlayerLayoutEntry(x: 0, y: 0, scale: 1)
-        }
-    }
 }
 
 /// 单个组件的自定义位置（相对默认位置的偏移）与缩放
@@ -79,7 +70,7 @@ struct Layoutable: ViewModifier {
     @Binding var data: [String: PlayerLayoutEntry]
 
     func body(content: Content) -> some View {
-        let entry = data[part.rawValue] ?? part.defaultEntry
+        let entry = data[part.rawValue] ?? PlayerLayoutEntry()
         content
             .scaleEffect(entry.scale)
             .offset(x: entry.x, y: entry.y)
@@ -87,7 +78,7 @@ struct Layoutable: ViewModifier {
                 enabled
                     ? DragGesture(minimumDistance: 0)
                         .onChanged { value in
-                            var e = data[part.rawValue] ?? part.defaultEntry
+                            var e = data[part.rawValue] ?? PlayerLayoutEntry()
                             e.x = value.translation.width
                             e.y = value.translation.height
                             data[part.rawValue] = e
