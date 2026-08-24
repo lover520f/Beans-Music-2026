@@ -391,7 +391,7 @@ final class PlayerManager: NSObject, ObservableObject {
     private func qqFallback(song: Song, quality: BeansAudioQuality, enableUnblock: Bool, strict: Bool = false) async -> (String?, UnblockService.Resolved?) {
         var urlString: String?
         var resolved: UnblockService.Resolved?
-        if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000)) {
+        if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000), strict: strict) {
             let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [matched.id], level: quality.level)
             var info = infos?[matched.id]
             if (info?.url == nil || info?.freeTrial == true), quality != .standard {
@@ -427,7 +427,7 @@ final class PlayerManager: NSObject, ObservableObject {
     private func kugouFallback(song: Song, quality: BeansAudioQuality, enableUnblock: Bool, strict: Bool = false) async -> (String?, UnblockService.Resolved?) {
         var urlString: String?
         var resolved: UnblockService.Resolved?
-        if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000)) {
+        if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000), strict: strict) {
             let infos = try? await NetEaseAPI.shared.songURLInfo(ids: [matched.id], level: quality.level)
             var info = infos?[matched.id]
             if (info?.url == nil || info?.freeTrial == true), quality != .standard {
@@ -458,9 +458,11 @@ final class PlayerManager: NSObject, ObservableObject {
         return (urlString, resolved)
     }
 
-    /// 版权受限歌手名单：这些歌手的歌曲禁用第三方音源兜底（第三方搜索会误匹配翻唱，如周杰伦）
+    /// 版权受限歌手名单：这些歌手的歌曲必须严格校验原唱（第三方搜索会误匹配翻唱，如周杰伦）
+    /// 兼容第三方返回的英文歌手名（Jay Chou），统一按别名判断，避免漏判导致播放翻唱
     private func shouldLockOfficialOnly(_ song: Song) -> Bool {
-        song.artists.contains("周杰伦")
+        let artists = song.artists.lowercased()
+        return artists.contains("周杰伦") || artists.contains("jay chou") || artists.contains("jaychou")
     }
 
     /// 在网易云按 歌名+歌手 匹配同名歌曲（QQ vkey 失败时的免费播放兜底）
@@ -471,12 +473,16 @@ final class PlayerManager: NSObject, ObservableObject {
               !results.isEmpty else { return nil }
         let target = Double(durationMS) / 1000.0
         let artistTokens = artists.lowercased().split(whereSeparator: { $0 == " " || $0 == "/" || $0 == "&" }).map(String.init)
-        // 优先：歌手匹配 + 时长接近
+        // 优先：歌手匹配 + 时长接近（兼容 Jay Chou 别名）
         if let hit = results.first(where: { song in
             let durOK = abs(song.duration - target) < 12
-            let artistOK = artistTokens.contains { !$0.isEmpty && song.artists.lowercased().contains($0) }
+            let songArtists = song.artists.lowercased()
+            let artistOK = artistTokens.contains { !$0.isEmpty && songArtists.contains($0) }
+                || (songArtists.contains("周杰伦") && artists.lowercased().contains("jay chou"))
             return durOK && artistOK
         }) { return hit }
+        // 严格模式（周杰伦等版权歌手）：找不到原唱直接放弃，绝不返回翻唱
+        if strict { return nil }
         // 其次：仅时长接近
         if let hit = results.min(by: { abs($0.duration - target) < abs($1.duration - target) }),
            abs(hit.duration - target) < 20 {

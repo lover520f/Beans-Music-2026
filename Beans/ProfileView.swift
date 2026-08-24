@@ -915,7 +915,7 @@ struct SettingsView: View {
         }
     }
 
-    /// 播放与歌词设置（借鉴 Kumone：音质 / 灰色歌曲解锁 / 显示歌词翻译）
+    /// 播放与歌词设置（借鉴 Kumone：音质 / 免费听歌 / 显示歌词翻译）
     private var playbackSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "播放与歌词")
@@ -950,10 +950,10 @@ struct SettingsView: View {
                             .foregroundStyle(Color.beansAmber)
                             .frame(width: 28)
                         VStack(alignment: .leading, spacing: 2) {
-                            Text("灰色歌曲解锁")
+                            Text("免费听歌")
                                 .font(BeansFont.appFont(15))
                                 .foregroundStyle(Color.beansLabel)
-                            Text("无版权 / 下架 / VIP 歌曲自动从第三方音源匹配播放")
+                            Text("灰色 / VIP / 周杰伦等版权歌曲自动从第三方音源匹配播放（默认关闭，手动开启）")
                                 .font(BeansFont.appFont(11))
                                 .foregroundStyle(Color.beansSecondary)
                         }
