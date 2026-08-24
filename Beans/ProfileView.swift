@@ -588,8 +588,8 @@ struct SettingsView: View {
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
     /// 音质等级（借鉴 Kumone）
     @AppStorage("beans.audioQuality") private var audioQualityRaw = BeansAudioQuality.exhigh.rawValue
-    /// 灰色歌曲 / VIP 解锁（借鉴 Kumone）
-    @AppStorage("beans.enableUnblock") private var enableUnblock = true
+    /// 免费听歌 / 灰色歌曲解锁总开关（默认关闭，用户手动开启）
+    @AppStorage("beans.enableUnblock") private var enableUnblock = false
 
     @State private var appearanceExpanded = false
     @State private var bgImageItem: PhotosPickerItem?

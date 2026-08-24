@@ -52,6 +52,8 @@ struct PlayerView: View {
     @AppStorage("beans.visualizerStyle") private var visualizerStyle = 0
     @AppStorage("beans.visualizerColorMode") private var visualizerColorMode = 0
     @AppStorage("beans.visualizerColorRaw") private var visualizerColorRaw = ""
+    /// 进度条样式：0 经典 / 1 分段 / 2 流光 / 3 细线
+    @AppStorage("beans.progressBarStyle") private var progressBarStyle = 0
 
     private var song: Song? { player.currentSong }
     private let rateOptions: [Double] = [0.5, 0.75, 1.0, 1.25, 1.5, 1.75, 2.0]
@@ -178,7 +180,8 @@ struct PlayerView: View {
                 visualizerEnabled: $visualizerEnabled,
                 visualizerStyle: $visualizerStyle,
                 visualizerColorMode: $visualizerColorMode,
-                visualizerColorRaw: $visualizerColorRaw
+                visualizerColorRaw: $visualizerColorRaw,
+                progressBarStyle: $progressBarStyle
             )
         }
         .sheet(isPresented: $showShare) {
@@ -351,8 +354,11 @@ struct PlayerView: View {
                 } label: {
                     Label("分享歌曲", systemImage: "square.and.arrow.up")
                 }
-                Toggle(isOn: $visualizerEnabled) {
-                    Label("旋律可视化", systemImage: "waveform")
+                Button {
+                    visualizerEnabled.toggle()
+                    BeansHaptics.select()
+                } label: {
+                    Label(visualizerEnabled ? "旋律可视化：开" : "旋律可视化：关", systemImage: visualizerEnabled ? "waveform.fill" : "waveform.slash")
                 }
                 Divider()
                 Button {
@@ -789,7 +795,7 @@ struct PlayerView: View {
 
     private var progressBlock: some View {
         VStack(spacing: 1) {
-            SeekBar(accent: palette.accent, track: palette.secondary.opacity(0.3))
+            SeekBar(accent: palette.accent, track: palette.secondary.opacity(0.3), style: progressBarStyle)
             HStack(spacing: 6) {
                 seekPillButton("gobackward.15") { player.seekBy(-15) }
                 Text(beansTimeString(player.progress))
@@ -1064,6 +1070,8 @@ struct SeekBar: View {
     @EnvironmentObject private var player: PlayerManager
     let accent: Color
     let track: Color
+    /// 进度条样式：0 经典 / 1 分段 / 2 流光 / 3 细线
+    var style: Int = 0
 
     @State private var scrubbing = false
     @State private var scrubValue: Double = 0
@@ -1077,47 +1085,105 @@ struct SeekBar: View {
             let width = geo.size.width
             let total = max(player.duration, 1)
             let ratio = min(max(progress / total, 0), 1)
-            let thumbX = min(max(width * ratio, 9), max(width - 9, 9))
+            let thumbX = min(max(width * ratio, 10), max(width - 10, 10))
 
             ZStack(alignment: .leading) {
-                // 底轨：iOS 原生清透材质（超薄材质采样背景）
-                Capsule()
-                    .fill(track)
-                    .frame(height: 5)
-                Capsule()
-                    .fill(.ultraThinMaterial)
-                    .frame(height: 5)
-                    .overlay {
-                        Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.5)
+                // 轨道与已播放段（按样式）
+                switch style {
+                case 1:
+                    // 分段刻度：已播放段高亮分段
+                    HStack(spacing: 2) {
+                        ForEach(0..<20, id: \.self) { seg in
+                            let segStart = Double(seg) / 20
+                            Capsule()
+                                .fill(segStart <= ratio ? accent : track.opacity(0.55))
+                                .frame(width: max(1.5, (width - 2 * 19) / 20), height: 5)
+                        }
                     }
-                // 已播放段：强调色渐变 + 顶部高光
-                Capsule()
-                    .fill(
-                        LinearGradient(
-                            colors: [accent, accent.opacity(0.72)],
-                            startPoint: .top, endPoint: .bottom
+                case 2:
+                    // 流光：底轨 + 渐变高亮 + 光斑
+                    Capsule()
+                        .fill(track)
+                        .frame(height: 5)
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [accent.opacity(0.95), accent.opacity(0.55), accent.opacity(0.95)],
+                                startPoint: .leading, endPoint: .trailing
+                            )
                         )
-                    )
-                    .frame(width: thumbX, height: 5)
-                    .overlay(alignment: .top) {
-                        LinearGradient(
-                            colors: [.white.opacity(0.5), .clear],
-                            startPoint: .top, endPoint: .bottom
-                        )
+                        .frame(width: thumbX, height: 5)
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 6, height: 6)
+                        .shadow(color: accent.opacity(0.9), radius: 4)
+                        .offset(x: thumbX - 3)
+                case 3:
+                    // 细线大滑块
+                    Capsule()
+                        .fill(track.opacity(0.75))
                         .frame(height: 2.5)
-                        .clipShape(Capsule())
-                        .padding(.horizontal, 2)
-                    }
-                // 滑块：原生小圆点（白色 + 细描边）
-                Circle()
-                    .fill(.white)
-                    .frame(width: scrubbing ? 20 : 14, height: scrubbing ? 20 : 14)
-                    .overlay {
-                        Circle().strokeBorder(.white.opacity(0.95), lineWidth: 0.8)
-                    }
-                    .shadow(color: .black.opacity(0.22), radius: scrubbing ? 5 : 2.5, y: scrubbing ? 2 : 1)
-                    .offset(x: thumbX - (scrubbing ? 10 : 7))
-                    .animation(.spring(response: 0.25, dampingFraction: 0.7), value: scrubbing)
+                    Capsule()
+                        .fill(accent)
+                        .frame(width: thumbX, height: 2.5)
+                        .overlay(alignment: .top) {
+                            LinearGradient(colors: [.white.opacity(0.5), .clear], startPoint: .top, endPoint: .bottom)
+                                .frame(height: 1.4)
+                                .clipShape(Capsule())
+                        }
+                default:
+                    // 经典：iOS 原生清透胶囊 + 高光
+                    Capsule()
+                        .fill(track)
+                        .frame(height: 5)
+                    Capsule()
+                        .fill(.ultraThinMaterial)
+                        .frame(height: 5)
+                        .overlay {
+                            Capsule().strokeBorder(.white.opacity(0.22), lineWidth: 0.5)
+                        }
+                    Capsule()
+                        .fill(
+                            LinearGradient(
+                                colors: [accent, accent.opacity(0.72)],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                        )
+                        .frame(width: thumbX, height: 5)
+                        .overlay(alignment: .top) {
+                            LinearGradient(
+                                colors: [.white.opacity(0.5), .clear],
+                                startPoint: .top, endPoint: .bottom
+                            )
+                            .frame(height: 2.5)
+                            .clipShape(Capsule())
+                            .padding(.horizontal, 2)
+                        }
+                }
+
+                // 滑块：细线样式用大滑块，其余用原生小圆点
+                if style == 3 {
+                    Circle()
+                        .fill(.white)
+                        .frame(width: 20, height: 20)
+                        .overlay {
+                            Circle().strokeBorder(.white.opacity(0.9), lineWidth: 0.8)
+                        }
+                        .shadow(color: .black.opacity(0.25), radius: scrubbing ? 6 : 4, y: scrubbing ? 3 : 2)
+                        .scaleEffect(scrubbing ? 1.18 : 1)
+                        .offset(x: thumbX - 10)
+                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: scrubbing)
+                } else {
+                    Circle()
+                        .fill(.white)
+                        .frame(width: scrubbing ? 20 : 14, height: scrubbing ? 20 : 14)
+                        .overlay {
+                            Circle().strokeBorder(.white.opacity(0.95), lineWidth: 0.8)
+                        }
+                        .shadow(color: .black.opacity(0.22), radius: scrubbing ? 5 : 2.5, y: scrubbing ? 2 : 1)
+                        .offset(x: thumbX - (scrubbing ? 10 : 7))
+                        .animation(.spring(response: 0.25, dampingFraction: 0.7), value: scrubbing)
+                }
             }
             .frame(width: width, height: 26)
             .contentShape(Rectangle())
@@ -1673,6 +1739,7 @@ struct PlayerSettingsSheet: View {
     @Binding var visualizerStyle: Int
     @Binding var visualizerColorMode: Int
     @Binding var visualizerColorRaw: String
+    @Binding var progressBarStyle: Int
     @Environment(\.dismiss) private var dismiss
 
     /// 旋律可视化自定义颜色（色盘选色写入 hex）
@@ -1692,9 +1759,10 @@ struct PlayerSettingsSheet: View {
                 Section("旋律可视化") {
                     Toggle("启用旋律可视化", isOn: $visualizerEnabled)
                     Picker("样式", selection: $visualizerStyle) {
-                        Text("柱状").tag(0)
-                        Text("圆点").tag(1)
-                        Text("波形").tag(2)
+                        Text("频谱").tag(0)
+                        Text("珠链").tag(1)
+                        Text("声波").tag(2)
+                        Text("均衡").tag(3)
                     }
                     .pickerStyle(.segmented)
                     Picker("颜色", selection: $visualizerColorMode) {
@@ -1708,6 +1776,15 @@ struct PlayerSettingsSheet: View {
                     Text("默认跟随封面主色，与进度条/歌词同步；已播放部分高亮，随旋律波动")
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
+                }
+                Section("进度条样式") {
+                    Picker("样式", selection: $progressBarStyle) {
+                        Text("经典").tag(0)
+                        Text("分段").tag(1)
+                        Text("流光").tag(2)
+                        Text("细线").tag(3)
+                    }
+                    .pickerStyle(.segmented)
                 }
                 Section("背景光晕强度") {
                     HStack(spacing: 12) {
@@ -1736,7 +1813,7 @@ struct PlayerSettingsSheet: View {
                 }
             }
         }
-        .presentationDetents([.height(560)])
+        .presentationDetents([.height(640)])
         .presentationDragIndicator(.visible)
     }
 }
@@ -1745,7 +1822,7 @@ struct PlayerSettingsSheet: View {
 
 
 
-// MARK: - 旋律可视化条（随播放进度高亮，随旋律波动；样式：柱状 / 圆点 / 波形）
+// MARK: - 旋律可视化条（随节奏跳动，进度同步高亮；样式：频谱 / 珠链 / 声波 / 均衡）
 
 struct VisualizerBar: View {
     let accent: Color
@@ -1754,54 +1831,82 @@ struct VisualizerBar: View {
     let isPlaying: Bool
     let style: Int
 
-    private let barCount = 24
+    private let barCount = 28
 
     var body: some View {
-        // 播放时约 12fps 波动；暂停时冻结动画，降低功耗
-        TimelineView(.animation(minimumInterval: 0.08, paused: !isPlaying)) { context in
+        // 播放时约 20fps 跳动；暂停时冻结动画，降低功耗
+        TimelineView(.animation(minimumInterval: 0.05, paused: !isPlaying)) { context in
             let time = context.date.timeIntervalSinceReferenceDate
             GeometryReader { geo in
-                let gap: CGFloat = 3
+                let gap: CGFloat = 2.5
                 let totalGap = gap * CGFloat(barCount - 1)
                 let barW = max(2, (geo.size.width - totalGap) / CGFloat(barCount))
-                HStack(alignment: .center, spacing: gap) {
+                HStack(alignment: .bottom, spacing: gap) {
                     ForEach(0..<barCount, id: \.self) { i in
-                        barItem(index: i, time: time, barW: barW)
+                        barItem(index: i, time: time, barW: barW, maxH: geo.size.height)
                     }
                 }
             }
-            .frame(height: style == 1 ? 18 : 20)
+            .frame(height: style == 2 ? 26 : 30)
         }
         .allowsHitTesting(false)
     }
 
+    private func fract(_ x: Double) -> Double { x - floor(x) }
+
+    /// 每根柱子高度：多频正弦合成 + 每 0.25s 变化的伪随机，形成明显"跳动"（左低右高如真实频谱）
+    private func level(_ i: Int, _ time: TimeInterval, _ maxH: CGFloat) -> CGFloat {
+        guard isPlaying else { return 5 }
+        let dt = Double(i) * 0.66
+        let a = sin(time * 3.2 + dt)
+        let b = sin(time * 6.9 + dt * 1.7)
+        let c = sin(time * 1.4 + dt * 2.3)
+        // 伪随机：每 0.25s 变化一次 → 跳跃感
+        let r = fract(sin(Double(i) * 127.1 + floor(time * 4) * 311.7) * 43758.5453)
+        let v = abs(0.34 * a + 0.26 * b + 0.22 * c + 0.30 * (r * 2 - 1))
+        // 右侧高频柱更矮
+        let taper = 1 - Double(i) / Double(barCount - 1) * 0.5
+        return CGFloat(max(0.12, v)) * maxH * CGFloat(taper)
+    }
+
     @ViewBuilder
-    private func barItem(index: Int, time: TimeInterval, barW: CGFloat) -> some View {
+    private func barItem(index: Int, time: TimeInterval, barW: CGFloat, maxH: CGFloat) -> some View {
         // 已播放部分（进度条同步）：高亮强调色；未播放：暗色
         let played = Double(index) / Double(barCount - 1) <= progress
-        let base: CGFloat = isPlaying
-            ? CGFloat(5 + abs(sin(time * 2.4 + Double(index) * 0.72)) * 11 + abs(sin(time * 5.1 + Double(index) * 1.7)) * 4)
-            : 7
+        let h = level(index, time, maxH)
         switch style {
         case 1:
-            // 圆点样式
+            // 珠链：圆点随节奏大小跳动
             Circle()
                 .fill(played ? accent : dim)
-                .frame(width: base, height: base)
-                .shadow(color: played ? accent.opacity(0.5) : .clear, radius: 3)
+                .frame(width: max(h * 0.9, 4), height: max(h * 0.9, 4))
+                .shadow(color: played ? accent.opacity(0.55) : .clear, radius: 4)
+                .frame(maxHeight: maxH, alignment: .bottom)
         case 2:
-            // 波形样式（中心对称三线）
+            // 声波：中心对称三线
             VStack(spacing: 2) {
-                Capsule().fill(played ? accent : dim).frame(width: max(barW, 3), height: max(2, base * 0.42))
-                Capsule().fill(played ? accent.opacity(0.8) : dim.opacity(0.7)).frame(width: max(barW, 3), height: max(2, base * 0.3))
-                Capsule().fill(played ? accent : dim).frame(width: max(barW, 3), height: max(2, base * 0.42))
+                Capsule().fill(played ? accent : dim).frame(width: max(barW, 2), height: max(2, h * 0.55))
+                Capsule().fill(played ? accent.opacity(0.75) : dim.opacity(0.6)).frame(width: max(barW, 2), height: max(2, h * 0.3))
+                Capsule().fill(played ? accent : dim).frame(width: max(barW, 2), height: max(2, h * 0.55))
             }
+            .frame(maxHeight: maxH, alignment: .center)
+        case 3:
+            // 均衡：底部对齐宽柱 + 顶部高光
+            RoundedRectangle(cornerRadius: max(barW, 3) / 2, style: .continuous)
+                .fill(played ? accent : dim)
+                .frame(width: max(barW, 3), height: max(h, 3))
+                .overlay(alignment: .top) {
+                    LinearGradient(colors: [.white.opacity(0.45), .clear], startPoint: .top, endPoint: .bottom)
+                        .frame(height: max(h * 0.4, 2))
+                        .clipShape(RoundedRectangle(cornerRadius: max(barW, 3) / 2, style: .continuous))
+                }
+                .shadow(color: played ? accent.opacity(0.4) : .clear, radius: 3)
         default:
-            // 柱状样式
+            // 频谱：底部对齐胶囊，跳跃明显
             Capsule()
                 .fill(played ? accent : dim)
-                .frame(width: max(barW, 2.5), height: base)
-                .shadow(color: played ? accent.opacity(0.45) : .clear, radius: 3)
+                .frame(width: max(barW, 2.5), height: max(h, 3))
+                .shadow(color: played ? accent.opacity(0.45) : .clear, radius: 4)
         }
     }
 }

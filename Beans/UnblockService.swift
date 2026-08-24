@@ -371,6 +371,28 @@ enum UnblockService {
     }
 
     /// 歌手模糊匹配：忽略大小写、空格与分隔符；任一目标歌手命中即可
+    /// 歌手中英文别名（第三方平台常返回英文名，如 周杰伦 → Jay Chou / 邓紫棋 → G.E.M.）
+    private static func artistAliases(_ name: String) -> [String] {
+        switch name {
+        case "周杰伦": return ["周杰伦", "jay chou", "jaychou"]
+        case "林俊杰": return ["林俊杰", "jj lin", "lin junjie"]
+        case "陈奕迅": return ["陈奕迅", "eason chan", "chen yixun"]
+        case "邓紫棋": return ["邓紫棋", "g.e.m", "gem", "g.e.m."]
+        case "许嵩": return ["许嵩", "vae"]
+        case "薛之谦": return ["薛之谦", "joker xue"]
+        case "王力宏": return ["王力宏", "lee hom"]
+        case "李荣浩": return ["李荣浩", "ronghao li"]
+        case "五月天": return ["五月天", "mayday"]
+        case "孙燕姿": return ["孙燕姿", "sun yanzi", "stefanie sun"]
+        case "张杰": return ["张杰", "jason zhang"]
+        case "华晨宇": return ["华晨宇", "hua chenyu"]
+        case "陶喆": return ["陶喆", "david tao"]
+        case "蔡依林": return ["蔡依林", "jolin"]
+        default: return [name]
+        }
+    }
+
+    /// 歌手模糊匹配：忽略大小写、空格与分隔符；支持中英文别名；任一目标歌手命中即可
     private static func artistMatches(_ target: String, _ candidate: String) -> Bool {
         let norm: (String) -> String = { s in
             s.lowercased()
@@ -380,18 +402,25 @@ enum UnblockService {
                 .replacingOccurrences(of: "(", with: "")
                 .replacingOccurrences(of: ")", with: "")
         }
-        let t = norm(target)
-        let c = norm(candidate)
-        guard !t.isEmpty else { return true }
-        guard !c.isEmpty else { return false }
-        if c.contains(t) || t.contains(c) { return true }
+        let tn = norm(target)
+        let cn = norm(candidate)
+        guard !tn.isEmpty else { return true }
+        guard !cn.isEmpty else { return false }
+        if cn.contains(tn) || tn.contains(cn) { return true }
+        // 中英文别名（周杰伦 → Jay Chou）
+        for alias in artistAliases(target).map(norm) where !alias.isEmpty {
+            if cn.contains(alias) { return true }
+        }
+        for alias in artistAliases(candidate).map(norm) where !alias.isEmpty {
+            if tn.contains(alias) { return true }
+        }
         // 多歌手（A / B、A·B、A、B）：任一命中即视为匹配
         let separators = CharacterSet(charactersIn: "/·&,、")
-        for part in t.components(separatedBy: separators) where !part.isEmpty {
-            if c.contains(part) { return true }
+        for part in tn.components(separatedBy: separators) where !part.isEmpty {
+            if cn.contains(part) { return true }
         }
-        for part in c.components(separatedBy: separators) where !part.isEmpty {
-            if t.contains(part) { return true }
+        for part in cn.components(separatedBy: separators) where !part.isEmpty {
+            if tn.contains(part) { return true }
         }
         return false
     }

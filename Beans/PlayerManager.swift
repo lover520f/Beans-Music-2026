@@ -312,7 +312,8 @@ final class PlayerManager: NSObject, ObservableObject {
             var urlString: String?
             var resolvedThirdParty: UnblockService.Resolved?
             // 版权受限歌手（周杰伦）：允许第三方音源，但启用严格模式（歌名+歌手+时长三重匹配原唱，校验不过拒绝，绝不播放翻唱）
-            let enableUnblock = defaults.object(forKey: "beans.enableUnblock") as? Bool ?? true
+            // 免费听歌（灰色歌曲解锁）总开关：默认关闭，需在「我的 → 设置」手动开启
+            let enableUnblock = defaults.object(forKey: "beans.enableUnblock") as? Bool ?? false
             let strictUnlock = shouldLockOfficialOnly(song)
             let quality = BeansAudioQuality.current
             if song.source == .qq, let mid = song.qqMid {
