@@ -85,7 +85,7 @@ final class LXScriptEngine {
                 _ = self.context?.evaluateScript(self.scriptText)
                 if let exc = self.context?.exception {
                     self.initedError = exc.toString()
-                    cont.resume(throwing: LXScriptError.scriptError(exc.toString()))
+                    cont.resume(throwing: LXScriptError.scriptError(exc.toString() ?? "脚本异常"))
                     return
                 }
                 // 检测旧一代协议：module.exports 导出函数
@@ -161,7 +161,7 @@ final class LXScriptEngine {
         // request(url, options, callback) -> cancelFn
         let requestBlock: @convention(block) (JSValue, JSValue, JSValue) -> JSValue = { [weak self] urlValue, optionsValue, callback in
             guard let self, let ctx = self.context else { return JSValue(undefinedIn: JSContext()) }
-            let urlString = urlValue.toString()
+            let urlString = urlValue.toString() ?? ""
             let method = (optionsValue.objectForKeyedSubscript("method")?.toString() ?? "GET").uppercased()
             var headers: [String: String] = [:]
             if let h = optionsValue.objectForKeyedSubscript("headers")?.toObject() as? [String: Any] {
@@ -224,7 +224,7 @@ final class LXScriptEngine {
                 let obj = dataValue.toObject() as? [String: Any]
                 self.initedSources = obj?["sources"] as? [String: Any]
             } else if event != "updateAlert" {
-                BeansLogger.shared.log("LX脚本事件 \(event)", level: .debug)
+                BeansLogger.shared.log("LX脚本事件 \(eventValue.toString() ?? "")", level: .debug)
             }
         }
         ctx.setObject(sendBlock, forKeyedSubscript: "__lx_send" as NSString)
@@ -337,7 +337,7 @@ final class LXScriptEngine {
                     cont.resume(throwing: LXScriptError.invokeFailed); return
                 }
                 if let exc = ctx.exception {
-                    let msg = exc.toString()
+                    let msg = exc.toString() ?? "脚本异常"
                     ctx.exception = nil
                     cont.resume(throwing: LXScriptError.scriptError(msg))
                     return
@@ -355,7 +355,7 @@ final class LXScriptEngine {
                 }
                 let rejectBlock: @convention(block) (JSValue) -> Void = { v in
                     watchdog.cancel()
-                    inv.finish(.failure(LXScriptError.scriptError(v.toString())))
+                    inv.finish(.failure(LXScriptError.scriptError(v.toString() ?? "脚本调用失败")))
                 }
                 guard let resolveFn = JSValue(object: resolveBlock as @convention(block) (JSValue) -> Void, in: ctx),
                       let rejectFn = JSValue(object: rejectBlock as @convention(block) (JSValue) -> Void, in: ctx),
