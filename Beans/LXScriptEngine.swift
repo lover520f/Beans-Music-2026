@@ -272,7 +272,7 @@ final class LXScriptEngine {
                 guard let self, !self.disposed else { return }
                 if !fn.isUndefined { _ = fn.call(withArguments: []) }
                 if let exc = self.context?.exception { self.context?.exception = nil }
-                if !self.disposed {
+                if !self.disposed, let item = self.timers[tid] {
                     self.jsQueue.asyncAfter(deadline: .now() + interval, execute: item)
                 }
             }
