@@ -73,6 +73,8 @@ struct PlayerView: View {
     /// 歌词模糊控制：起始距离（距当前行几行开始模糊）+ 模糊强度（0 = 关闭）
     @AppStorage("beans.lyricBlurStart") private var lyricBlurStart = 1
     @AppStorage("beans.lyricBlurAmount") private var lyricBlurAmount = 1.1
+    /// 歌词 3D 倾斜角度（0 = 关闭；顶部向后倒，立体透视感）
+    @AppStorage("beans.lyricTilt") private var lyricTilt = 0
     /// 侧边滑动手势当前位移（刷视频式切歌过渡）
     @State private var swipeOffset: CGFloat = 0
 
@@ -744,7 +746,7 @@ struct PlayerView: View {
                 if lyrics.isEmpty {
                     emptyLyricsView
                 } else {
-                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor, blurStart: CGFloat(lyricBlurStart), blurAmount: lyricBlurAmount) { line in
+                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize) * CGFloat(lyricScale), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor, blurStart: CGFloat(lyricBlurStart), blurAmount: lyricBlurAmount, tilt: CGFloat(lyricTilt)) { line in
                         BeansHaptics.tap()
                         player.seek(to: line.time)
                     }
@@ -1534,6 +1536,8 @@ struct LyricsSection: View {
     /// 歌词模糊控制：距当前行几行后开始模糊 + 模糊强度（0 = 完全关闭模糊）
     var blurStart: CGFloat = 1
     var blurAmount: CGFloat = 1.1
+    /// 歌词 3D 倾斜角度（绕 X 轴，顶部向后倒，0 = 关闭）
+    var tilt: CGFloat = 0
     let onTapLine: (LyricLine) -> Void
 
     /// 长按歌词进入多选复制模式（可多选 / 全选复制）
@@ -1608,6 +1612,8 @@ struct LyricsSection: View {
             .frame(maxWidth: .infinity)
             .offset(x: offsetX)
             .scrollIndicators(.hidden)
+            // 3D 倾斜：绕 X 轴顶部向后倒，anchor 底部固定，营造立体透视感
+            .rotation3DEffect(.degrees(Double(tilt)), axis: (x: 1, y: 0, z: 0), anchor: .bottom, perspective: 0.5)
             // 上下渐隐遮罩（借鉴 Kumone 歌词界面）：歌词接近顶部/底部时自然淡出
             .mask(
                 LinearGradient(
@@ -1834,6 +1840,7 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.swipeSwitchSong") private var swipeSwitchSong = true
     @AppStorage("beans.lyricBlurStart") private var lyricBlurStart = 1
     @AppStorage("beans.lyricBlurAmount") private var lyricBlurAmount = 1.1
+    @AppStorage("beans.lyricTilt") private var lyricTilt = 0
     @Environment(\.dismiss) private var dismiss
 
     /// 预设按钮：点击应用渐变起止色 + 发光强度
@@ -2105,6 +2112,11 @@ struct PlayerSettingsSheet: View {
             }
             settingSlider("模糊强度", valueText: lyricBlurAmount < 0.05 ? "关闭" : String(format: "%.1f", lyricBlurAmount)) {
                 Slider(value: $lyricBlurAmount, in: 0...6, step: 0.1)
+                    .tint(Color.beansAmber)
+            }
+            Divider().opacity(0.5)
+            settingSlider("3D 倾斜", valueText: lyricTilt < 0.5 ? "关闭" : "\(Int(lyricTilt))°") {
+                Slider(value: $lyricTilt, in: 0...45, step: 1)
                     .tint(Color.beansAmber)
             }
             Divider().opacity(0.5)
