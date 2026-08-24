@@ -182,22 +182,24 @@ enum UnblockService {
         if neteaseID > 0 {
             let songInfo: [String: Any] = ["id": String(neteaseID), "name": name, "singer": artists, "source": "wy"]
             do {
-                if let url = try await engine.resolveURL(source: "wy", songInfo: songInfo),
-                   let playURL = URL(string: url) {
+                let url = try await engine.resolveURL(source: "wy", songInfo: songInfo)
+                if let playURL = URL(string: url) {
                     return Resolved(url: playURL, source: source.name)
                 }
-                BeansLogger.shared.log("LX脚本音源「\(source.name)」wy 取流未返回地址", level: .debug)
+                BeansLogger.shared.log("LX脚本音源「\(source.name)」wy 取流未返回有效地址", level: .debug)
             } catch {
                 BeansLogger.shared.log("LX脚本音源「\(source.name)」wy 取流失败：\(error.localizedDescription)", level: .error)
             }
         }
         // 策略 2：按 歌名+歌手 搜索，命中最佳匹配后取流
         do {
-            if let candidates = try await engine.search(keyword: keyword),
-               let best = bestLXCandidate(candidates, name: name, artists: artists, durationMS: durationMS),
-               let url = try await engine.resolveURL(source: best.source, songInfo: ["id": best.id, "name": best.name, "singer": best.singer, "source": best.source]),
-               let playURL = URL(string: url) {
-                return Resolved(url: playURL, source: source.name)
+            let candidates = try await engine.search(keyword: keyword)
+            if let best = bestLXCandidate(candidates, name: name, artists: artists, durationMS: durationMS) {
+                let songInfo: [String: Any] = ["id": best.id, "name": best.name, "singer": best.singer, "source": best.source]
+                let url = try await engine.resolveURL(source: best.source, songInfo: songInfo)
+                if let playURL = URL(string: url) {
+                    return Resolved(url: playURL, source: source.name)
+                }
             }
         } catch {
             BeansLogger.shared.log("LX脚本音源「\(source.name)」搜索取流失败：\(error.localizedDescription)", level: .debug)
