@@ -173,7 +173,8 @@ final class LXScriptEngine {
             let cancelFn = JSValue(object: cancelBlock, in: ctx) ?? JSValue(undefinedIn: ctx)
 
             guard let url = URL(string: urlString) else {
-                callback.call(withArguments: [JSValue(object: ["message": "无效的请求地址 \(urlString)"], in: ctx), JSValue(undefinedIn: ctx)])
+                let errObj = JSValue(object: ["message": "无效的请求地址 \(urlString)"], in: ctx) ?? JSValue(undefinedIn: ctx)
+                callback.call(withArguments: [errObj, JSValue(undefinedIn: ctx)])
                 return cancelFn
             }
             var request = URLRequest(url: url)
@@ -185,7 +186,7 @@ final class LXScriptEngine {
                 self.jsQueue.async { [weak self] in
                     guard let self, let ctx = self.context else { return }
                     if let error {
-                        let errValue = JSValue(object: ["message": error.localizedDescription], in: ctx)
+                        let errValue = JSValue(object: ["message": error.localizedDescription], in: ctx) ?? JSValue(undefinedIn: ctx)
                         callback.call(withArguments: [errValue, JSValue(undefinedIn: ctx)])
                         return
                     }
