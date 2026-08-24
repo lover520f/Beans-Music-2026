@@ -7,7 +7,7 @@ struct BeansApp: App {
     @StateObject private var player = PlayerManager()
     @StateObject private var theme = ThemeStore.shared
     @StateObject private var favorites = FavoritesStore.shared
-    /// 免责声明确认状态：未确认前不创建主界面（避免弹窗期间出现"无网络"等提示）
+    /// 免责声明确认状态：未确认前主界面在模糊层下方可见，确认后移除门禁
     @AppStorage("beans.disclaimerAccepted") private var disclaimerAccepted = false
 
     init() {
@@ -17,28 +17,31 @@ struct BeansApp: App {
 
     var body: some Scene {
         WindowGroup {
-            if disclaimerAccepted {
+            ZStack {
                 RootView()
                     .environmentObject(auth)
                     .environmentObject(player)
                     .environmentObject(theme)
                     .environmentObject(favorites)
-            } else {
-                DisclaimerGate { disclaimerAccepted = true }
+                // 未确认前盖一层模糊门禁，主界面在底下可直接看到
+                if !disclaimerAccepted {
+                    DisclaimerGate { disclaimerAccepted = true }
+                }
             }
         }
     }
 }
 
-// MARK: - 免责声明门禁（仅原生输入弹窗，无任何占位画面）
+// MARK: - 免责声明门禁（模糊背景 + 原生输入弹窗）
 
-/// 未确认前只显示纯黑背景 + 原生输入弹窗，不创建主界面
+/// 未确认前盖一层毛玻璃模糊，透出主界面内容，同时弹原生输入弹窗
 struct DisclaimerGate: View {
     let onConfirm: () -> Void
     @State private var showAlert = false
 
     var body: some View {
-        Color.black
+        Rectangle()
+            .fill(.ultraThinMaterial)
             .ignoresSafeArea()
             .onAppear { showAlert = true }
             .background(

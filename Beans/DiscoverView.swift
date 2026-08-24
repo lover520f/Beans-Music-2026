@@ -21,8 +21,6 @@ struct DiscoverView: View {
     @State private var selectedQQPlaylist: Playlist?
     @State private var kugouTopLists: [KugouMusicAPI.KugouTopInfo] = []
     @State private var selectedKugouTopList: KugouMusicAPI.KugouTopInfo?
-    /// 排行榜是否展开（收起时只显示前几个，用户可自主展开）
-    @State private var ranksExpanded = false
     /// 网易云歌单广场当前分类（「全部」展示官方精品歌单）
     @State private var neteaseCat = "全部"
     /// 官方歌单分类列表
@@ -61,13 +59,6 @@ struct DiscoverView: View {
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
                 .padding(.bottom, 190)
-                .onChange(of: ranksExpanded) { _, expanded in
-                    if expanded {
-                        withAnimation(.spring(duration: 0.35)) {
-                            proxy.scrollTo("rankTopSection", anchor: .top)
-                        }
-                    }
-                }
                 }
             }
             .scrollIndicators(.hidden)
@@ -205,11 +196,7 @@ struct DiscoverView: View {
         return list
     }
 
-    /// 收起时每平台显示的榜单数量（网易云 4，QQ / 酷狗 6）
-    private var collapsedRankLimit: Int {
-        source == .netease ? 4 : 6
-    }
-
+    /// 每平台排行榜只显示前 10 个
     private var visibleRankCount: Int {
         switch source {
         case .netease: return neteaseTopLists.count
@@ -219,13 +206,7 @@ struct DiscoverView: View {
     }
 
     private var displayedRankCount: Int {
-        ranksExpanded ? visibleRankCount : min(visibleRankCount, collapsedRankLimit)
-    }
-    /// 展开后排行榜卡片固定高度（内部滚动 + 顶部收起条，避免划到底才能收回）
-    private var expandedRankHeight: CGFloat {
-        let rowHeight: CGFloat = 69
-        let contentHeight = CGFloat(max(visibleRankCount, collapsedRankLimit + 1)) * rowHeight + 8
-        return min(contentHeight, UIScreen.main.bounds.height * 0.58)
+        min(visibleRankCount, 10)
     }
 
     /// 当前平台是否有排行榜数据（网易云用 topLists，QQ / 酷狗用各自的数组）
@@ -243,24 +224,7 @@ struct DiscoverView: View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "排行榜")
             VStack(spacing: 0) {
-                if ranksExpanded {
-                    // 展开态：顶部固定收起条（始终可见，不用划到底才能收回）
-                    rankToggleButton(label: "收起", icon: "chevron.up")
-                    Divider().overlay(Color.beansSecondary.opacity(0.12))
-                    ScrollView {
-                        LazyVStack(spacing: 0) {
-                            rankRowsContent
-                        }
-                    }
-                    .frame(height: expandedRankHeight)
-                    .clipped()
-                    .transition(.opacity)
-                } else {
-                    rankRowsContent
-                    if visibleRankCount > collapsedRankLimit {
-                        rankToggleButton(label: "展开全部（\(visibleRankCount)）", icon: "chevron.down")
-                    }
-                }
+                rankRowsContent
             }
             .padding(.horizontal, 14)
             .padding(.vertical, 6)
@@ -301,26 +265,6 @@ struct DiscoverView: View {
                 Divider().overlay(Color.beansSecondary.opacity(0.12))
             }
         }
-    }
-
-    /// 展开 / 收起切换按钮
-    private func rankToggleButton(label: String, icon: String) -> some View {
-        Button {
-            BeansHaptics.select()
-            withAnimation(.spring(duration: 0.35)) { ranksExpanded.toggle() }
-        } label: {
-            HStack(spacing: 6) {
-                Text(label)
-                    .font(BeansFont.appFont(13, .medium))
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
-            }
-            .foregroundStyle(Color.beansAmber)
-            .frame(maxWidth: .infinity)
-            .padding(.vertical, 11)
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(.plain)
     }
 
     private func rankRow(index: Int, name: String, subtitle: String, coverURL: URL?, action: @escaping () -> Void) -> some View {
