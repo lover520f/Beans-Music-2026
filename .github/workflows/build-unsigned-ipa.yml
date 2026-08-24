@@ -67,6 +67,8 @@ jobs:
             -configuration Release \
             -sdk iphoneos \
             -derivedDataPath build \
+            ARCHS=arm64 \
+            ONLY_ACTIVE_ARCH=NO \
             MARKETING_VERSION="$VER" \
             CURRENT_PROJECT_VERSION="$BUILD" \
             CODE_SIGNING_ALLOWED=NO \
