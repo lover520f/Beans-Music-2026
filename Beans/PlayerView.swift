@@ -996,7 +996,7 @@ struct PlayerView: View {
             Image(systemName: player.isPlaying ? "pause.fill" : "play.fill")
                 .font(.system(size: 22, weight: .semibold))
                 .foregroundStyle(Color.white)
-                .contentTransition(.opacity)
+                .contentTransition(.symbolEffect(.replace))
                 .scaleEffect(player.isPlaying ? 1.0 : 0.88)
                 .animation(.spring(response: 0.32, dampingFraction: 0.6), value: player.isPlaying)
                 .frame(width: 44, height: 44)

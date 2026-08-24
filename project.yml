@@ -2,7 +2,7 @@ name: Beans
 
 options:
   deploymentTarget:
-    iOS: "16.0"
+    iOS: "26.0"
 
 settings:
   base:
