@@ -1,11 +1,11 @@
 # Beans Music 🎵
 
-> 一款基于 **iOS 26 原生液态玻璃（Liquid Glass）** 的第三方音乐播放器，聚合网易云音乐与 QQ 音乐，纯 SwiftUI 实现。
+> 一款基于 **iOS 26 原生液态玻璃（Liquid Glass）** 的第三方音乐播放器（兼容 iOS 16+，低版本自动回退磨砂玻璃），聚合网易云音乐与 QQ 音乐，纯 SwiftUI 实现。
 > 本软件完全开源，仅供学习研究使用。
 
 [![GitHub Pages 预览](https://img.shields.io/badge/在线预览-GitHub%20Pages-blue)](https://xiaodou0416.github.io/Beans-Music/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
-[![Platform](https://img.shields.io/badge/Platform-iOS%2026+-orange)]()
+[![Platform](https://img.shields.io/badge/Platform-iOS%2016+-orange)]()
 [![Swift](https://img.shields.io/badge/Swift-5-orange)]()
 
 **👀 在线预览（HTML 介绍页）：** https://xiaodou0416.github.io/Beans-Music/
@@ -158,7 +158,7 @@ ditto -c -k --sequesterRsrc --keepParent Payload Beans-unsigned.ipa
 ## 📲 安装
 
 未签名 IPA 需自行签名安装：Sideloadly / AltStore / 爱思助手，使用 Apple ID 签名（免费自签 7 天有效）。
-- 要求 iOS 26+（依赖原生液态玻璃）
+- 支持 iOS 16+（iOS 26 上为原生液态玻璃，低版本自动回退磨砂玻璃效果）
 - Bundle ID：`com.beans.app`
 
 ---
