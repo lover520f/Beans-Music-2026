@@ -15,8 +15,7 @@ enum ChangelogStore {
 
     static var currentVersion: String {
         let short = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        let build = Bundle.main.infoDictionary?["CFBundleVersion"] as? String ?? ""
-        return build.isEmpty ? short : "\(short) (\(build))"
+        return short
     }
 
     static var lastSeenVersion: String {
@@ -37,8 +36,22 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.0.1",
+            version: "1.0.1",
+            title: "版本号显示优化 + Release 发布流程",
+            features: [
+                "版本号统一为三段式（1.0.1），去掉界面上的构建号（13）显示，更清晰",
+                "优化更新日志：每次发版同步在 App 内展示新增功能与修复内容",
+                "完善发布流程：每个新版本自动发布到 GitHub Release 并附带更新说明",
+            ],
+            fixes: [
+                "修复「我的」页面与更新弹窗版本号带构建号（如 1.0 (13)）的显示问题",
+                "修复 GitHub Releases 旧条目残留，改为按版本号单独发布",
+            ]
+        ),
+        VersionLog(
             id: "1.0.10",
-            version: "1.0 (10)",
+            version: "1.0.10",
             title: "设置备份与恢复 + 歌词 3D 立体",
             features: [
                 "设置页新增「备份与恢复」：一键导出全部自定义配置（主题、配色、歌词效果、播放器布局、音质等）为 JSON 文件，支持导入恢复",

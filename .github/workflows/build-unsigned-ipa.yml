@@ -18,7 +18,7 @@ jobs:
       - name: Install XcodeGen
         run: brew install xcodegen
 
-      - name: Bump version (每次构建版本号+1)
+      - name: Bump build number (版本号由维护者在 project.yml 手动改，CI 只递增内部构建号)
         id: bump
         run: |
           python3 - <<'PYEOF'
@@ -26,31 +26,16 @@ jobs:
           path = 'project.yml'
           with open(path) as f:
               content = f.read()
-
-          def bump_version(m):
-              # 三段式版本号：1.9 -> 1.9.1 -> 1.9.2 ...（避免出现 1.10 这类歧义版本号）
-              parts = m.group(1).split('.')
-              if parts == ['1', '0']:
-                  # 对外发布版本 1.0：保持 1.0 不变，仅构建号 +1
-                  return 'MARKETING_VERSION: "1.0"'
-              if len(parts) < 3:
-                  parts.append('1')
-              else:
-                  parts[-1] = str(int(parts[-1]) + 1)
-              return 'MARKETING_VERSION: "' + '.'.join(parts) + '"'
-
           def bump_build(m):
               return 'CURRENT_PROJECT_VERSION: "' + str(int(m.group(1)) + 1) + '"'
-
-          content, n1 = re.subn(r'MARKETING_VERSION:\s*"([^"]+)"', bump_version, content, count=1)
           content, n2 = re.subn(r'CURRENT_PROJECT_VERSION:\s*"(\d+)"', bump_build, content, count=1)
           with open(path, 'w') as f:
               f.write(content)
           ver = re.search(r'MARKETING_VERSION:\s*"([^"]+)"', content).group(1)
           build = re.search(r'CURRENT_PROJECT_VERSION:\s*"(\d+)"', content).group(1)
-          print('::notice title=Version::Bumped to %s (%s)' % (ver, build))
+          print('::notice title=Version::Building %s (build %s)' % (ver, build))
           with open('version.txt', 'w') as f:
-              f.write('%s (%s)' % (ver, build))
+              f.write(ver)
           PYEOF
 
       - name: Generate Xcode project
@@ -62,7 +47,8 @@ jobs:
           BUILD=$(grep -oE 'CURRENT_PROJECT_VERSION: "[0-9]+"' project.yml | sed -E 's/.*"([0-9]+)"/\1/')
           echo "Building with MARKETING_VERSION=$VER CURRENT_PROJECT_VERSION=$BUILD"
           echo "BUILD_NUMBER=$BUILD" >> "$GITHUB_ENV"
-          echo "VERSION_LABEL=$VER ($BUILD)" >> "$GITHUB_ENV"
+          echo "VERSION_LABEL=$VER" >> "$GITHUB_ENV"
+          echo "VERSION_TAG=v$VER" >> "$GITHUB_ENV"
           xcodebuild \
             -project Beans.xcodeproj \
             -scheme Beans \
@@ -95,29 +81,33 @@ jobs:
           name: Beans-unsigned-ipa
           path: Beans-unsigned.ipa
 
+      - name: Build release notes from CHANGELOG
+        run: |
+          python3 - <<'PYEOF'
+          import re
+          ver = open('version.txt').read().strip()
+          content = open('CHANGELOG.md', encoding='utf-8').read()
+          m = re.search(r'^##\s+' + re.escape(ver) + r'\s*$([\s\S]*?)(?=^##\s|\Z)', content, re.M)
+          body = m.group(1).strip() if m else ('版本 ' + ver + ' 的更新内容。')
+          body = '# Beans Music ' + ver + '\n\n' + body + '\n'
+          with open('release_body.md', 'w', encoding='utf-8') as f:
+              f.write(body)
+          print(body)
+          PYEOF
+
       - name: Publish Release
         if: success()
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
-          tag_name: v1.0.${{ env.BUILD_NUMBER }}
+          tag_name: ${{ env.VERSION_TAG }}
           name: Beans Music ${{ env.VERSION_LABEL }}
-          body: |
-            ## Beans Music ${{ env.VERSION_LABEL }}
-
-            自动构建的未签名 IPA（Unsigned），需自签安装。
-
-            ### 安装说明
-            - 要求 iOS 26+（依赖原生液态玻璃）
-            - 未签名 IPA 请使用 Sideloadly / AltStore / 爱思助手 用 Apple ID 自行签名安装（免费自签 7 天有效）
-            - Bundle ID：com.beans.app
-
-            ### 免责声明
-            本应用仅供个人学习研究使用，禁止用于商业及非法用途。
-            音乐 API 来自 GitHub 开源的非官方接口实现，本软件不提供任何音频存储服务。
-            音乐版权归各平台所有，请支持正版。
+          body_path: release_body.md
           files: Beans-unsigned.ipa
+          update_release_body: true
+          update_release_name: true
+          update_release_assets: true
 
       - name: Commit version bump back
         if: success()
@@ -128,6 +118,6 @@ jobs:
           if git diff --cached --quiet; then
             echo "no version change to commit"
           else
-            git commit -m "chore: bump version to $(cat version.txt) [skip ci]"
+            git commit -m "chore: bump build to $(cat version.txt) [skip ci]"
             git push
           fi
