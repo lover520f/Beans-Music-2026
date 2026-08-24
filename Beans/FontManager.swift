@@ -40,6 +40,31 @@ enum FontManager {
         return name
     }
 
+    /// 导出字体信息（字体名 + 字体文件数据），供配置备份使用
+    static func exportFontData() -> (name: String, data: Data)? {
+        guard installedFontName != nil else { return nil }
+        guard let files = try? FileManager.default.contentsOfDirectory(at: fontsDirectory, includingPropertiesForKeys: nil) else { return nil }
+        for file in files where ["ttf", "otf", "ttc"].contains(file.pathExtension.lowercased()) {
+            if let data = try? Data(contentsOf: file) { return (installedFontName ?? "", data) }
+        }
+        return nil
+    }
+
+    /// 从备份恢复字体：清空旧字体 → 写回字体文件 → 重新注册
+    @discardableResult
+    static func restoreFont(name: String, data: Data) -> Bool {
+        clear()
+        let file = fontsDirectory.appendingPathComponent("beans-restored-font.ttf")
+        do {
+            try data.write(to: file, options: .atomic)
+        } catch {
+            return false
+        }
+        guard let registered = register(file) else { return false }
+        installedFontName = registered
+        return true
+    }
+
     static func clear() {
         installedFontName = nil
         if let files = try? FileManager.default.contentsOfDirectory(at: fontsDirectory, includingPropertiesForKeys: nil) {

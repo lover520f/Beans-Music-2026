@@ -838,6 +838,12 @@ struct SettingsView: View {
     @State private var pendingRestore: [String: Any]?
     @State private var showRestoreConfirm = false
     @State private var backupMessage: String?
+    /// 日志
+    @ObservedObject private var logger = BeansLogger.shared
+    @State private var showLogViewer = false
+    @State private var showLogShare = false
+    @State private var showLogImport = false
+    @State private var importedLogText: String?
 
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
@@ -854,6 +860,7 @@ struct SettingsView: View {
                         unblockSection
                         changelogSection
                         backupSection
+                        logSection
                         footerNote
                     }
                     .padding(.horizontal, 16)
@@ -904,6 +911,18 @@ struct SettingsView: View {
                 backupMessage = "导出失败：\(error.localizedDescription)"
                 ToastCenter.shared.show("导出失败")
             }
+        }
+        .sheet(isPresented: $showLogViewer) {
+            LogViewerSheet(importedText: importedLogText)
+        }
+        .sheet(isPresented: $showLogShare) {
+            ShareSheet(items: [BeansLogger.shared.exportLogURL()])
+        }
+        .fullScreenCover(isPresented: $showLogImport) {
+            BackupDocumentPicker { url in
+                importLogFile(url)
+            }
+            .ignoresSafeArea()
         }
         .fullScreenCover(isPresented: $showRestorePicker) {
             BackupDocumentPicker { url in
@@ -1465,13 +1484,19 @@ struct SettingsView: View {
         var payload: [String: Any] = [:]
         for (key, value) in defaults.dictionaryRepresentation() {
             guard key.hasPrefix("beans.") else { continue }
-            // 跳过壁纸数据（含 base64 图片，恢复后路径失效）与超大值
-            if key.hasPrefix("beans.wallpapers.") { continue }
-            if let data = value as? Data, data.count > 200 * 1024 { continue }
+            // 超大原始 Data 直接跳过（壁纸 base64 已以字符串形式存于 beans.wallpapers.data，不受影响）
+            if let data = value as? Data, data.count > 2 * 1024 * 1024 { continue }
             let safe = backupJSONSafe(value)
             // 逐个校验可序列化，异常类型直接跳过，避免整份备份生成失败
             guard JSONSerialization.isValidJSONObject([key: safe]) else { continue }
             payload[key] = safe
+        }
+        // 字体文件（Documents/Fonts）随备份一起导出
+        if let font = FontManager.exportFontData() {
+            payload["beans.font.restore"] = [
+                "name": font.name,
+                "data": font.data.base64EncodedString(),
+            ] as [String: Any]
         }
         let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "1.0"
         payload["beans.backup.meta"] = [
@@ -1486,6 +1511,7 @@ struct SettingsView: View {
         }
         backupDoc = BackupDocument(data: data)
         backupMessage = nil
+        BeansLogger.shared.log("导出配置备份（\(payload.count) 项，含壁纸/字体/歌单）", level: .info)
         showExportBackup = true
     }
 
@@ -1512,12 +1538,23 @@ struct SettingsView: View {
         let defaults = UserDefaults.standard
         var count = 0
         for (key, value) in json {
-            guard key.hasPrefix("beans."), key != "beans.backup.meta" else { continue }
-            if key.hasPrefix("beans.wallpapers.") { continue }
+            guard key.hasPrefix("beans."), key != "beans.backup.meta", key != "beans.font.restore" else { continue }
             guard let restored = backupPlistSafe(value) else { continue }
             defaults.set(restored, forKey: key)
             count += 1
         }
+        // 恢复壁纸：写回 beans.wallpapers.* 后重建文件（沙盒路径变化也能恢复）
+        theme.reloadWallpapersFromBackup()
+        // 恢复字体文件
+        if let fontPayload = json["beans.font.restore"] as? [String: Any],
+           let name = fontPayload["name"] as? String,
+           let b64 = fontPayload["data"] as? String,
+           let fontData = Data(base64Encoded: b64) {
+            if FontManager.restoreFont(name: name, data: fontData) {
+                count += 1
+            }
+        }
+        BeansLogger.shared.log("恢复配置备份：\(count) 项设置", level: .info)
         if count > 0 {
             BeansHaptics.success()
             backupMessage = "已恢复 \(count) 项设置，部分设置需重启应用后完全生效"
@@ -1529,7 +1566,9 @@ struct SettingsView: View {
 
     /// 任意 UserDefaults 值 → JSON 可序列化（Data 转 base64、Date 转时间戳）
     private func backupJSONSafe(_ value: Any) -> Any {
-        if let data = value as? Data { return data.base64EncodedString() }
+        if let data = value as? Data {
+            return ["__beansData__": data.base64EncodedString()]
+        }
         if let date = value as? Date { return date.timeIntervalSince1970 }
         if let dict = value as? [String: Any] { return dict.mapValues { backupJSONSafe($0) } }
         if let array = value as? [Any] { return array.map { backupJSONSafe($0) } }
@@ -1540,6 +1579,11 @@ struct SettingsView: View {
 
     /// JSON 值 → UserDefaults 可存类型（只保留 plist 兼容类型）
     private func backupPlistSafe(_ value: Any) -> Any? {
+        if let dict = value as? [String: Any], dict.count == 1,
+           let b64 = dict["__beansData__"] as? String,
+           let data = Data(base64Encoded: b64) {
+            return data
+        }
         if value is String || value is NSNumber { return value }
         if let array = value as? [Any] {
             let mapped = array.compactMap { backupPlistSafe($0) }
@@ -1554,6 +1598,67 @@ struct SettingsView: View {
             return result
         }
         return nil
+    }
+
+    /// 日志：查看 / 导出 / 导入 / 清空
+    private var logSection: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            SectionHeader(title: "日志")
+            VStack(spacing: 8) {
+                HStack(spacing: 10) {
+                    logActionButton(icon: "doc.text.magnifyingglass", title: "查看日志") {
+                        importedLogText = nil
+                        showLogViewer = true
+                    }
+                    logActionButton(icon: "square.and.arrow.up", title: "导出日志") {
+                        showLogShare = true
+                    }
+                }
+                HStack(spacing: 10) {
+                    logActionButton(icon: "square.and.arrow.down", title: "导入日志") {
+                        showLogImport = true
+                    }
+                    logActionButton(icon: "trash", title: "清空日志") {
+                        logger.clear()
+                        ToastCenter.shared.show("日志已清空")
+                    }
+                }
+                Text("日志记录搜索、播放、登录、导入、备份等关键事件；遇到问题可导出日志发给开发者，方便快速定位 Bug")
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(Color.beansComment)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
+            .padding(14)
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+        }
+    }
+
+    private func logActionButton(icon: String, title: String, action: @escaping () -> Void) -> some View {
+        Button(action: action) {
+            HStack(spacing: 6) {
+                Image(systemName: icon)
+                Text(title)
+            }
+            .font(BeansFont.appFont(13, .semibold))
+            .foregroundStyle(Color.beansLabel)
+            .frame(maxWidth: .infinity)
+            .padding(.vertical, 11)
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.95))
+    }
+
+    /// 导入日志文件：读取文本后在日志查看器中展示
+    private func importLogFile(_ url: URL) {
+        guard let text = try? String(contentsOf: url, encoding: .utf8) else {
+            ToastCenter.shared.show("读取日志文件失败")
+            return
+        }
+        importedLogText = text
+        BeansLogger.shared.log("导入日志文件：\(url.lastPathComponent)", level: .info)
+        showLogViewer = true
     }
 
     private var footerNote: some View {

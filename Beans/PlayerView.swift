@@ -26,6 +26,10 @@ struct PlayerView: View {
     @State private var showComments = false
     @State private var showDownloadPicker = false
     @State private var showShare = false
+    /// 下载完成后直接弹原生分享（用户自行选择保存或转发）
+    @State private var shareFile: ShareFileItem?
+    @State private var sharedFileURL: URL?
+    @State private var showAddToLocalPlaylist = false
     @State private var showPlayerSettings = false
     @State private var showArtistHome = false
     @State private var pickedArtistName = ""
@@ -237,6 +241,14 @@ struct PlayerView: View {
                 ShareSheet(items: shareItems(for: song))
             }
         }
+        .sheet(item: $shareFile, onDismiss: cleanupSharedFile) { item in
+            ShareSheet(items: [item.url])
+        }
+        .sheet(isPresented: $showAddToLocalPlaylist) {
+            if let song {
+                AddToLocalPlaylistSheet(song: song)
+            }
+        }
         .sheet(isPresented: $showArtistHome) {
             if !pickedArtistName.isEmpty {
                 ArtistHomeSheet(artistName: pickedArtistName, artistSource: song?.source ?? .netease)
@@ -398,29 +410,8 @@ struct PlayerView: View {
                     Label("分享歌曲", systemImage: "square.and.arrow.up")
                 }
                 Divider()
-                Menu {
-                    if LocalLibraryStore.shared.playlists.isEmpty {
-                        Button {
-                            let p = LocalLibraryStore.shared.createPlaylist(name: "我的本地歌单")
-                            if let song { LocalLibraryStore.shared.addSong(song, to: p.id) }
-                            BeansHaptics.success()
-                            ToastCenter.shared.show("已创建「我的本地歌单」并加入")
-                        } label: {
-                            Label("新建歌单并加入", systemImage: "plus.circle")
-                        }
-                    } else {
-                        ForEach(LocalLibraryStore.shared.playlists) { p in
-                            Button {
-                                if let song {
-                                    LocalLibraryStore.shared.addSong(song, to: p.id)
-                                    BeansHaptics.success()
-                                    ToastCenter.shared.show("已加入「\(p.name)」")
-                                }
-                            } label: {
-                                Text(p.name)
-                            }
-                        }
-                    }
+                Button {
+                    showAddToLocalPlaylist = true
                 } label: {
                     Label("加入本地歌单", systemImage: "internaldrive")
                 }
@@ -1174,13 +1165,22 @@ struct PlayerView: View {
         let result = await DownloadManager.shared.download(song: song, quality: quality)
         switch result {
         case .success(let downloadResult):
-            let message = downloadResult.downgraded
-                ? "已下载（所选音质不可用，已自动降级）：\(song.name)"
-                : "已下载：\(song.name)（可在文件 App 查看）"
-            ToastCenter.shared.show(message, duration: 3)
+            BeansLogger.shared.log("下载完成，弹出分享：\(song.name)（\(quality.rawValue)\(downloadResult.downgraded ? "，已自动降级" : "")）", level: .info)
+            sharedFileURL = downloadResult.url
+            shareFile = ShareFileItem(url: downloadResult.url)
         case .failure(let error):
+            BeansLogger.shared.log("下载失败：\(song.name) - \(error.localizedDescription)", level: .error)
             ToastCenter.shared.show("下载失败：\(error.localizedDescription)", duration: 3)
         }
+    }
+
+    /// 分享面板关闭后清理临时下载文件（不占用户存储）
+    private func cleanupSharedFile() {
+        if let url = sharedFileURL {
+            try? FileManager.default.removeItem(at: url)
+        }
+        sharedFileURL = nil
+        shareFile = nil
     }
 
     // MARK: - 动作
@@ -2265,6 +2265,13 @@ struct PlayerSettingsSheet: View {
         default: return "极亮"
         }
     }
+}
+
+// MARK: - 下载文件分享（Identifiable 包装，供 sheet(item:) 使用）
+
+struct ShareFileItem: Identifiable {
+    let id = UUID()
+    let url: URL
 }
 
 // MARK: - 原生系统分享面板（UIActivityViewController 封装，直接调系统自带分享）

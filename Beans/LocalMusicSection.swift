@@ -307,4 +307,114 @@ struct LocalSearchAddSheet: View {
             }
         }
     }
+
+}
+
+
+// MARK: - 加入本地歌单（播放页入口：选择已创建的本地歌单，或新建并加入）
+
+struct AddToLocalPlaylistSheet: View {
+    @ObservedObject private var store = LocalLibraryStore.shared
+    @EnvironmentObject private var theme: ThemeStore
+    @Environment(.dismiss) private var dismiss
+
+    let song: Song
+    @State private var showCreateField = false
+    @State private var newName = ""
+    @State private var message: String?
+
+    var body: some View {
+        let _ = theme.accent
+        BeansNavigationStack {
+            List {
+                if store.playlists.isEmpty {
+                    Text("还没有本地歌单，先创建一个吧")
+                        .foregroundStyle(Color.beansComment)
+                } else {
+                    Section("选择本地歌单") {
+                        ForEach(store.playlists) { playlist in
+                            Button {
+                                store.addSong(song, to: playlist.id)
+                                BeansHaptics.success()
+                                ToastCenter.shared.show("已加入「\(playlist.name)」")
+                                dismiss()
+                            } label: {
+                                HStack(spacing: 12) {
+                                    ZStack {
+                                        RoundedRectangle(cornerRadius: 10, style: .continuous)
+                                            .fill(LinearGradient(colors: [Color.beansAmber.opacity(0.75), Color.beansAmber.opacity(0.35)], startPoint: .topLeading, endPoint: .bottomTrailing))
+                                            .frame(width: 40, height: 40)
+                                        Image(systemName: "music.note.list")
+                                            .font(.system(size: 15, weight: .semibold))
+                                            .foregroundStyle(.white)
+                                    }
+                                    VStack(alignment: .leading, spacing: 2) {
+                                        Text(playlist.name)
+                                            .font(BeansFont.appFont(15, .medium))
+                                            .foregroundStyle(Color.beansLabel)
+                                            .lineLimit(1)
+                                        Text("\(playlist.songs.count) 首 · 本机")
+                                            .font(BeansFont.appFont(11))
+                                            .foregroundStyle(Color.beansComment)
+                                    }
+                                    Spacer()
+                                    Image(systemName: "plus.circle.fill")
+                                        .font(.system(size: 15))
+                                        .foregroundStyle(Color.beansAmber)
+                                }
+                            }
+                        }
+                    }
+                }
+
+                if showCreateField {
+                    Section("新建本地歌单") {
+                        TextField("歌单名称", text: $newName)
+                            .submitLabel(.done)
+                        Button {
+                            createAndAdd()
+                        } label: {
+                            Text("创建并加入")
+                                .font(BeansFont.appFont(15, .semibold))
+                                .foregroundStyle(Color.beansAmber)
+                        }
+                    }
+                } else {
+                    Section {
+                        Button {
+                            showCreateField = true
+                        } label: {
+                            Label("新建歌单并加入", systemImage: "plus.circle")
+                        }
+                    }
+                }
+
+                if let message {
+                    Section {
+                        Text(message)
+                            .font(BeansFont.appFont(13))
+                            .foregroundStyle(Color.beansSage)
+                    }
+                }
+            }
+            .navigationTitle("加入本地歌单")
+            .navigationBarTitleDisplayMode(.inline)
+            .toolbar {
+                ToolbarItem(placement: .confirmationAction) {
+                    Button("完成") { dismiss() }
+                }
+            }
+        }
+        .modifier(BeansSheetModifier(detents: [.medium, .large], dragIndicator: true))
+    }
+
+    private func createAndAdd() {
+        let name = newName.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !name.isEmpty else { return }
+        let playlist = store.createPlaylist(name: name)
+        store.addSong(song, to: playlist.id)
+        BeansHaptics.success()
+        ToastCenter.shared.show("已创建「\(name)」并加入")
+        dismiss()
+    }
 }

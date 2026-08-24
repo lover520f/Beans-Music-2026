@@ -91,6 +91,7 @@ struct SearchView: View {
     @State private var errorMessage: String?
     @State private var showAddToPlaylist: Song?
     @State private var selectedArtist: Artist?
+    @ObservedObject private var historyStore = SearchHistoryStore.shared
     @State private var debounceTask: Task<Void, Never>?
     @State private var searchTask: Task<Void, Never>?
     /// UIKit 输入框控制器（提交拼音、收起键盘等由它统一处理）
@@ -211,6 +212,7 @@ struct SearchView: View {
                     let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                     guard !trimmed.isEmpty else { return }
                     debounceTask?.cancel()
+                    historyStore.record(trimmed)
                     Task { await startSearch(trimmed) }
                 }
             )
@@ -242,6 +244,7 @@ struct SearchView: View {
                 let trimmed = text.trimmingCharacters(in: .whitespacesAndNewlines)
                 guard !trimmed.isEmpty else { return }
                 debounceTask?.cancel()
+                historyStore.record(trimmed)
                 Task { await startSearch(trimmed) }
             } label: {
                 Text("搜索")
@@ -347,6 +350,13 @@ struct SearchView: View {
     private var hotSection: some View {
         ScrollView {
             VStack(alignment: .leading, spacing: 16) {
+                SearchHistorySection { word in
+                    keyword = word
+                    searchController.dismissKeyboard()
+                    debounceTask?.cancel()
+                    historyStore.record(word)
+                    Task { await startSearch(word) }
+                }
                 SectionHeader(title: "\(provider.rawValue)热搜")
                 if hotWords.isEmpty {
                     LoadingStateView()
@@ -649,6 +659,7 @@ struct SearchView: View {
         debounceTask?.cancel()
         let trimmed = keyword.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !trimmed.isEmpty else { return }
+        historyStore.record(trimmed)
         Task { await startSearch(trimmed) }
     }
 
@@ -658,6 +669,7 @@ struct SearchView: View {
         keyword = name
         searchController.dismissKeyboard()
         debounceTask?.cancel()
+        historyStore.record(name)
         resultType = .song
         Task { await startSearch(name) }
     }
@@ -679,6 +691,7 @@ struct SearchView: View {
         searchTask = Task {
             searching = true
             errorMessage = nil
+            BeansLogger.shared.log("搜索：\(provider.rawValue) [\(resultType.rawValue)] \(trimmed)", level: .info)
             defer { if !Task.isCancelled { searching = false } }
             do {
                 switch (provider, resultType) {
@@ -712,6 +725,7 @@ struct SearchView: View {
             } catch {
                 guard !Task.isCancelled else { return }
                 errorMessage = error.localizedDescription
+                BeansLogger.shared.log("搜索失败：\(provider.rawValue) \(trimmed) - \(error.localizedDescription)", level: .error)
             }
         }
         await searchTask?.value

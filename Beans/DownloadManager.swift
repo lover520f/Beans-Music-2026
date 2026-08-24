@@ -53,7 +53,7 @@ struct DownloadResult {
 
 // MARK: - 歌曲下载
 
-/// 下载歌曲到 Documents/BeansDownloads（已开启文件共享，可在系统「文件」App 中访问）
+/// 下载歌曲到临时目录（不自动保存到本地）：下载完成后交给播放页弹原生分享，由用户自行选择保存或转发
 @MainActor
 final class DownloadManager {
     static let shared = DownloadManager()
@@ -87,9 +87,9 @@ final class DownloadManager {
                 continue
             }
 
-            // 3) 移动到 BeansDownloads 目录（文件名包含歌曲与歌手，已存在的覆盖）
-            let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
-                .appendingPathComponent("BeansDownloads", isDirectory: true)
+            // 3) 保存到临时目录（不占用户存储；分享面板自带「存储到文件 / 转发」选项）
+            let dir = FileManager.default.temporaryDirectory
+                .appendingPathComponent("BeansShare", isDirectory: true)
             try? FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
             let safeName = "\(song.name) - \(song.artists)"
                 .replacingOccurrences(of: "/", with: "-")

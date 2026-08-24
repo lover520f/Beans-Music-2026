@@ -360,7 +360,10 @@ final class PlayerManager: NSObject, ObservableObject {
                     self.isBuffering = false
                     self.loadFailed = true
                     if self.shouldLockOfficialOnly(song) {
+                        BeansLogger.shared.log("播放失败：\(song.name) - 未找到原唱音源（官方受限），拒绝翻唱版本", level: .error)
                         ToastCenter.shared.show("《\(song.name)》未找到原唱音源（官方受限），已停止播放，拒绝翻唱版本")
+                    } else {
+                        BeansLogger.shared.log("播放失败：\(song.name) - 无法解析播放地址", level: .error)
                     }
                 }
                 return

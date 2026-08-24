@@ -277,6 +277,11 @@ final class ThemeStore: ObservableObject {
         invalidateBackgroundCache()
     }
 
+    /// 配置备份恢复后调用：按 UserDefaults 中的壁纸列表与 base64 备份重建壁纸文件
+    func reloadWallpapersFromBackup() {
+        restoreWallpapers()
+    }
+
     /// 切换全局玻璃材质（液态 / 磨砂）
     func setFXStyle(_ style: BeansFXStyle) {
         guard fxStyle != style else { return }
