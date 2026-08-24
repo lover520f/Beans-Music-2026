@@ -10,7 +10,6 @@ enum PlayerLayoutPart: String, CaseIterable, Identifiable {
     case grabber = "指示线"
 
     var id: String { rawValue }
-
 }
 
 /// 单个组件的自定义位置（相对默认位置的偏移）与缩放

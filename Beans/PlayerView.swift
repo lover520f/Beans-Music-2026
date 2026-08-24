@@ -26,8 +26,6 @@ struct PlayerView: View {
     @State private var showComments = false
     @State private var showDownloadPicker = false
     @State private var showShare = false
-    @State private var showDownloadShare = false
-    @State private var sharedDownloadURL: URL?
     @State private var showPlayerSettings = false
     @State private var showArtistHome = false
     @State private var pickedArtistName = ""
@@ -235,15 +233,6 @@ struct PlayerView: View {
         .sheet(isPresented: $showShare) {
             if let song {
                 ShareSheet(items: shareItems(for: song))
-            }
-        }
-        .sheet(isPresented: $showDownloadShare) {
-            if let url = sharedDownloadURL {
-                ShareSheet(items: [url]) {
-                    // 分享结束后清理临时文件，不落库保存
-                    try? FileManager.default.removeItem(at: url)
-                    sharedDownloadURL = nil
-                }
             }
         }
         .sheet(isPresented: $showArtistHome) {
@@ -1204,11 +1193,9 @@ struct PlayerView: View {
         switch result {
         case .success(let downloadResult):
             let message = downloadResult.downgraded
-                ? "下载完成（所选音质不可用，已自动降级）：\(song.name)"
-                : "下载完成：\(song.name)"
-            ToastCenter.shared.show(message, duration: 2)
-            sharedDownloadURL = downloadResult.url
-            showDownloadShare = true
+                ? "已下载（所选音质不可用，已自动降级）：\(song.name)"
+                : "已下载：\(song.name)（可在文件 App 查看）"
+            ToastCenter.shared.show(message, duration: 3)
         case .failure(let error):
             ToastCenter.shared.show("下载失败：\(error.localizedDescription)", duration: 3)
         }
@@ -2241,13 +2228,9 @@ struct PlayerSettingsSheet: View {
 
 struct ShareSheet: UIViewControllerRepresentable {
     let items: [Any]
-    var onComplete: (() -> Void)? = nil
 
     func makeUIViewController(context: Context) -> UIActivityViewController {
         let controller = UIActivityViewController(activityItems: items, applicationActivities: nil)
-        controller.completionWithItemsHandler = { _, _, _, _ in
-            onComplete?()
-        }
         // iPad 弹出需要 popover 锚点，否则会崩溃
         if let popover = controller.popoverPresentationController {
             popover.sourceView = controller.view
