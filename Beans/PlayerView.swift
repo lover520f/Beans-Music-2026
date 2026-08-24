@@ -26,7 +26,6 @@ struct PlayerView: View {
     @State private var showComments = false
     @State private var showDownloadPicker = false
     @State private var showShare = false
-    @State private var showLyricSettings = false
     @State private var showPlayerSettings = false
     @State private var showArtistHome = false
     @State private var pickedArtistName = ""
@@ -47,8 +46,7 @@ struct PlayerView: View {
     @AppStorage("beans.playerBreath") private var playerBreath = 0.6
     /// 显示歌词翻译（借鉴 Kumone：网易云 tlyric）
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
-    /// 旋律可视化：默认开启；样式/颜色在播放器设置中调整
-    /// 进度条样式：0 流光 / 1 霓虹 / 2 辉光 / 3 极光
+    /// 进度条样式：0 流光 / 1 辉光 / 2 极光 / 3 波浪
     @AppStorage("beans.progressBarStyle") private var progressBarStyle = 0
 
     private var song: Song? { player.currentSong }
@@ -171,28 +169,12 @@ struct PlayerView: View {
             }
         }
         .sheet(isPresented: $showPlayerSettings) {
-            PlayerSettingsSheet(
-                breath: $playerBreath,
-                progressBarStyle: $progressBarStyle
-            )
+            PlayerSettingsSheet()
         }
         .sheet(isPresented: $showShare) {
             if let song {
                 ShareSheet(items: shareItems(for: song))
             }
-        }
-        .sheet(isPresented: $showLyricSettings) {
-            LyricSettingsSheet(
-                fontSize: $lyricFontSize,
-                glowLevel: $lyricGlowLevel,
-                currentColorRaw: $lyricColorRaw,
-                dimColorRaw: $lyricDimColorRaw,
-                gradStartRaw: $lyricGradStartRaw,
-                gradEndRaw: $lyricGradEndRaw,
-                gradMode: $lyricGradMode,
-                lineSpacing: $lyricLineSpacing,
-                palette: palette
-            )
         }
         .sheet(isPresented: $showArtistHome) {
             if !pickedArtistName.isEmpty {
@@ -351,11 +333,6 @@ struct PlayerView: View {
                     showPlayerSettings = true
                 } label: {
                     Label("播放器设置", systemImage: "slider.horizontal.3")
-                }
-                Button {
-                    showLyricSettings = true
-                } label: {
-                    Label("歌词设置", systemImage: "textformat.size")
                 }
             } label: {
                 Image(systemName: "ellipsis.circle")
@@ -1024,7 +1001,7 @@ struct SeekBar: View {
     @EnvironmentObject private var player: PlayerManager
     let accent: Color
     let track: Color
-    /// 进度条样式：0 流光 / 1 霓虹 / 2 辉光 / 3 极光
+    /// 进度条样式：0 流光 / 1 辉光 / 2 极光 / 3 波浪
     var style: Int = 0
 
     @State private var scrubbing = false
@@ -1047,17 +1024,6 @@ struct SeekBar: View {
                 // 轨道与已播放段（按样式）
                 switch style {
                 case 1:
-                    // 霓虹分段：14 段发光刻度，已播放段霓虹高亮
-                    HStack(spacing: 3) {
-                        ForEach(0..<14, id: \.self) { seg in
-                            let segStart = Double(seg) / 14
-                            Capsule()
-                                .fill(segStart <= ratio ? accent : track.opacity(0.5))
-                                .frame(width: max(2, (width - 3 * 13) / 14), height: 6)
-                                .shadow(color: segStart <= ratio ? accent.opacity(0.75) : .clear, radius: 3)
-                        }
-                    }
-                case 2:
                     // 辉光：全宽渐变底轨 + 明亮已播放段 + 底部柔光
                     Capsule()
                         .fill(
@@ -1077,7 +1043,7 @@ struct SeekBar: View {
                         .frame(width: max(3, thumbX - 4), height: 2)
                         .offset(y: -2)
                         .clipShape(Capsule())
-                case 3:
+                case 2:
                     // 极光：发丝细线 + 极光渐变 + 大号光晕滑块
                     Capsule()
                         .fill(track.opacity(0.6))
@@ -1107,6 +1073,9 @@ struct SeekBar: View {
                         .scaleEffect(scrubbing ? 1.15 : 1)
                         .offset(x: thumbX - 15)
                         .animation(.spring(response: 0.25, dampingFraction: 0.7), value: scrubbing)
+                case 3:
+                    // 波浪：正弦波形，已播放段高亮发光
+                    WaveBar(ratio: ratio, accent: accent, track: track, width: width)
                 default:
                     // 流光：清透轨道 + 渐变已播放段 + 顶部高光 + 游动光点
                     Capsule()
@@ -1139,8 +1108,8 @@ struct SeekBar: View {
                         .animation(.linear(duration: 2.4).repeatForever(autoreverses: true), value: flowPhase)
                 }
 
-                // 滑块（仅 0/1/2 用发光圆点；3 极光自带大滑块）
-                if style != 3 {
+                // 滑块（流光/辉光/波浪用发光圆点；极光自带大滑块）
+                if style != 2 {
                     Circle()
                         .fill(.white)
                         .frame(width: scrubbing ? 20 : 14, height: scrubbing ? 20 : 14)
@@ -1171,6 +1140,67 @@ struct SeekBar: View {
             )
         }
         .frame(height: 26)
+    }
+}
+
+
+// MARK: - 波浪进度条（正弦波形：已播放段高亮，波面缓慢流动）
+
+private struct WaveShape: Shape {
+    var phase: CGFloat = 0
+    var amplitude: CGFloat = 3.2
+
+    var animatableData: CGFloat {
+        get { phase }
+        set { phase = newValue }
+    }
+
+    func path(in rect: CGRect) -> Path {
+        var path = Path()
+        let mid = rect.midY
+        let freq: CGFloat = 2.4
+        path.move(to: CGPoint(x: 0, y: mid))
+        var x: CGFloat = 0
+        while x <= rect.width {
+            let y = mid + sin(x / rect.width * .pi * 2 * freq + phase * .pi * 2) * amplitude
+            path.addLine(to: CGPoint(x: x, y: y))
+            x += 2
+        }
+        return path
+    }
+}
+
+private struct WaveBar: View {
+    let ratio: Double
+    let accent: Color
+    let track: Color
+    let width: CGFloat
+
+    @State private var phase: CGFloat = 0
+
+    var body: some View {
+        ZStack(alignment: .leading) {
+            // 未播放波形（暗色）
+            WaveShape(phase: phase)
+                .stroke(track.opacity(0.5), style: StrokeStyle(lineWidth: 2.6, lineCap: .round))
+                .frame(width: width, height: 16)
+            // 已播放波形（渐变高亮 + 发光，裁剪到当前进度）
+            WaveShape(phase: phase)
+                .stroke(
+                    LinearGradient(colors: [accent, accent.opacity(0.65), .white.opacity(0.9)],
+                                   startPoint: .leading, endPoint: .trailing),
+                    style: StrokeStyle(lineWidth: 3.4, lineCap: .round)
+                )
+                .shadow(color: accent.opacity(0.75), radius: 4)
+                .frame(width: width, height: 16)
+                .frame(width: max(0, width * CGFloat(ratio)), alignment: .leading)
+                .clipped()
+        }
+        .frame(height: 18)
+        .onAppear {
+            if phase == 0 { phase = 1 }
+        }
+        .animation(.linear(duration: 3).repeatForever(autoreverses: false), value: phase)
     }
 }
 
@@ -1281,7 +1311,10 @@ struct LyricsSection: View {
                 }
             }
             .onAppear {
-                scrollToCurrent(proxy)
+                // 延迟到布局稳定后再定位当前行，避免从封面页调整进度后切回歌词错位
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.06) {
+                    scrollToCurrent(proxy)
+                }
             }
             .onChange(of: currentIndex) { _, newIndex in
                 guard let newIndex, !isUserScrolling else { return }
@@ -1438,18 +1471,38 @@ struct LyricsSection: View {
     }
 }
 
-// MARK: - 歌词设置面板（更多菜单 → 歌词设置：字号 / 发光强度 / 颜色色盘）
+// MARK: - 歌词渐变预设（一键组合：渐变起止色 + 发光强度）
 
-struct LyricSettingsSheet: View {
-    @Binding var fontSize: Int
-    @Binding var glowLevel: Int
-    @Binding var currentColorRaw: String
-    @Binding var dimColorRaw: String
-    @Binding var gradStartRaw: String
-    @Binding var gradEndRaw: String
-    @Binding var gradMode: Int
-    @Binding var lineSpacing: Int
-    let palette: CoverPalette
+struct LyricPreset {
+    let name: String
+    let start: String
+    let end: String
+    let glow: Int
+
+    static let all: [LyricPreset] = [
+        LyricPreset(name: "晨曦金", start: "#FFD08A", end: "#FF7A3D", glow: 2),
+        LyricPreset(name: "冰蓝极光", start: "#8FD8FF", end: "#5B6BFF", glow: 2),
+        LyricPreset(name: "霓虹紫", start: "#E8A2FF", end: "#8A2BE2", glow: 3),
+        LyricPreset(name: "草莓奶昔", start: "#FF9AB5", end: "#FF5E8A", glow: 1),
+        LyricPreset(name: "鎏金夜曲", start: "#F5D98B", end: "#C9A227", glow: 2),
+        LyricPreset(name: "薄荷气泡", start: "#A8F0D4", end: "#2BC48D", glow: 2),
+    ]
+}
+
+// MARK: - 播放器设置（更多菜单 → 播放器设置：进度条样式 / 背景光晕 / 歌词字号 / 颜色色盘）
+
+struct PlayerSettingsSheet: View {
+    @AppStorage("beans.playerBreath") private var breath = 0.6
+    @AppStorage("beans.progressBarStyle") private var progressBarStyle = 0
+    @AppStorage("beans.lyricFontSize") private var fontSize = 17
+    @AppStorage("beans.lyricSpacing") private var lineSpacing = 24
+    @AppStorage("beans.lyricGlow") private var glowLevel = 1
+    @AppStorage("beans.lyricColor") private var currentColorRaw = "accent"
+    @AppStorage("beans.lyricDimColor") private var dimColorRaw = "dim"
+    @AppStorage("beans.lyricGradStart") private var gradStartRaw = ""
+    @AppStorage("beans.lyricGradEnd") private var gradEndRaw = ""
+    @AppStorage("beans.lyricGradMode") private var gradMode = 0
+    @AppStorage("beans.lyricTranslation") private var lyricTranslation = false
     @Environment(\.dismiss) private var dismiss
 
     /// 预设按钮：点击应用渐变起止色 + 发光强度
@@ -1464,7 +1517,7 @@ struct LyricSettingsSheet: View {
             VStack(spacing: 5) {
                 RoundedRectangle(cornerRadius: 8, style: .continuous)
                     .fill(LinearGradient(
-                        colors: [(Color(hex: preset.start) ?? palette.accent), (Color(hex: preset.end) ?? palette.secondary)],
+                        colors: [(Color(hex: preset.start) ?? Color.beansAmber), (Color(hex: preset.end) ?? Color.beansSecondary)],
                         startPoint: .topLeading,
                         endPoint: .bottomTrailing
                     ))
@@ -1482,12 +1535,12 @@ struct LyricSettingsSheet: View {
         .buttonStyle(.plain)
     }
 
-    /// 当前行高亮色：任意色盘选色写入 hex，关闭面板后依然生效
+    /// 当前行高亮色：色盘选色写入 hex，关闭面板后依然生效
     private var currentColor: Binding<Color> {
         Binding(
             get: {
                 if currentColorRaw.hasPrefix("#"), let c = Color(hex: currentColorRaw) { return c }
-                return palette.accent
+                return Color.beansAmber
             },
             set: { newValue in
                 currentColorRaw = "#" + UIColor(newValue).hexString
@@ -1496,12 +1549,12 @@ struct LyricSettingsSheet: View {
         )
     }
 
-    /// 未播放歌词颜色：同上，任意色盘选色
+    /// 未播放歌词颜色：同上
     private var dimColor: Binding<Color> {
         Binding(
             get: {
                 if dimColorRaw.hasPrefix("#"), let c = Color(hex: dimColorRaw) { return c }
-                return palette.secondary
+                return Color.beansSecondary
             },
             set: { newValue in
                 dimColorRaw = "#" + UIColor(newValue).hexString
@@ -1510,12 +1563,12 @@ struct LyricSettingsSheet: View {
         )
     }
 
-    /// 渐变起始色：任意色盘选色，空值时自动用封面强调色
+    /// 渐变起始色：空值时自动用主题强调色
     private var gradStart: Binding<Color> {
         Binding(
             get: {
                 if gradStartRaw.hasPrefix("#"), let c = Color(hex: gradStartRaw) { return c }
-                return palette.accent
+                return Color.beansAmber
             },
             set: { newValue in
                 gradStartRaw = "#" + UIColor(newValue).hexString
@@ -1524,12 +1577,12 @@ struct LyricSettingsSheet: View {
         )
     }
 
-    /// 渐变结束色：任意色盘选色，空值时自动用封面色派生色
+    /// 渐变结束色：空值时自动用主题次色
     private var gradEnd: Binding<Color> {
         Binding(
             get: {
                 if gradEndRaw.hasPrefix("#"), let c = Color(hex: gradEndRaw) { return c }
-                return palette.accent
+                return Color.beansSecondary
             },
             set: { newValue in
                 gradEndRaw = "#" + UIColor(newValue).hexString
@@ -1541,7 +1594,32 @@ struct LyricSettingsSheet: View {
     var body: some View {
         NavigationStack {
             Form {
-                Section("字号") {
+                Section("进度条样式") {
+                    Picker("样式", selection: $progressBarStyle) {
+                        Text("流光").tag(0)
+                        Text("辉光").tag(1)
+                        Text("极光").tag(2)
+                        Text("波浪").tag(3)
+                    }
+                    .pickerStyle(.segmented)
+                    Text("四种风格均自动跟随封面主色；流光带游动光点，波浪随节奏起伏")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansSecondary)
+                }
+                Section("背景光晕强度") {
+                    HStack(spacing: 12) {
+                        Image(systemName: "circle.lefthalf.filled")
+                            .foregroundStyle(Color.beansAmber)
+                        Slider(value: $breath, in: 0...1, step: 0.05)
+                            .tint(Color.beansAmber)
+                        Image(systemName: "circle.fill")
+                            .foregroundStyle(Color.beansAmber)
+                    }
+                    Text("强度 \(Int((breath * 100).rounded()))%")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansSecondary)
+                }
+                Section("歌词字号") {
                     HStack(spacing: 12) {
                         Text("A")
                             .font(BeansFont.appFont(13, .semibold))
@@ -1561,8 +1639,7 @@ struct LyricSettingsSheet: View {
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
                 }
-
-                Section("行距") {
+                Section("歌词行距") {
                     HStack(spacing: 12) {
                         Text("紧凑")
                             .font(BeansFont.appFont(12))
@@ -1582,8 +1659,7 @@ struct LyricSettingsSheet: View {
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
                 }
-
-                Section("发光强度") {
+                Section("歌词发光强度") {
                     HStack(spacing: 12) {
                         Image(systemName: "sparkles")
                             .foregroundStyle(Color.beansAmber)
@@ -1603,7 +1679,6 @@ struct LyricSettingsSheet: View {
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
                 }
-
                 Section("渐变预设") {
                     VStack(spacing: 8) {
                         HStack(spacing: 8) {
@@ -1621,7 +1696,6 @@ struct LyricSettingsSheet: View {
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
                 }
-
                 Section("自定义配色") {
                     Toggle("保持自定义配色", isOn: Binding(
                         get: { gradMode == 1 },
@@ -1632,7 +1706,6 @@ struct LyricSettingsSheet: View {
                         .font(BeansFont.appFont(13))
                         .foregroundStyle(Color.beansSecondary)
                 }
-
                 Section("歌词颜色") {
                     ColorPicker("当前行颜色", selection: currentColor, supportsOpacity: false)
                     ColorPicker("未播放行颜色", selection: dimColor, supportsOpacity: false)
@@ -1645,7 +1718,6 @@ struct LyricSettingsSheet: View {
                     .font(BeansFont.appFont(13))
                     .foregroundStyle(Color.beansAmber)
                 }
-
                 Section("歌词渐变") {
                     ColorPicker("渐变起始色", selection: gradStart, supportsOpacity: false)
                     ColorPicker("渐变结束色", selection: gradEnd, supportsOpacity: false)
@@ -1658,8 +1730,15 @@ struct LyricSettingsSheet: View {
                     .font(BeansFont.appFont(13))
                     .foregroundStyle(Color.beansAmber)
                 }
+                Section("歌词翻译") {
+                    Toggle("显示歌词翻译", isOn: $lyricTranslation)
+                        .tint(Color.beansAmber)
+                    Text("当前播放歌词下方显示译文（网易云 tlyric）")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansSecondary)
+                }
             }
-            .navigationTitle("歌词设置")
+            .navigationTitle("播放器设置")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {
                 ToolbarItem(placement: .confirmationAction) {
@@ -1682,82 +1761,6 @@ struct LyricSettingsSheet: View {
         }
     }
 }
-
-// MARK: - 歌词渐变预设（一键组合：渐变起止色 + 发光强度）
-
-struct LyricPreset {
-    let name: String
-    let start: String
-    let end: String
-    let glow: Int
-
-    static let all: [LyricPreset] = [
-        LyricPreset(name: "晨曦金", start: "#FFD08A", end: "#FF7A3D", glow: 2),
-        LyricPreset(name: "冰蓝极光", start: "#8FD8FF", end: "#5B6BFF", glow: 2),
-        LyricPreset(name: "霓虹紫", start: "#E8A2FF", end: "#8A2BE2", glow: 3),
-        LyricPreset(name: "草莓奶昔", start: "#FF9AB5", end: "#FF5E8A", glow: 1),
-        LyricPreset(name: "鎏金夜曲", start: "#F5D98B", end: "#C9A227", glow: 2),
-        LyricPreset(name: "薄荷气泡", start: "#A8F0D4", end: "#2BC48D", glow: 2),
-    ]
-}
-
-// MARK: - 播放器设置（更多菜单 → 播放器设置：背景流动 + 呼吸光晕强度）
-
-struct PlayerSettingsSheet: View {
-    @Binding var breath: Double
-    @Binding var progressBarStyle: Int
-    @Environment(\.dismiss) private var dismiss
-
-    var body: some View {
-        NavigationStack {
-            Form {
-                Section("进度条样式") {
-                    Picker("样式", selection: $progressBarStyle) {
-                        Text("流光").tag(0)
-                        Text("霓虹").tag(1)
-                        Text("辉光").tag(2)
-                        Text("极光").tag(3)
-                    }
-                    .pickerStyle(.segmented)
-                    Text("四种风格均自动跟随封面主色，流光样式带游动光点")
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
-                }
-                Section("背景光晕强度") {
-                    HStack(spacing: 12) {
-                        Image(systemName: "circle.lefthalf.filled")
-                            .foregroundStyle(Color.beansAmber)
-                        Slider(value: $breath, in: 0...1, step: 0.05)
-                            .tint(Color.beansAmber)
-                        Image(systemName: "circle.fill")
-                            .foregroundStyle(Color.beansAmber)
-                    }
-                    Text("强度 \(Int((breath * 100).rounded()))%")
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
-                }
-                Section {
-                    Text("背景渐变与光晕颜色会自动跟随当前歌曲封面主色；暂停时动画冻结，降低功耗")
-                        .font(BeansFont.appFont(13))
-                        .foregroundStyle(Color.beansSecondary)
-                }
-            }
-            .navigationTitle("播放器设置")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
-                }
-            }
-        }
-        .presentationDetents([.height(560)])
-        .presentationDragIndicator(.visible)
-    }
-}
-
-
-
-
 
 // MARK: - 原生系统分享面板（UIActivityViewController 封装，直接调系统自带分享）
 

@@ -131,8 +131,19 @@ final class PlayerManager: NSObject, ObservableObject {
 
     func seek(to seconds: Double) {
         let clamped = max(0, min(seconds, max(duration, 0)))
-        player?.seek(to: CMTime(seconds: clamped, preferredTimescale: 600))
         progress = clamped
+        // 用 seek 完成回调同步真实进度：避免暂停状态下拖动进度后，歌词定位与实际播放位置不一致
+        player?.seek(
+            to: CMTime(seconds: clamped, preferredTimescale: 600),
+            toleranceBefore: .zero,
+            toleranceAfter: .zero
+        ) { [weak self] finished in
+            guard let self, finished else { return }
+            let actual = self.player?.currentTime().seconds ?? clamped
+            if abs(actual - self.progress) > 0.25 {
+                self.progress = actual
+            }
+        }
         updateNowPlaying()
     }
 

@@ -26,8 +26,8 @@ struct ProfileView: View {
     }
 
     private var appVersionText: String {
-        let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.0"
-        return "Beans · \(ver)"
+        let ver = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "1.2"
+        return "Beans Music · \(ver)"
     }
 
     /// 两个平台登录状态的合并提示
@@ -339,10 +339,15 @@ struct ProfileView: View {
                 Label(appVersionText, systemImage: "beats.headphones")
                     .font(BeansFont.appFont(14, .semibold))
                     .foregroundStyle(Color.beansLabel)
-                Text("网易云第三方客户端 · 数据来源网易云音乐")
+                Text("网易云 / QQ音乐 / 酷狗音乐 第三方客户端 · 仅供学习研究")
                     .font(BeansFont.appFont(12))
                     .foregroundStyle(Color.beansSecondary)
                     .multilineTextAlignment(.center)
+                Text("只用作个人学习研究，禁止用于商业及非法用途，如产生法律纠纷与本人无关")
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(Color.beansSecondary.opacity(0.85))
+                    .multilineTextAlignment(.center)
+                    .fixedSize(horizontal: false, vertical: true)
             }
             .frame(maxWidth: .infinity)
             .padding(16)
@@ -350,7 +355,44 @@ struct ProfileView: View {
                                 BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
             }
             .beansCardShadow(radius: 9, y: 3)
+
+            copyrightDisclosure
         }
+    }
+
+    /// 版权声明（默认折叠，可展开查看全部）
+    private var copyrightDisclosure: some View {
+        DisclosureGroup {
+            VStack(alignment: .leading, spacing: 10) {
+                Text("“QQ”、“QQ音乐”及企鹅形象等文字、图形和商业标识，其著作权或商标权归腾讯公司所有。QQ音乐享有对其平台授权音乐的版权，请勿随意下载、复制版权内容。具体内容请参考QQ音乐用户协议。")
+                Text("“网易云”、“网易云音乐”等文字、图形和商业标识，其著作权或商标权归网易所有。网易云音乐享有对其平台授权音乐的版权，请勿随意下载、复制版权内容。具体内容请参考网易云音乐用户协议。")
+                Text("“酷狗”、“酷狗音乐”等文字、图形和商业标识，其著作权或商标权归酷狗公司所有。酷狗音乐享有对其平台授权音乐的版权，请勿随意下载、复制版权内容。具体内容请参考酷狗音乐用户协议。")
+                Text("音乐 API 来自 GitHub 开源项目，非官方版 API；本软件不提供任何音频存储服务，如需下载音频，请支持正版！")
+            }
+            .font(BeansFont.appFont(11))
+            .foregroundStyle(Color.beansSecondary)
+            .frame(maxWidth: .infinity, alignment: .leading)
+            .fixedSize(horizontal: false, vertical: true)
+            .padding(.top, 6)
+        } label: {
+            HStack(spacing: 10) {
+                Image(systemName: "doc.text.magnifyingglass")
+                    .font(.system(size: 14))
+                    .foregroundStyle(Color.beansAmber)
+                    .frame(width: 26)
+                Text("版权声明（展开查看全部）")
+                    .font(BeansFont.appFont(14, .semibold))
+                    .foregroundStyle(Color.beansLabel)
+                Spacer()
+            }
+            .padding(.vertical, 2)
+        }
+        .tint(Color.beansAmber)
+        .padding(16)
+        .background {
+                            BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
+        }
+        .beansCardShadow(radius: 9, y: 3)
     }
 }
 

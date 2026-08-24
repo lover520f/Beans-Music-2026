@@ -37,6 +37,9 @@ struct RootView: View {
 
     @State private var selection: RootTab = .discover
     @State private var showPlayer = false
+    /// 首次启动免责声明：输入指定文字后才放行（UserDefaults 持久化，二次启动不再弹出）
+    @AppStorage("beans.disclaimerAccepted") private var disclaimerAccepted = false
+    @State private var disclaimerInput = ""
 
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
@@ -86,6 +89,89 @@ struct RootView: View {
         .animation(.spring(duration: 0.4), value: player.currentSong?.id)
         .overlay(alignment: .bottom) {
             ToastView(center: ToastCenter.shared)
+        }
+        .overlay {
+            if !disclaimerAccepted {
+                DisclaimerGateView(input: $disclaimerInput) {
+                    disclaimerAccepted = true
+                    BeansHaptics.success()
+                }
+                .transition(.opacity)
+                .zIndex(60)
+            }
+        }
+        .animation(.easeInOut(duration: 0.25), value: disclaimerAccepted)
+    }
+}
+
+// MARK: - 首次启动免责声明（输入指定文字才能进入软件）
+
+struct DisclaimerGateView: View {
+    @Binding var input: String
+    let onConfirm: () -> Void
+
+    private let requiredText = "我已了解并继续使用此软件"
+
+    var body: some View {
+        ZStack {
+            Color.black.opacity(0.5)
+                .ignoresSafeArea()
+                .background(.ultraThinMaterial)
+            VStack(spacing: 16) {
+                Image(systemName: "shield.lefthalf.filled")
+                    .font(.system(size: 38, weight: .light))
+                    .foregroundStyle(Color.beansAmber)
+                Text("免责声明")
+                    .font(BeansFont.appFont(21, .bold))
+                    .foregroundStyle(.white)
+                ScrollView {
+                    VStack(alignment: .leading, spacing: 12) {
+                        statement("Beans 只用作个人学习研究，禁止用于商业及非法用途，如产生法律纠纷与本人无关。")
+                        statement("音乐 API 来自于 GitHub，非官方版 API；本软件不提供任何音频存储服务，如需下载音频，请支持正版！")
+                        statement("音乐版权归各网站所有，本站不承担任何法律责任和连带责任。")
+                    }
+                    .padding(.horizontal, 4)
+                }
+                .frame(maxHeight: 230)
+                TextField("请输入：\(requiredText)", text: $input)
+                    .textFieldStyle(.plain)
+                    .font(BeansFont.appFont(13))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 11)
+                    .background(.white.opacity(0.12), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    .autocorrectionDisabled()
+                    .textInputAutocapitalization(.never)
+                Button(action: onConfirm) {
+                    Text("进入软件")
+                        .font(BeansFont.appFont(16, .semibold))
+                        .foregroundStyle(.white)
+                        .frame(maxWidth: .infinity)
+                        .padding(.vertical, 13)
+                        .background(
+                            Capsule().fill(input == requiredText ? Color.beansAmber : Color.white.opacity(0.18))
+                        )
+                }
+                .buttonStyle(.plain)
+                .disabled(input != requiredText)
+            }
+            .padding(22)
+            .background(.black.opacity(0.72), in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .padding(.horizontal, 26)
+        }
+        .ignoresSafeArea()
+    }
+
+    private func statement(_ text: String) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            Image(systemName: "info.circle.fill")
+                .font(.system(size: 12))
+                .foregroundStyle(Color.beansAmber)
+                .padding(.top, 2)
+            Text(text)
+                .font(BeansFont.appFont(13))
+                .foregroundStyle(.white.opacity(0.92))
+                .fixedSize(horizontal: false, vertical: true)
         }
     }
 }
