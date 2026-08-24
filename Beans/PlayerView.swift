@@ -52,8 +52,10 @@ struct PlayerView: View {
     @AppStorage("beans.playerLayoutMode") private var layoutMode = false
     @State private var layoutData: [String: PlayerLayoutEntry] = PlayerLayoutStore.load()
     @State private var layoutPart: PlayerLayoutPart = .progress
-    /// 歌词对齐样式（居中 / 全部居左）
+    /// 歌词布局：对齐样式 / 水平偏移 / 垂直重心（底部更多或顶部更多歌词）
     @AppStorage("beans.lyricAlignRaw") private var lyricAlignRaw = "center"
+    @AppStorage("beans.lyricOffsetX") private var lyricOffsetX = 0.0
+    @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
     /// 底部指示线开关（上滑呼出评论区）
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
     /// 歌词自定义发光颜色（留空跟随当前行颜色 / 封面取色）
@@ -74,6 +76,12 @@ struct PlayerView: View {
     /// 歌词对齐样式（居中 / 全部居左）
     private var lyricAlign: HorizontalAlignment {
         lyricAlignRaw == "left" ? .leading : .center
+    }
+
+    /// 歌词垂直重心：0.5 居中；<0.5 当前行偏上（显示更多后续歌词），>0.5 偏下（显示更多已唱歌词）
+    private var lyricAnchor: UnitPoint {
+        let y = 0.5 + CGFloat(lyricAnchorY) / 200
+        return UnitPoint(x: 0.5, y: min(max(y, 0.15), 0.85))
     }
 
     private var palette: CoverPalette {
@@ -644,7 +652,7 @@ struct PlayerView: View {
                 if lyrics.isEmpty {
                     emptyLyricsView
                 } else {
-                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, glowColorOverride: lyricGlowColor) { line in
+                    LyricsSection(lyrics: lyrics, accent: lyricCurrentColor, secondary: lyricDimColor, gradientStart: lyricGradStart, gradientEnd: lyricGradEnd, baseFontSize: CGFloat(lyricFontSize), lineSpacing: CGFloat(lyricLineSpacing), glowRadius: lyricGlowRadius, showTranslation: lyricTranslation, alignment: lyricAlign, offsetX: CGFloat(lyricOffsetX), anchor: lyricAnchor, glowColorOverride: lyricGlowColor) { line in
                         BeansHaptics.tap()
                         player.seek(to: line.time)
                     }
@@ -912,11 +920,26 @@ struct PlayerView: View {
 
     // MARK: - 底部布局自由调整工具栏（x / y / z + 恢复默认）
 
-    /// 当前选中组件的绑定（滑杆读写）
+    /// 当前选中组件的绑定（滑杆读写；歌词映射到独立存储的偏移值）
     private var selectedLayoutEntry: Binding<PlayerLayoutEntry> {
         Binding(
-            get: { layoutData[layoutPart.rawValue] ?? PlayerLayoutEntry() },
-            set: { layoutData[layoutPart.rawValue] = $0 }
+            get: {
+                switch layoutPart {
+                case .lyric:
+                    return PlayerLayoutEntry(x: CGFloat(lyricOffsetX), y: CGFloat(lyricAnchorY))
+                default:
+                    return layoutData[layoutPart.rawValue] ?? PlayerLayoutEntry()
+                }
+            },
+            set: { newValue in
+                switch layoutPart {
+                case .lyric:
+                    lyricOffsetX = Double(newValue.x)
+                    lyricAnchorY = Double(newValue.y)
+                default:
+                    layoutData[layoutPart.rawValue] = newValue
+                }
+            }
         )
     }
 
@@ -926,11 +949,14 @@ struct PlayerView: View {
     }
 
     /// 各组件 X 滑杆范围
-    private var layoutXRange: ClosedRange<CGFloat> { -140...140 }
+    private var layoutXRange: ClosedRange<CGFloat> {
+        layoutPart == .lyric ? -80...80 : -140...140
+    }
 
     /// 各组件 Y 滑杆范围
     private var layoutYRange: ClosedRange<CGFloat> {
         switch layoutPart {
+        case .lyric: return -80...80
         case .grabber: return -120...120
         default: return -300...300
         }
@@ -967,6 +993,8 @@ struct PlayerView: View {
                 Button {
                     layoutData = [:]
                     PlayerLayoutStore.save(layoutData)
+                    lyricOffsetX = 0
+                    lyricAnchorY = 0
                     BeansHaptics.success()
                 } label: {
                     Label("恢复默认", systemImage: "arrow.counterclockwise")
@@ -1664,6 +1692,8 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricTranslation") private var lyricTranslation = true
     @AppStorage("beans.playerLayoutMode") private var layoutMode = false
     @AppStorage("beans.lyricAlignRaw") private var lyricAlignRaw = "center"
+    @AppStorage("beans.lyricOffsetX") private var lyricOffsetX = 0.0
+    @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
     @AppStorage("beans.lyricGlowColorRaw") private var glowColorRaw = ""
     @Environment(\.dismiss) private var dismiss
@@ -1935,8 +1965,13 @@ struct PlayerSettingsSheet: View {
                         Text("全部居左").tag("left")
                     }
                     .pickerStyle(.segmented)
+                    Text("歌词位置（水平偏移 / 垂直重心）请在开启「自定义底部布局」后的播放页弹窗中调整")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansSecondary)
                     Button("恢复歌词默认") {
                         lyricAlignRaw = "center"
+                        lyricOffsetX = 0
+                        lyricAnchorY = 0
                         BeansHaptics.select()
                     }
                     .font(BeansFont.appFont(13))
