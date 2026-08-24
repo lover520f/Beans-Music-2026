@@ -36,6 +36,9 @@ struct ProfileView: View {
     @State private var showDownloadOverlay = false
     @State private var downloadOutcome: DownloadOutcome?
     @State private var showDownloadOutcome = false
+    /// 新版 IPA 下载完成后直接呼出系统分享面板
+    @State private var showIPAShare = false
+    @State private var sharedIPAURL: URL?
     @State private var pendingUpdateInfo: UpdateChecker.ReleaseInfo?
     @ObservedObject private var qqAuth = QQMusicAuth.shared
 
@@ -160,24 +163,28 @@ struct ProfileView: View {
         .overlay {
             if showDownloadOverlay { downloadProgressOverlay }
         }
-        .alert("下载新版", isPresented: $showDownloadOutcome, presenting: downloadOutcome) { outcome in
-            switch outcome {
-            case .success:
-                Button("好", role: .cancel) {}
-            case .failure:
-                Button("好", role: .cancel) {}
-                Button("前往更新页") {
-                    if let info = pendingUpdateInfo {
-                        UIApplication.shared.open(info.htmlURL)
-                    }
+        .alert("下载失败", isPresented: $showDownloadOutcome) {
+            Button("好", role: .cancel) {}
+            Button("前往更新页") {
+                if let info = pendingUpdateInfo {
+                    UIApplication.shared.open(info.htmlURL)
                 }
             }
-        } message: { outcome in
-            switch outcome {
-            case .success(let fileName):
-                Text("新版 IPA 已下载到「文件」App → Beans → Downloads\n文件名：\(fileName)")
-            case .failure(let message):
+        } message: {
+            if case .failure(let message) = downloadOutcome {
                 Text("下载失败：\(message)\n如果长时间无反应，可能需要特殊网络环境（代理 / VPN）才能访问 GitHub")
+            } else {
+                Text("下载失败，请稍后重试")
+            }
+        }
+        .sheet(isPresented: $showIPAShare, onDismiss: {
+            if let url = sharedIPAURL {
+                try? FileManager.default.removeItem(at: url)
+            }
+            sharedIPAURL = nil
+        }) {
+            if let url = sharedIPAURL {
+                ShareSheet(items: [url])
             }
         }
     }
@@ -209,7 +216,7 @@ struct ProfileView: View {
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansComment)
                 }
-                Text("下载完成后可在「文件」App → Beans → Downloads 中查看")
+                Text("下载完成后将自动弹出系统分享面板，可选择保存位置或转发")
                     .font(BeansFont.appFont(11))
                     .foregroundStyle(Color.beansComment.opacity(0.8))
                     .multilineTextAlignment(.center)
@@ -548,8 +555,9 @@ struct ProfileView: View {
                 let url = try await ipaDownloader.download(assetURL: assetURL, version: info.version)
                 await MainActor.run {
                     showDownloadOverlay = false
-                    downloadOutcome = .success(fileName: url.lastPathComponent)
-                    showDownloadOutcome = true
+                    sharedIPAURL = url
+                    showIPAShare = true
+                    ToastCenter.shared.show("下载完成，请选择保存或分享")
                 }
             } catch {
                 await MainActor.run {
@@ -1444,21 +1452,27 @@ struct SettingsView: View {
     private var backupSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "备份与恢复")
-            HStack(spacing: 10) {
-                backupActionButton(icon: "square.and.arrow.up", title: "导出备份") {
-                    BeansHaptics.tap()
-                    exportBackup()
+            VStack(spacing: 8) {
+                HStack(spacing: 10) {
+                    backupActionButton(icon: "square.and.arrow.up", title: "导出备份") {
+                        BeansHaptics.tap()
+                        exportBackup()
+                    }
+                    backupActionButton(icon: "square.and.arrow.down", title: "导入恢复") {
+                        BeansHaptics.tap()
+                        showRestorePicker = true
+                    }
                 }
-                backupActionButton(icon: "square.and.arrow.down", title: "导入恢复") {
-                    BeansHaptics.tap()
-                    showRestorePicker = true
+                if let backupMessage {
+                    Text(backupMessage)
+                        .font(BeansFont.appFont(11))
+                        .foregroundStyle(Color.beansComment)
+                        .frame(maxWidth: .infinity, alignment: .leading)
                 }
             }
-            if let backupMessage {
-                Text(backupMessage)
-                    .font(BeansFont.appFont(11))
-                    .foregroundStyle(Color.beansComment)
-                    .frame(maxWidth: .infinity, alignment: .leading)
+            .padding(14)
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
             }
         }
     }
@@ -1473,7 +1487,9 @@ struct SettingsView: View {
             .foregroundStyle(Color.beansLabel)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
         }
         .buttonStyle(GlassPressButtonStyle(scale: 0.95))
     }
@@ -1645,7 +1661,9 @@ struct SettingsView: View {
             .foregroundStyle(Color.beansLabel)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 11)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            }
         }
         .buttonStyle(GlassPressButtonStyle(scale: 0.95))
     }
