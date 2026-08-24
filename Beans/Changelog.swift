@@ -36,6 +36,18 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.3.2",
+            version: "1.3.2",
+            title: "检查更新自动下载新版 IPA",
+            features: [
+                "检查更新后自动下载新版 IPA：检测到新版本直接下载到「文件」App → Beans → Downloads，无需跳转浏览器",
+                "下载或检查失败时提示可能需要特殊网络环境（代理 / VPN）",
+                "iOS 26 以下系统隐藏「液态玻璃 / 磨砂玻璃」切换开关，低版本自动使用磨砂玻璃",
+            ],
+            fixes: []
+        ),
+
+        VersionLog(
             id: "1.3.1",
             version: "1.3.1",
             title: "兼容 iOS 15 低版本系统",

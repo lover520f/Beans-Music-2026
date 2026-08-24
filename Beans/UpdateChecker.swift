@@ -16,6 +16,8 @@ struct UpdateChecker {
         let name: String
         let body: String
         let htmlURL: URL
+        /// Release 附带的 IPA 安装包直链（用于自动下载）
+        let assetURL: URL?
     }
 
     enum CheckResult {
@@ -64,11 +66,17 @@ struct UpdateChecker {
             throw URLError(.cannotParseResponse)
         }
         let version = tag.hasPrefix("v") ? String(tag.dropFirst()) : tag
+        // 从 Release 资产中找出 .ipa 安装包直链
+        let assetURL: URL? = (json["assets"] as? [[String: Any]])?
+            .compactMap { $0["browser_download_url"] as? String }
+            .first(where: { $0.lowercased().hasSuffix(".ipa") })
+            .flatMap { URL(string: $0) }
         return ReleaseInfo(
             version: version,
             name: json["name"] as? String ?? tag,
             body: json["body"] as? String ?? "",
-            htmlURL: url
+            htmlURL: url,
+            assetURL: assetURL
         )
     }
 

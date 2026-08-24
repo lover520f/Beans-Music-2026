@@ -3,6 +3,12 @@ import UIKit
 import PhotosUI
 import UniformTypeIdentifiers
 
+/// 自动下载新版 IPA 的结果
+enum DownloadOutcome {
+    case success(fileName: String)
+    case failure(message: String)
+}
+
 struct ProfileView: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
@@ -25,6 +31,12 @@ struct ProfileView: View {
     @State private var checkingUpdate = false
     @State private var updateResult: UpdateChecker.CheckResult?
     @State private var showUpdateResult = false
+    /// 自动下载新版 IPA
+    @ObservedObject private var ipaDownloader = IPADownloader.shared
+    @State private var showDownloadOverlay = false
+    @State private var downloadOutcome: DownloadOutcome?
+    @State private var showDownloadOutcome = false
+    @State private var pendingUpdateInfo: UpdateChecker.ReleaseInfo?
     @ObservedObject private var qqAuth = QQMusicAuth.shared
 
     private var themeMode: BeansThemeMode {
@@ -142,9 +154,75 @@ struct ProfileView: View {
             case .upToDate:
                 Text("当前已是最新版本 \(UpdateChecker.currentVersion)")
             case .failed:
-                Text("检查失败，请检查网络后重试")
+                Text("检查失败，请检查网络后重试\n如果长时间无反应，可能需要特殊网络环境（代理 / VPN）才能访问 GitHub")
             }
         }
+        .overlay {
+            if showDownloadOverlay { downloadProgressOverlay }
+        }
+        .alert("下载新版", isPresented: $showDownloadOutcome, presenting: downloadOutcome) { outcome in
+            switch outcome {
+            case .success:
+                Button("好", role: .cancel) {}
+            case .failure:
+                Button("好", role: .cancel) {}
+                Button("前往更新页") {
+                    if let info = pendingUpdateInfo {
+                        UIApplication.shared.open(info.htmlURL)
+                    }
+                }
+            }
+        } message: { outcome in
+            switch outcome {
+            case .success(let fileName):
+                Text("新版 IPA 已下载到「文件」App → Beans → Downloads\n文件名：\(fileName)")
+            case .failure(let message):
+                Text("下载失败：\(message)\n如果长时间无反应，可能需要特殊网络环境（代理 / VPN）才能访问 GitHub")
+            }
+        }
+    }
+
+    /// 下载进度浮层（居中卡片，兼容所有系统版本）
+    private var downloadProgressOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.35).ignoresSafeArea()
+            VStack(spacing: 14) {
+                HStack(spacing: 10) {
+                    Image(systemName: "arrow.down.circle.fill")
+                        .font(.system(size: 22))
+                        .foregroundStyle(Color.beansHighlight)
+                    Text("正在下载新版 IPA")
+                        .font(BeansFont.appFont(15, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                }
+                if ipaDownloader.progress >= 0 {
+                    ProgressView(value: ipaDownloader.progress)
+                        .progressViewStyle(.linear)
+                        .tint(Color.beansAmber)
+                    Text("\(Int(ipaDownloader.progress * 100))%")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                } else {
+                    ProgressView()
+                        .tint(Color.beansAmber)
+                    Text("正在连接下载服务器…")
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                }
+                Text("下载完成后可在「文件」App → Beans → Downloads 中查看")
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(Color.beansComment.opacity(0.8))
+                    .multilineTextAlignment(.center)
+            }
+            .padding(22)
+            .frame(maxWidth: 300)
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            }
+            .beansCardShadow(radius: 12, y: 6)
+            .padding(32)
+        }
+        .transition(.opacity)
     }
 
     private var userCard: some View {
@@ -457,6 +535,27 @@ struct ProfileView: View {
         .beansCardShadow(radius: 9, y: 3)
     }
 
+    /// 自动下载新版 IPA（带进度浮层）
+    private func startAutoDownload(info: UpdateChecker.ReleaseInfo, assetURL: URL) {
+        showDownloadOverlay = true
+        Task {
+            do {
+                let url = try await ipaDownloader.download(assetURL: assetURL, version: info.version)
+                await MainActor.run {
+                    showDownloadOverlay = false
+                    downloadOutcome = .success(fileName: url.lastPathComponent)
+                    showDownloadOutcome = true
+                }
+            } catch {
+                await MainActor.run {
+                    showDownloadOverlay = false
+                    downloadOutcome = .failure(message: error.localizedDescription)
+                    showDownloadOutcome = true
+                }
+            }
+        }
+    }
+
     /// 更新地址 + 检查更新（GitHub 项目，可点击交互）
     private var updateLinkCard: some View {
         VStack(spacing: 10) {
@@ -503,7 +602,17 @@ struct ProfileView: View {
                     await MainActor.run {
                         checkingUpdate = false
                         updateResult = result
-                        showUpdateResult = true
+                        if case .update(let info) = result {
+                            // 发现新版：自动下载 IPA（无安装包时回退到更新提示）
+                            pendingUpdateInfo = info
+                            if let assetURL = info.assetURL {
+                                startAutoDownload(info: info, assetURL: assetURL)
+                            } else {
+                                showUpdateResult = true
+                            }
+                        } else {
+                            showUpdateResult = true
+                        }
                     }
                 }
             } label: {
@@ -863,15 +972,18 @@ struct SettingsView: View {
                 }
                 .pickerStyle(.segmented)
 
-                Picker("玻璃材质", selection: Binding(
-                    get: { theme.fxStyle },
-                    set: { theme.setFXStyle($0) }
-                )) {
-                    ForEach(BeansFXStyle.allCases, id: \.self) { style in
-                        Text(style.title).tag(style)
+                // 玻璃材质：液态玻璃仅 iOS 26+ 可用，低版本隐藏该开关（自动使用磨砂玻璃）
+                if #available(iOS 26, *) {
+                    Picker("玻璃材质", selection: Binding(
+                        get: { theme.fxStyle },
+                        set: { theme.setFXStyle($0) }
+                    )) {
+                        ForEach(BeansFXStyle.allCases, id: \.self) { style in
+                            Text(style.title).tag(style)
+                        }
                     }
+                    .pickerStyle(.segmented)
                 }
-                .pickerStyle(.segmented)
 
                 Divider().overlay(Color.beansComment.opacity(0.15))
 
