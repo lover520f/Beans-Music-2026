@@ -14,6 +14,7 @@ enum UnblockService {
             case "pyncmd": return "pyncmd 音源"
             case "kuwo": return "酷我音源"
             case "kugou": return "酷狗音源"
+            case "migu": return "咪咕音源"
             default: return source
             }
         }
@@ -47,6 +48,9 @@ enum UnblockService {
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !keyword.isEmpty else { return nil }
 
+        // 咪咕直连：官方正版 CDN 直链，仅命中内置清单（歌名+歌手+时长三重校验），严格模式优先使用
+        if strict, let r = miguDirect(name: name, artists: artists, durationMS: durationMS) { return r }
+
         let store = UnblockSourceStore.shared
         // pyncmd 只支持网易云 id；QQ 歌曲（neteaseID = 0）直接跳过
         if neteaseID > 0, store.isEnabled("pyncmd"), let r = await pyncmd(neteaseID: neteaseID) { return r }
@@ -56,6 +60,55 @@ enum UnblockService {
         // 用户导入的自定义源（按导入顺序）
         for source in store.customSources {
             if let r = await custom(source: source, name: name, artists: artists, neteaseID: neteaseID) { return r }
+        }
+        return nil
+    }
+
+    // MARK: - 音源 0：咪咕直连（周杰伦 3 首官方正版 CDN 直链，借鉴 MiguMusicApi 缓存歌单）
+    /// 仅严格模式使用：歌名 + 歌手（周杰伦）+ 时长 ±3s 三重匹配，全部命中才返回官方直链
+    private struct MiguDirectSong {
+        let title: String
+        let duration: Int      // 秒
+        let url128: String
+        let url320: String
+        let flac: String
+    }
+
+    private static let miguDirectSongs: [MiguDirectSong] = [
+        MiguDirectSong(title: "七里香", duration: 296,
+                       url128: "https://freetyst.nf.migu.cn/public/product9th/product41/2020/08/1013/2009年06月26日博尔普斯/标清高清/MP3_128_16_Stero/60054701934133203.mp3",
+                       url320: "https://freetyst.nf.migu.cn/public/product9th/product41/2020/08/1013/2009年06月26日博尔普斯/标清高清/MP3_320_16_Stero/60054701934133203.mp3",
+                       flac: "https://freetyst.nf.migu.cn/public/ringmaker01/n17/2017/07/无损/2009年06月26日博尔普斯/flac/七里香-周杰伦.flac"),
+        MiguDirectSong(title: "四面楚歌", duration: 247,
+                       url128: "https://freetyst.nf.migu.cn/public/product5th/product35/2019/10/1018/2009年06月26日博尔普斯/标清高清/MP3_128_16_Stero/60054701951.mp3",
+                       url320: "https://freetyst.nf.migu.cn/public/product5th/product35/2019/10/1018/2009年06月26日博尔普斯/标清高清/MP3_320_16_Stero/60054701951.mp3",
+                       flac: "https://freetyst.nf.migu.cn/public/ringmaker01/n17/2017/07/无损/2009年06月26日博尔普斯/flac/四面楚歌-周杰伦.flac"),
+        MiguDirectSong(title: "晴天", duration: 249,
+                       url128: "https://freetyst.nf.migu.cn/public/product9th/product44/2021/07/1112/2019年10月30日16点52分紧急内容准入纵横世代25首/标清高清/MP3_128_16_Stero/60054704101123747.mp3",
+                       url320: "https://freetyst.nf.migu.cn/public/product9th/product44/2021/07/1112/2019年10月30日16点52分紧急内容准入纵横世代25首/标清高清/MP3_320_16_Stero/60054704101123747.mp3",
+                       flac: "https://freetyst.nf.migu.cn/public/product9th/product44/2021/07/1112/2019年10月30日16点52分紧急内容准入纵横世代25首/歌曲下载/flac/60054704101123747.flac"),
+    ]
+
+    /// 咪咕 CDN 直链 URL 含中文路径，先百分号编码再构造 URL（否则 URL(string:) 直接返回 nil）
+    private static func miguURL(_ raw: String) -> URL? {
+        let allowed = CharacterSet.alphanumerics.union(CharacterSet(charactersIn: "-._~:/?#[]@!    // MARK: - 音源 1：pyncmd（直接按网易云 id 取高音质地址）'()*+,;=%"))
+        guard let encoded = raw.addingPercentEncoding(withAllowedCharacters: allowed) else { return nil }
+        return URL(string: encoded)
+    }
+
+    private static func miguDirect(name: String, artists: String, durationMS: Int) -> Resolved? {
+        guard artistMatches("周杰伦", artists) else { return nil }
+        let target = Double(durationMS) / 1000.0
+        for song in miguDirectSongs where songNameMatches(name, song.title) {
+            guard abs(Double(song.duration) - target) <= 3 else { continue }
+            let raw: String
+            switch BeansAudioQuality.current {
+            case .lossless, .hires: raw = song.flac
+            case .exhigh, .higher: raw = song.url320
+            case .standard: raw = song.url128
+            }
+            guard let playURL = miguURL(raw) else { continue }
+            return Resolved(url: playURL, source: "migu")
         }
         return nil
     }
