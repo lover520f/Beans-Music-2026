@@ -51,7 +51,7 @@ struct DisclaimerGate: View {
                 Text("Beans Music")
                     .font(.system(size: 27, weight: .bold))
                     .foregroundStyle(.white)
-                Text("正在初始化…")
+                Text("请阅读并同意免责声明后继续")
                     .font(.system(size: 13))
                     .foregroundStyle(.white.opacity(0.5))
             }
@@ -94,11 +94,19 @@ struct NativeDisclaimerAlert: UIViewControllerRepresentable {
 
         func update(parent: NativeDisclaimerAlert) {
             self.parent = parent
-            presentIfNeeded()
+            if !presentIfNeeded(), parent.isPresented {
+                // 宿主视图可能还没挂到窗口，稍后重试一次；viewDidAppear 也会再兜底一次
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) { [weak self] in
+                    _ = self?.presentIfNeeded()
+                }
+            }
         }
 
-        func presentIfNeeded() {
-            guard parent.isPresented, alert == nil, let host else { return }
+        @discardableResult
+        func presentIfNeeded() -> Bool {
+            guard parent.isPresented, alert == nil, let host else { return false }
+            // 宿主必须已经挂到窗口上才能 present，否则系统会静默失败（弹窗不出现）
+            guard host.viewIfLoaded?.window != nil else { return false }
             let alert = UIAlertController(
                 title: "免责声明",
                 message: "Beans Music 只用作个人学习研究，禁止用于商业及非法用途，如产生法律纠纷与本人无关。\n音乐 API 来自于 GitHub，非官方版 API；本软件不提供任何音频存储服务，如需下载音频，请支持正版！\n音乐版权归各网站所有，本站不承担任何法律责任和连带责任。",
@@ -117,8 +125,9 @@ struct NativeDisclaimerAlert: UIViewControllerRepresentable {
             action.isEnabled = false
             confirmAction = action
             alert.addAction(action)
-            self.alert = alert
             host.present(alert, animated: true)
+            self.alert = alert
+            return true
         }
 
         @objc private func textChanged(_ sender: UITextField) {
