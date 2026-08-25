@@ -8,7 +8,7 @@ enum BeansHash {
             hash ^= UInt64(byte)
             hash = hash &* 0x100000001b3
         }
-        return Int(bitPattern: UInt32(truncatingIfNeeded: hash))
+        return Int(truncatingIfNeeded: hash)
     }
 }
 
