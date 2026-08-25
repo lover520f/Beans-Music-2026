@@ -1004,10 +1004,6 @@ struct SettingsView: View {
     @State private var showLogShare = false
     @State private var showLogImport = false
     @State private var importedLogText: String?
-    /// 音乐服务器（musicdl 音源）
-    @State private var musicServerAddress = ""
-    @State private var musicServerMessage: String?
-    @State private var musicServerTesting = false
 
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
@@ -1022,7 +1018,6 @@ struct SettingsView: View {
                         appearanceSection
                         playbackSection
                         unblockSection
-                        musicServerSection
                         changelogSection
                         backupSection
                         logSection
@@ -1667,98 +1662,6 @@ struct SettingsView: View {
         }
     }
 
-    /// 音乐服务器（musicdl 音源）：填写服务器地址后，搜索页自动把服务器解析结果置顶展示并可播放
-    private var musicServerSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "音乐服务器")
-            VStack(spacing: 10) {
-                HStack(spacing: 10) {
-                    Image(systemName: "server.rack")
-                        .font(.system(size: 14))
-                        .foregroundStyle(Color.beansAmber)
-                        .frame(width: 28)
-                    VStack(alignment: .leading, spacing: 2) {
-                        Text("musicdl 服务器地址")
-                            .font(BeansFont.appFont(15))
-                            .foregroundStyle(Color.beansLabel)
-                        Text("在电脑上运行 BeansMusicServer 后填入，如 http://192.168.1.100:8765")
-                            .font(BeansFont.appFont(11))
-                            .foregroundStyle(Color.beansComment)
-                    }
-                    Spacer()
-                }
-                TextField("http://电脑IP:8765", text: $musicServerAddress)
-                    .font(BeansFont.appFont(14))
-                    .keyboardType(.URL)
-                    .textInputAutocapitalization(.never)
-                    .autocorrectionDisabled()
-                    .padding(.horizontal, 12)
-                    .padding(.vertical, 10)
-                    .background {
-                        BeansGlass(shape: RoundedRectangle(cornerRadius: 12, style: .continuous))
-                    }
-                HStack(spacing: 12) {
-                    Button {
-                        BeansHaptics.tap()
-                        testMusicServer()
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: "antenna.radiowaves.left.and.right")
-                            Text("测试连接")
-                        }
-                        .font(BeansFont.appFont(13, .semibold))
-                        .foregroundStyle(Color.beansLabel)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background {
-                            BeansGlass(shape: Capsule())
-                        }
-                    }
-                    .buttonStyle(GlassPressButtonStyle(scale: 0.95))
-                    if musicServerTesting {
-                        ProgressView()
-                            .controlSize(.small)
-                            .tint(Color.beansAmber)
-                    }
-                    Spacer()
-                }
-                if let musicServerMessage {
-                    Text(musicServerMessage)
-                        .font(BeansFont.appFont(11))
-                        .foregroundStyle(musicServerMessage.hasPrefix("✓") ? Color.beansSage : Color.beansComment)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                }
-                Text("配置后搜索歌曲时会自动把服务器解析出的可播放结果置顶（含部分 VIP / 版权歌），需要电脑与手机在同一 Wi-Fi")
-                    .font(BeansFont.appFont(11))
-                    .foregroundStyle(Color.beansComment)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-            }
-            .padding(14)
-            .background {
-                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
-        }
-        .onAppear {
-            if musicServerAddress.isEmpty {
-                musicServerAddress = MusicServerAPI.shared.serverURL ?? ""
-            }
-        }
-        .onChange(of: musicServerAddress) { newValue in
-            MusicServerAPI.shared.serverURL = newValue
-        }
-    }
-
-    private func testMusicServer() {
-        musicServerTesting = true
-        musicServerMessage = nil
-        Task {
-            let message = await MusicServerAPI.shared.ping()
-            await MainActor.run {
-                musicServerTesting = false
-                musicServerMessage = message
-            }
-        }
-    }
 
     /// 配置备份与恢复：导出全部 beans.* 设置为 JSON 分享；导入后写回 UserDefaults
     private var backupSection: some View {

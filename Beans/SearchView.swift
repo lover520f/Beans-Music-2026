@@ -94,10 +94,6 @@ struct SearchView: View {
     @ObservedObject private var historyStore = SearchHistoryStore.shared
     @State private var debounceTask: Task<Void, Never>?
     @State private var searchTask: Task<Void, Never>?
-    /// 服务器音源（musicdl 服务器）结果：搜索后自动置顶展示
-    @State private var serverSongs: [Song] = []
-    @State private var serverSearching = false
-    @State private var serverTask: Task<Void, Never>?
     /// UIKit 输入框控制器（提交拼音、收起键盘等由它统一处理）
     @State private var searchController = SearchFieldController()
 
@@ -139,9 +135,6 @@ struct SearchView: View {
                 songResults = []
                 artistResults = []
                 albumResults = []
-                serverSongs = []
-                serverSearching = false
-                serverTask?.cancel()
                 errorMessage = nil
                 return
             }
@@ -469,58 +462,11 @@ struct SearchView: View {
                 ErrorStateView(message: errorMessage) { submitSearch() }
             } else if searching && songResults.isEmpty {
                 LoadingStateView()
-            } else if songResults.isEmpty && serverSongs.isEmpty && !serverSearching {
+            } else if songResults.isEmpty {
                 EmptyStateView(icon: "music.note", text: "\(provider.rawValue)未找到相关歌曲")
             } else {
                 ScrollView {
                     LazyVStack(spacing: 8) {
-                        // 服务器音源结果置顶（musicdl 服务器解析出的可播放直链）
-                        if !serverSongs.isEmpty {
-                            HStack {
-                                Text("服务器音源 \(serverSongs.count) 首 · 音乐服务器")
-                                    .font(BeansFont.appFont(12))
-                                    .foregroundStyle(Color.beansAmber)
-                                Spacer()
-                                Button {
-                                    BeansHaptics.tap()
-                                    player.play(songs: serverSongs, startAt: 0)
-                                } label: {
-                                    Label("播放全部", systemImage: "play.fill")
-                                        .font(BeansFont.appFont(12, .semibold))
-                                        .foregroundStyle(Color.beansAmber)
-                                        .padding(.horizontal, 10)
-                                        .padding(.vertical, 5)
-                                        .background { BeansGlass(shape: Capsule()) }
-                                }
-                                .buttonStyle(.plain)
-                            }
-                            .padding(.vertical, 8)
-                            ForEach(Array(serverSongs.enumerated()), id: \.element.identityKey) { index, song in
-                                SongCell(song: song) {
-                                    BeansHaptics.tap()
-                                    player.play(songs: serverSongs, startAt: index)
-                                }
-                                .padding(.horizontal, 6)
-                                .padding(.vertical, 2)
-                                .background {
-                                    BeansGlass(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
-                                }
-                            }
-                            Divider()
-                                .overlay(Color.beansComment.opacity(0.18))
-                                .padding(.vertical, 8)
-                        } else if serverSearching {
-                            HStack(spacing: 8) {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .tint(Color.beansAmber)
-                                Text("正在解析服务器音源…（首次约 1~2 分钟）")
-                                    .font(BeansFont.appFont(12))
-                                    .foregroundStyle(Color.beansComment)
-                            }
-                            .frame(maxWidth: .infinity, alignment: .leading)
-                            .padding(.vertical, 10)
-                        }
                         HStack {
                             Text("找到 \(songResults.count) 首 · \(provider.rawValue)")
                                 .font(BeansFont.appFont(12))
@@ -780,19 +726,6 @@ struct SearchView: View {
                 guard !Task.isCancelled else { return }
                 errorMessage = error.localizedDescription
                 BeansLogger.shared.log("搜索失败：\(provider.rawValue) \(trimmed) - \(error.localizedDescription)", level: .error)
-            }
-            // 服务器音源（musicdl）：并行解析，结果自动展示在歌曲结果顶部，不阻塞本平台搜索
-            if MusicServerAPI.shared.isConfigured {
-                serverTask?.cancel()
-                serverTask = Task {
-                    serverSearching = true
-                    let songs = (try? await MusicServerAPI.shared.search(keyword: trimmed, limit: 5)) ?? []
-                    guard !Task.isCancelled else { return }
-                    await MainActor.run {
-                        serverSongs = songs
-                        serverSearching = false
-                    }
-                }
             }
         }
         await searchTask?.value

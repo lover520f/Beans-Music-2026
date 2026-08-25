@@ -23,6 +23,8 @@ final class SodaAuth: ObservableObject {
     private let nickKey = "beans.soda.nickname.v1"
     private let vipKey = "beans.soda.vip.v1"
     private let session: URLSession
+    /// 拦截自动重定向：汽水扫码成功后服务端通过 302 + Set-Cookie 下发 sessionid，需手动读取
+    private let redirectBlocker = SodaNoRedirectDelegate()
 
     /// 网页登录后从 /luna/pc/me 获取的 user_id（歌单接口需要）
     private var userId = ""
@@ -44,7 +46,7 @@ final class SodaAuth: ObservableObject {
     private init() {
         let config = URLSessionConfiguration.default
         config.timeoutIntervalForRequest = 20
-        session = URLSession(configuration: config)
+        session = URLSession(configuration: config, delegate: redirectBlocker, delegateQueue: nil)
         if let saved = defaults.string(forKey: sessionKey), !saved.isEmpty {
             sessionID = saved
             cookieHeaderValue = defaults.string(forKey: cookieKey) ?? ""
@@ -219,27 +221,37 @@ final class SodaAuth: ObservableObject {
         request.httpBody = body.data(using: .utf8)
         do {
             let (data, response) = try await session.data(for: request)
-            guard let http = response as? HTTPURLResponse, http.statusCode == 200,
-                  let json = Self.parseJSON(data) else { return .error("登录接口异常，请重试") }
-            // 成功时 Set-Cookie 携带 sessionid，整段导入登录态
+            guard let http = response as? HTTPURLResponse else {
+                BeansLogger.shared.log("汽水扫码轮询失败：响应类型异常", level: .error)
+                return .error("登录接口异常，请重试")
+            }
+            // 扫码成功后 sessionid 通过 Set-Cookie 下发（200 JSON 或 302 均可能携带），先于状态解析提取
             let cookie = Self.sessionCookie(from: http, url: comps.url!)
             if Self.extractSessionID(from: cookie) != nil {
                 importSessionCookie(cookie)
+                BeansLogger.shared.log("汽水扫码登录成功（sessionid 已下发）", level: .info)
                 return .success
+            }
+            guard http.statusCode == 200, let json = Self.parseJSON(data) else {
+                let snippet = String(data: data, encoding: .utf8)?.prefix(120) ?? ""
+                BeansLogger.shared.log("汽水扫码轮询失败：HTTP \(http.statusCode) \(snippet)", level: .error)
+                return .error("登录接口异常，请重试")
             }
             let obj = (json["data"] as? [String: Any]) ?? json
             let status = Self.string(obj["status"]) ?? ""
             let errorCode = obj["error_code"] as? Int ?? 0
             switch status {
-            case "confirm": return .scanned
-            case "success": return .error("登录成功但未获取到会话，请重新登录")
+            case "confirm", "confirmed", "success":
+                return .error("登录成功但未获取到会话，请刷新二维码重试")
             case "expired": return .expired
-            case "canceled", "cancel", "error": return .error(errorCode != 0 ? "扫码状态异常（\(errorCode)），请刷新二维码重试" : "扫码未完成，请刷新二维码重试")
+            case "canceled", "cancel", "error":
+                return .error(errorCode != 0 ? "扫码状态异常（\(errorCode)），请刷新二维码重试" : "扫码未完成，请刷新二维码重试")
             default:
                 if errorCode != 0 { return .error("扫码状态异常（\(errorCode)），请刷新二维码重试") }
                 return .waiting
             }
         } catch {
+            BeansLogger.shared.log("汽水扫码轮询网络异常：\(error.localizedDescription)", level: .error)
             return .error("网络异常，请重试")
         }
     }
@@ -577,5 +589,13 @@ final class SodaAuth: ObservableObject {
             return dict["url"] as? String ?? dict["uri"] as? String ?? dict["template"] as? String ?? ""
         }
         return ""
+    }
+}
+
+
+/// 拦截自动重定向：汽水扫码成功后服务端通过 302 + Set-Cookie 下发 sessionid，需手动读取
+private final class SodaNoRedirectDelegate: NSObject, URLSessionTaskDelegate {
+    func urlSession(_ session: URLSession, task: URLSessionTask, willPerformHTTPRedirection response: HTTPURLResponse, newRequest request: URLRequest, completionHandler: @escaping (URLRequest?) -> Void) {
+        completionHandler(nil)
     }
 }

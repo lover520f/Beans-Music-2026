@@ -32,12 +32,18 @@ struct PlaylistView: View {
                     List {
                         header
                         Section {
-                            ForEach(Array(displayedTracks.enumerated()), id: \.element.identityKey) { index, song in
-                                SongCell(song: song, glassRow: true) {
-                                    player.play(songs: displayedTracks, startAt: index)
+                            if tracks.isEmpty {
+                                EmptyStateView(icon: "music.note.list", text: "暂无歌曲，快去添加吧")
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
+                            } else {
+                                ForEach(Array(displayedTracks.enumerated()), id: \.element.identityKey) { index, song in
+                                    SongCell(song: song, glassRow: true) {
+                                        player.play(songs: displayedTracks, startAt: index)
+                                    }
+                                    .listRowBackground(Color.clear)
+                                    .listRowSeparator(.hidden)
                                 }
-                                .listRowBackground(Color.clear)
-                                .listRowSeparator(.hidden)
                             }
                         }
                     }
@@ -161,8 +167,6 @@ struct PlaylistView: View {
                 tracks = try await SodaAuth.shared.fetchPlaylistTracks(playlistID: playlist.rawID ?? "\(playlist.id)")
             case .netease:
                 tracks = try await NetEaseAPI.shared.playlistTracks(id: playlist.id)
-            case .server:
-                tracks = []
             }
             loading = false
         } catch {
