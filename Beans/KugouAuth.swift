@@ -421,10 +421,13 @@ final class KugouAuth: ObservableObject {
 
     // MARK: - 播放地址
 
-    /// 酷狗播放地址：优先网页接口（带登录态），失败回退移动接口（免费歌曲）；VIP 无权限返回 nil
-    func songURL(hash: String, albumID: String?, albumAudioID: String?) async throws -> String? {
+    /// 酷狗播放地址：依次尝试 网页接口 → H5 trackercdn → Android gateway → 移动免费接口
+    /// 带登录态时前三条链路可返回 VIP 完整音轨，全部失败回退移动接口（免费歌曲）
+    func songURL(hash: String, albumID: String?, albumAudioID: String?, quality: BeansAudioQuality = .current) async throws -> String? {
         guard !hash.isEmpty else { return nil }
+        let fileHash = hash.lowercased()
         if playbackReady {
+            // 1) 网页接口（wwwapi，带登录态）
             var items: [URLQueryItem] = [
                 URLQueryItem(name: "r", value: "play/getdata"),
                 URLQueryItem(name: "hash", value: hash),
@@ -447,12 +450,20 @@ final class KugouAuth: ObservableObject {
                let url = Self.string(data["play_url"]) ?? Self.string(data["play_backup_url"]), !url.isEmpty {
                 return url.replacingOccurrences(of: "\\/", with: "/")
             }
+            // 2) H5 trackercdn（VIP 音轨）
+            if let url = try? await songURLViaH5(fileHash: fileHash, albumID: albumID, albumAudioID: albumAudioID, quality: quality) {
+                return url
+            }
+            // 3) Android gateway trackercdn（VIP 音轨）
+            if let url = try? await songURLViaGateway(fileHash: fileHash, albumID: albumID, albumAudioID: albumAudioID, quality: quality) {
+                return url
+            }
         }
-        // 移动接口：免费歌曲无需登录
-        let key = Self.md5(hash + "kgcloud")
+        // 4) 移动接口：免费歌曲无需登录
+        let key = Self.md5(fileHash + "kgcloud")
         var items: [URLQueryItem] = [
             URLQueryItem(name: "cmd", value: "playInfo"),
-            URLQueryItem(name: "hash", value: hash),
+            URLQueryItem(name: "hash", value: fileHash),
             URLQueryItem(name: "key", value: key),
             URLQueryItem(name: "album_id", value: albumID ?? "0"),
             URLQueryItem(name: "pid", value: "1"),
@@ -472,6 +483,107 @@ final class KugouAuth: ObservableObject {
         }
         return nil
     }
+
+    /// H5 网关播放（gateway.kugou.com/v5/url，x-router: trackercdn.kugou.com）
+    private func songURLViaH5(fileHash: String, albumID: String?, albumAudioID: String?, quality: BeansAudioQuality) async throws -> String? {
+        var params: [String: Any] = [
+            "album_id": Int(albumID ?? "0") ?? 0,
+            "area_code": 1,
+            "hash": fileHash,
+            "ssa_flag": "is_fromtrack",
+            "version": 11430,
+            "quality": Self.kugouQualityParam(quality),
+            "album_audio_id": Int(albumAudioID ?? "0") ?? 0,
+            "behavior": "play",
+            "pid": 2,
+            "cmd": 26,
+            "pidversion": 3001,
+            "IsFreePart": 0,
+            "cdnBackup": 1,
+            "module": "",
+        ]
+        var all = h5Params(extra: params)
+        all["key"] = Self.kugouSignKey(hash: fileHash, mid: mid, userid: userid, appid: "1014")
+        all["signature"] = h5Signature(params: all, bodyText: nil)
+        let json = try await getJSON(gatewayURL(path: "/v5/url", params: all), headers: [
+            "User-Agent": Self.h5UA,
+            "x-router": "trackercdn.kugou.com",
+            "Cookie": buildCookieHeader(),
+        ])
+        guard let status = json["status"] as? Int, status == 1 else { return nil }
+        let data = (json["data"] as? [String: Any]) ?? json
+        guard let url = Self.string(data["url"]) ?? Self.string(data["play_url"]) ?? Self.string(data["play_backup_url"]), !url.isEmpty else { return nil }
+        return url.replacingOccurrences(of: "\\/", with: "/")
+    }
+
+    /// Android gateway 播放（gateway.kugou.com/v5/url，x-router: trackercdn.kugou.com，客户端签名体系）
+    private func songURLViaGateway(fileHash: String, albumID: String?, albumAudioID: String?, quality: BeansAudioQuality) async throws -> String? {
+        let clienttime = Int(Date().timeIntervalSince1970)
+        var params: [String: Any] = [
+            "dfid": dfid,
+            "mid": mid,
+            "uuid": "-",
+            "appid": 1005,
+            "clientver": 20489,
+            "clienttime": clienttime,
+            "token": token,
+            "userid": Int(userid) ?? 0,
+            "album_id": Int(albumID ?? "0") ?? 0,
+            "area_code": 1,
+            "hash": fileHash,
+            "ssa_flag": "is_fromtrack",
+            "version": 11430,
+            "quality": Self.kugouQualityParam(quality),
+            "album_audio_id": Int(albumAudioID ?? "0") ?? 0,
+            "behavior": "play",
+            "pid": 2,
+            "cmd": 26,
+            "pidversion": 3001,
+            "IsFreePart": 0,
+            "cdnBackup": 1,
+            "module": "",
+        ]
+        params["key"] = Self.kugouSignKey(hash: fileHash, mid: mid, userid: userid, appid: "1005")
+        params["signature"] = Self.androidSignature(params: params, body: "")
+        let json = try await getJSON(gatewayURL(path: "/v5/url", params: params), headers: [
+            "User-Agent": Self.androidUA,
+            "dfid": dfid,
+            "mid": mid,
+            "clienttime": String(clienttime),
+            "x-router": "trackercdn.kugou.com",
+            "Cookie": buildCookieHeader(),
+        ])
+        let data = (json["data"] as? [String: Any]) ?? json
+        guard let url = Self.string(data["url"]) ?? Self.string(data["play_url"]) ?? Self.string(data["play_backup_url"]), !url.isEmpty else { return nil }
+        return url.replacingOccurrences(of: "\\/", with: "/")
+    }
+
+    /// 音质 → 酷狗 H5/网关 quality 参数
+    private static func kugouQualityParam(_ quality: BeansAudioQuality) -> String {
+        switch quality {
+        case .standard: return "128"
+        case .higher: return "192"
+        case .exhigh: return "320"
+        case .lossless: return "flac"
+        case .hires: return "hires"
+        }
+    }
+
+    /// 播放 key：md5(hash + 盐 + appid + mid + userid)
+    private static func kugouSignKey(hash: String, mid: String, userid: String, appid: String) -> String {
+        let uid = userid.replacingOccurrences(of: "\\D", with: "", options: .regularExpression)
+        return md5("\(hash)57ae12eb6890223e355ccfcb74edf70d\(appid)\(mid)\(uid)")
+    }
+
+    /// Android 网关签名：md5(salt + 排序参数拼接 + body + salt)
+    private static func androidSignature(params: [String: Any], body: String) -> String {
+        let salt = "OIlwieks28dk2k092lksi2UIkp"
+        let parts = params.keys.sorted().map { "\($0)=\(params[$0]!)" }
+        return md5(salt + parts.joined() + body + salt)
+    }
+
+    private static let h5UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36"
+    private static let androidUA = "Android15-1070-11083-46-0-DiscoveryDRADProtocol-wifi"
 
     // MARK: - 映射
 

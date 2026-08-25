@@ -36,6 +36,19 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.5.4",
+            version: "1.5.4",
+            title: "汽水网页登录修复 / 酷狗 VIP 播放 / 歌单错误提示",
+            features: [
+                "汽水音乐删除扫码登录，改为应用内网页登录并自动验证歌单同步",
+            ],
+            fixes: [
+                "修复汽水音乐网页登录后歌单不同步：优先读取汽水官网 Cookie，兜底抖音 SSO",
+                "修复酷狗会员歌曲播放失败：新增 H5 trackercdn 与 Android gateway 播放链路",
+                "修复音乐库歌单加载失败显示空白：酷狗 / 汽水 / QQ 歌单错误可显示并重试",
+            ]
+        ),
+        VersionLog(
             id: "1.5.3",
             version: "1.5.3",
             title: "汽水网页登录 / 平台记忆 / 板块自定义排序",

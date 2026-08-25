@@ -34,6 +34,9 @@ struct LibraryView: View {
     @State private var sodaPlaylists: [Playlist] = []
     @State private var sodaLoading = false
     @State private var sodaSavedAt = Date.distantPast
+    @State private var qqError: String?
+    @State private var kugouError: String?
+    @State private var sodaError: String?
     /// 音乐库板块顺序（可自定义排序，持久化）
     @State private var libraryOrder: [String] = LibrarySection.defaultOrder
     @State private var showSectionOrder = false
@@ -380,6 +383,10 @@ struct LibraryView: View {
                 EmptyStateView(icon: "music.note.house", text: "登录酷狗音乐后即可同步你的歌单")
             } else if kugouLoading {
                 LoadingStateView()
+            } else if let kugouError {
+                ErrorStateView(message: kugouError) {
+                    Task { await loadKugouPlaylists(force: true) }
+                }
             } else if kugouPlaylists.isEmpty {
                 EmptyStateView(icon: "music.note.house", text: "暂无酷狗歌单")
             } else {
@@ -437,6 +444,10 @@ struct LibraryView: View {
                 EmptyStateView(icon: "music.note.list", text: "登录汽水音乐后即可同步你的歌单")
             } else if sodaLoading {
                 LoadingStateView()
+            } else if let sodaError {
+                ErrorStateView(message: sodaError) {
+                    Task { await loadSodaPlaylists(force: true) }
+                }
             } else if sodaPlaylists.isEmpty {
                 EmptyStateView(icon: "music.note.list", text: "暂无汽水歌单")
             } else {
@@ -493,6 +504,10 @@ struct LibraryView: View {
                 EmptyStateView(icon: "music.note.list", text: "登录 QQ 音乐后即可查看你的歌单")
             } else if qqLoading {
                 LoadingStateView()
+            } else if let qqError {
+                ErrorStateView(message: qqError) {
+                    Task { await loadQQPlaylists(force: true) }
+                }
             } else if qqPlaylists.isEmpty {
                 EmptyStateView(icon: "music.note.list", text: "暂无 QQ 歌单")
             } else {
@@ -554,12 +569,16 @@ struct LibraryView: View {
         // 会话内短缓存：5 分钟内不重复拉取，避免每次打开界面都重新加载（下拉可强制刷新）
         if !force, Date().timeIntervalSince(qqSavedAt) < 300 { return }
         qqLoading = true
-        let list = (try? await QQMusicAPI.shared.userPlaylists(uin: qqAuth.uin)) ?? []
-        qqPlaylists = list
-        qqSavedAt = Date()
+        qqError = nil
+        do {
+            qqPlaylists = try await QQMusicAPI.shared.userPlaylists(uin: qqAuth.uin)
+            qqSavedAt = Date()
+            // 封面兜底：歌单封面缺失时默认取第一首歌曲封面（列表先展示，封面后台补齐）
+            if !qqPlaylists.isEmpty { await fillQQPlaylistCovers(qqPlaylists) }
+        } catch {
+            qqError = error.localizedDescription
+        }
         qqLoading = false
-        // 封面兜底：歌单封面缺失时默认取第一首歌曲封面（列表先展示，封面后台补齐）
-        if !list.isEmpty { await fillQQPlaylistCovers(list) }
     }
 
     private func fillQQPlaylistCovers(_ list: [Playlist]) async {
@@ -677,9 +696,13 @@ struct LibraryView: View {
         }
         if !force, Date().timeIntervalSince(kugouSavedAt) < 300 { return }
         kugouLoading = true
-        let list = (try? await KugouAuth.shared.fetchPlaylists()) ?? []
-        kugouPlaylists = list
-        kugouSavedAt = Date()
+        kugouError = nil
+        do {
+            kugouPlaylists = try await KugouAuth.shared.fetchPlaylists()
+            kugouSavedAt = Date()
+        } catch {
+            kugouError = error.localizedDescription
+        }
         kugouLoading = false
     }
 
@@ -691,9 +714,13 @@ struct LibraryView: View {
         }
         if !force, Date().timeIntervalSince(sodaSavedAt) < 300 { return }
         sodaLoading = true
-        let list = (try? await SodaAuth.shared.fetchPlaylists()) ?? []
-        sodaPlaylists = list
-        sodaSavedAt = Date()
+        sodaError = nil
+        do {
+            sodaPlaylists = try await SodaAuth.shared.fetchPlaylists()
+            sodaSavedAt = Date()
+        } catch {
+            sodaError = error.localizedDescription
+        }
         sodaLoading = false
     }
 
