@@ -369,7 +369,7 @@ final class PlayerManager: NSObject, ObservableObject {
                         BeansLogger.shared.log("播放失败：\(song.name) - 酷狗无可用音源", level: .error)
                         ToastCenter.shared.show("《\(song.name)》酷狗音源不可用或需会员，请尝试其他平台")
                     } else if self.shouldLockOfficialOnly(song) {
-                        let hasSource = UnblockSourceStore.shared.customSources.contains { $0.enabled }
+                        let hasSource = !UnblockSourceStore.shared.customSources.isEmpty
                         if enableUnblock, !hasSource {
                             BeansLogger.shared.log("播放失败：\(song.name) - 未找到原唱音源（未导入或未开启第三方音源）", level: .error)
                             ToastCenter.shared.show("《\(song.name)》未找到原唱音源：请先在 设置 → 第三方音源 导入并开启音源（如星海、全豆要 JS）")
