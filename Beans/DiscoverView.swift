@@ -14,6 +14,9 @@ struct DiscoverView: View {
     @State private var selectedTopList: TopList?
     @State private var selectedPlaylist: Playlist?
     @State private var showDailyList = false
+    @State private var showSectionSort = false
+    /// 主页板块顺序（每日推荐 / 排行榜 / 歌单广场，可自定义）
+    @State private var homeOrder = SectionOrderStore.load(SectionOrderStore.homeKey, defaults: SectionOrderStore.homeDefaults)
     /// 首页数据源：网易云 / QQ音乐（与搜索页同一控件样式）
     @State private var source: SearchProvider = .netease
     @State private var qqTopLists: [QQTopInfo] = []
@@ -47,14 +50,18 @@ struct DiscoverView: View {
                     } else if loading {
                         LoadingStateView()
                     } else {
-                        if !dailySongs.isEmpty {
-                            dailySection.sectionEntrance(delay: 0)
-                        }
-                        if hasRankData {
-                            topListsSection.sectionEntrance(delay: 0.08)
-                        }
-                        if !personalized.isEmpty {
-                            personalizedSection.sectionEntrance(delay: 0.16)
+                        // 板块按用户自定义顺序渲染（可拖拽排序）
+                        ForEach(homeOrder, id: \.self) { key in
+                            switch key {
+                            case "每日推荐":
+                                if !dailySongs.isEmpty { dailySection.sectionEntrance(delay: 0) }
+                            case "排行榜":
+                                if hasRankData { topListsSection.sectionEntrance(delay: 0.08) }
+                            case "歌单广场":
+                                if !personalized.isEmpty { personalizedSection.sectionEntrance(delay: 0.16) }
+                            default:
+                                EmptyView()
+                            }
                         }
                     }
                 }
@@ -97,6 +104,10 @@ struct DiscoverView: View {
                     .environmentObject(player)
                     .environmentObject(auth)
             }
+            .sheet(isPresented: $showSectionSort) {
+                SectionOrderSheet(title: "主页板块排序", sections: SectionOrderStore.homeDefaults, order: $homeOrder)
+                    .onDisappear { SectionOrderStore.save(SectionOrderStore.homeKey, homeOrder) }
+            }
         }
     }
 
@@ -114,6 +125,10 @@ struct DiscoverView: View {
                 }
                 Spacer()
                 HStack(spacing: 10) {
+                    GlassIconButton(systemName: "arrow.up.arrow.down") {
+                        BeansHaptics.tap()
+                        showSectionSort = true
+                    }
                     GlassIconButton(systemName: "arrow.clockwise") {
                         BeansHaptics.tap()
                         Task { await load(force: true) }

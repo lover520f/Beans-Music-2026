@@ -25,6 +25,9 @@ struct ProfileView: View {
     @State private var showAccountHub = false
     /// 设置页（外观 + 歌词翻译等）
     @State private var showSettings = false
+    @State private var showSectionSort = false
+    /// 我的界面板块顺序（账号 / 我的功能 / 使用说明 / 关于，可自定义）
+    @State private var profileOrder = SectionOrderStore.load(SectionOrderStore.profileKey, defaults: SectionOrderStore.profileDefaults)
     /// 软件使用说明
     @State private var showUsageGuide = false
     /// 手动检查更新
@@ -77,9 +80,15 @@ struct ProfileView: View {
                     .foregroundStyle(Color.beansComment)
             }
             Spacer()
-            GlassIconButton(systemName: "gearshape.fill") {
-                BeansHaptics.tap()
-                showSettings = true
+            HStack(spacing: 10) {
+                GlassIconButton(systemName: "arrow.up.arrow.down") {
+                    BeansHaptics.tap()
+                    showSectionSort = true
+                }
+                GlassIconButton(systemName: "gearshape.fill") {
+                    BeansHaptics.tap()
+                    showSettings = true
+                }
             }
         }
         .padding(.top, 8)
@@ -95,10 +104,21 @@ struct ProfileView: View {
             ScrollView {
                 VStack(alignment: .leading, spacing: 22) {
                     header
-                    userCard
-                    featuresGrid
-                    usageGuideCard
-                    aboutSection
+                    // 板块按用户自定义顺序渲染（可拖拽排序）
+                    ForEach(profileOrder, id: \.self) { key in
+                        switch key {
+                        case "账号":
+                            userCard
+                        case "我的功能":
+                            featuresGrid
+                        case "使用说明":
+                            usageGuideCard
+                        case "关于":
+                            aboutSection
+                        default:
+                            EmptyView()
+                        }
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -129,6 +149,10 @@ struct ProfileView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(theme)
+        }
+        .sheet(isPresented: $showSectionSort) {
+            SectionOrderSheet(title: "我的板块排序", sections: SectionOrderStore.profileDefaults, order: $profileOrder)
+                .onDisappear { SectionOrderStore.save(SectionOrderStore.profileKey, profileOrder) }
         }
         .sheet(isPresented: $showUsageGuide) {
             UsageGuideSheet()

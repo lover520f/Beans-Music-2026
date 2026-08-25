@@ -8,6 +8,9 @@ struct LibraryView: View {
     @ObservedObject private var qqAuth = QQMusicAuth.shared
 
     @State private var showHistory = false
+    @State private var showSectionSort = false
+    /// 音乐库板块顺序（本地音乐库 / 我的歌单 / 最近播放，可自定义）
+    @State private var libraryOrder = SectionOrderStore.load(SectionOrderStore.libraryKey, defaults: SectionOrderStore.libraryDefaults)
     @State private var selectedPlaylist: Playlist?
     @State private var showCreatePlaylist = false
     @State private var newPlaylistName = ""
@@ -29,9 +32,19 @@ struct LibraryView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     providerPicker
-                    LocalMusicSection()
-                    if source == .netease { playlistsSection } else { qqSection }
-                    historySection
+                    // 板块按用户自定义顺序渲染（可拖拽排序）
+                    ForEach(libraryOrder, id: \.self) { key in
+                        switch key {
+                        case "本地音乐库":
+                            LocalMusicSection()
+                        case "我的歌单":
+                            if source == .netease { playlistsSection } else { qqSection }
+                        case "最近播放":
+                            historySection
+                        default:
+                            EmptyView()
+                        }
+                    }
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -56,6 +69,10 @@ struct LibraryView: View {
             HistoryView()
                 .environmentObject(player)
                 .environmentObject(auth)
+        }
+        .sheet(isPresented: $showSectionSort) {
+            SectionOrderSheet(title: "音乐库板块排序", sections: SectionOrderStore.libraryDefaults, order: $libraryOrder)
+                .onDisappear { SectionOrderStore.save(SectionOrderStore.libraryKey, libraryOrder) }
         }
         .sheet(item: $selectedPlaylist) { playlist in
             PlaylistView(playlist: playlist)
@@ -87,9 +104,15 @@ struct LibraryView: View {
                         .foregroundStyle(Color.beansComment)
                 }
                 Spacer()
-                GlassIconButton(systemName: "arrow.clockwise") {
-                    BeansHaptics.tap()
-                    Task { await auth.loadLibrary() }
+                HStack(spacing: 10) {
+                    GlassIconButton(systemName: "arrow.up.arrow.down") {
+                        BeansHaptics.tap()
+                        showSectionSort = true
+                    }
+                    GlassIconButton(systemName: "arrow.clockwise") {
+                        BeansHaptics.tap()
+                        Task { await auth.loadLibrary() }
+                    }
                 }
             }
         }
