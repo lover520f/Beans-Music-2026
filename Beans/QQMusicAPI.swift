@@ -835,78 +835,53 @@ final class QQMusicAPI {
     /// QQ 歌单内歌曲（主通道 fcg_ucc_getcdinfo_byids_cp，Mineradio 逆向；兜底 musicu GetPlaylistDetail）
     func playlistSongs(listID: Int) async throws -> [Song] {
         let qqAuth = QQMusicAuth.shared
-        // 「我喜欢」歌单走专用接口（dirid 201 → mapid → 歌单详情）；
-        // 专用接口成功但为空时直接返回空态，不再走普通通道（-201 在普通通道必失败 code=10）
+        // 「我喜欢」歌单走专用接口（dirid 201 → mapid → 歌单详情）
         if listID == Self.qqLikedPlaylistID {
             if let liked = try? await favoriteSongs(limit: 500) {
                 return liked
             }
         }
         let cookie = qqAuth.isLoggedIn ? qqAuth.cookieHeader : ""
-        // 主通道 fcg_ucc_getcdinfo_byids_cp：先按 1.3.4 验证过的组合（登录态 + hostUin=0 + new_format=1 + 无 g_tk）
-        // 逐次回退：游客 / new_format=0，全部失败再走 musicu 兜底
-        var attempts: [(login: Bool, newFormat: String, gtk: String)] = []
-        if qqAuth.isLoggedIn {
-            attempts.append((true, "1", ""))
-        }
-        attempts.append((false, "1", "5381"))
-        if qqAuth.isLoggedIn {
-            attempts.append((true, "0", "\(qqAuth.gtk)"))
-        }
-        attempts.append((false, "0", "5381"))
-        for attempt in attempts {
-            let uin = attempt.login ? qqAuth.uin : "0"
-            var urlString = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=\(attempt.newFormat)&disstid=\(listID)&loginUin=\(uin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
-            if !attempt.gtk.isEmpty { urlString += "&g_tk=\(attempt.gtk)" }
-            guard let detailJson = try? await get(urlString, referer: "https://y.qq.com/n/yqq/playlist", cookie: attempt.login ? cookie : "") else { continue }
-            let code = detailJson["code"] as? Int ?? -1
-            let msg = (detailJson["msg"] as? String) ?? ""
-            if let cdlist = detailJson["cdlist"] as? [[String: Any]],
-               let first = cdlist.first {
-                if let songlist = first["songlist"] as? [[String: Any]] {
-                    let songs = songlist.compactMap { item -> Song? in
-                        let raw = (item["track_info"] as? [String: Any]) ?? item
-                        return song(from: raw)
-                    }
-                    if !songs.isEmpty { return songs }
-                    // code==0 且歌单存在但没有歌曲：真实空歌单，返回空态（不误报加载失败）
-                    if code == 0 {
-                        BeansLogger.shared.log("QQ 歌单为空（listID=\(listID)），按空歌单处理", level: .info)
-                        return []
-                    }
-                } else if code == 0 {
-                    // 歌单存在但响应无 songlist 字段：同样视为空歌单
-                    BeansLogger.shared.log("QQ 歌单响应无 songlist（listID=\(listID)），按空歌单处理", level: .info)
-                    return []
-                }
-            }
-            BeansLogger.shared.log("QQ 歌单歌曲通道失败（listID=\(listID) login=\(attempt.login) new_format=\(attempt.newFormat) code=\(code) msg=\(msg)）", level: .error)
-        }
-        // 兜底：musicu GetPlaylistDetail（登录/游客两套参数 + songlist/songInfoList 双路径）
-        let fallbacks: [[String: Any]] = [
-            [
-                "comm": ["ct": 24, "cv": 0, "uin": qqAuth.isLoggedIn ? qqAuth.uin : "0", "g_tk": qqAuth.isLoggedIn ? "\(qqAuth.gtk)" : "5381", "platform": "yqq"],
-                "req_1": ["module": "music.playlist.PlayListDataServer", "method": "GetPlaylistDetail", "param": ["id": listID, "uin": qqAuth.isLoggedIn ? qqAuth.uin : 0, "song_begin": 0, "song_num": 200]],
-            ],
-            [
-                "comm": ["ct": 24, "cv": 0],
-                "req_1": ["module": "music.playlist.PlayListDataServer", "method": "GetPlaylistDetail", "param": ["id": listID, "uin": 0, "song_begin": 0, "song_num": 100]],
-            ],
-        ]
-        for (index, payload) in fallbacks.enumerated() {
-            let useCookie = index == 0 && qqAuth.isLoggedIn
-            guard let json = try? await musicu(payload, cookie: useCookie ? cookie : "", timeout: 15) else { continue }
-            var list = nestedArray(json, path: ["req_1", "data", "songlist"])
-            if list.isEmpty { list = nestedArray(json, path: ["req_1", "data", "songInfoList"]) }
-            let songs = list.compactMap { item -> Song? in
+        let loginUin = qqAuth.isLoggedIn ? qqAuth.uin : "0"
+        // 主通道 fcg_ucc_getcdinfo_byids_cp：恢复 1.3.4 验证可用的单通道参数
+        // （new_format=1、hostUin=0、无 g_tk），失败直接走 musicu 兜底
+        let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=\(listID)&loginUin=\(loginUin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
+        if let detailJson = try? await get(detailURL, referer: "https://y.qq.com/n/yqq/playlist", cookie: cookie),
+           let cdlist = detailJson["cdlist"] as? [[String: Any]],
+           let songlist = cdlist.first?["songlist"] as? [[String: Any]],
+           !songlist.isEmpty {
+            let songs = songlist.compactMap { item -> Song? in
+                // 部分接口返回会把歌曲包在 track_info 里，先解包再走统一解析
                 let raw = (item["track_info"] as? [String: Any]) ?? item
                 return song(from: raw)
             }
             if !songs.isEmpty { return songs }
         }
-        BeansLogger.shared.log("QQ 歌单歌曲加载失败（listID=\(listID)）", level: .error)
-        throw NetEaseError.unknown("QQ 歌单歌曲加载失败，可能受登录或版权限制，请稍后重试")
+        // 兜底：musicu GetPlaylistDetail
+        let payload: [String: Any] = [
+            "comm": ["ct": 24, "cv": 0],
+            "req_1": [
+                "module": "music.playlist.PlayListDataServer",
+                "method": "GetPlaylistDetail",
+                "param": ["id": listID, "uin": 0, "song_begin": 0, "song_num": 100]
+            ]
+        ]
+        guard let json = try? await musicu(payload) else {
+            BeansLogger.shared.log("QQ 歌单歌曲加载失败（listID=\(listID)）", level: .error)
+            throw NetEaseError.unknown("QQ 歌单歌曲加载失败，可能受登录或版权限制，请稍后重试")
+        }
+        let list = nestedArray(json, path: ["req_1", "data", "songlist"])
+        let songs = list.compactMap { item -> Song? in
+            let raw = (item["track_info"] as? [String: Any]) ?? item
+            return song(from: raw)
+        }
+        if songs.isEmpty {
+            BeansLogger.shared.log("QQ 歌单歌曲加载失败（listID=\(listID)）", level: .error)
+            throw NetEaseError.unknown("QQ 歌单歌曲加载失败，可能受登录或版权限制，请稍后重试")
+        }
+        return songs
     }
+
     /// 歌单第一首歌曲封面（歌单封面缺失时的兜底；失败返回 nil）
     func firstSongCover(listID: Int) async throws -> URL? {
         let songs = try await playlistSongs(listID: listID)
