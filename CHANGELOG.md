@@ -2,7 +2,16 @@
 
 本文件是 GitHub Release 正文的来源：每个新版本在此追加一条，CI 发布时自动提取对应版本的内容。
 
-## 1.5.9
+## 1.5.10
+
+### 修复
+- QQ 歌单歌曲加载改为多通道回退：fcg 多参数组合（登录/游客 × new_format × g_tk）+ musicu GetPlaylistDetail，被风控或隐私拦截时自动切换
+- QQ「我的喜欢」修复：map 字段兼容标量与字典（{"201": id}）结构，解析失败自动用 cdlist 或 musicu order=3 兜底
+- QQ 歌单列表修复：fcg 返回空列表时不再跳过 musicu GetUserPlaylist，并补拉「我喜欢」歌单
+
+### 移除
+- 移除播放器封面霓虹发光描边，封面恢复干净观感
+
 
 ### 修复
 - QQ 歌单歌曲加载恢复 1.3.4 已验证可用的单通道逻辑（new_format=1 / 无 g_tk），失败再走 musicu 兜底

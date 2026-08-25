@@ -520,13 +520,6 @@ struct PlayerView: View {
                                 )
                         }
                         .clipShape(RoundedRectangle(cornerRadius: coverRadius, style: .continuous))
-                        .overlay {
-                            // 霓虹发光描边（跟随封面主色）
-                            RoundedRectangle(cornerRadius: coverRadius, style: .continuous)
-                                .strokeBorder(palette.accent.opacity(0.9), lineWidth: 2.5)
-                                .shadow(color: palette.accent.opacity(0.95), radius: 10)
-                                .shadow(color: palette.accent.opacity(0.55), radius: 26)
-                        }
                         .shadow(color: .black.opacity(0.38), radius: 24, y: 12)
 
                         // 封面下方柔和反光（地面光斑）

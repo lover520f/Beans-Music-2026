@@ -36,6 +36,18 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.5.10",
+            version: "1.5.10",
+            title: "QQ 歌单加载全面修复 / 移除封面发光描边",
+            features: [],
+            fixes: [
+                "QQ 歌单歌曲加载改为多通道回退：fcg 多参数组合（登录/游客 × new_format × g_tk）+ musicu GetPlaylistDetail，被风控或隐私拦截时自动切换",
+                "QQ「我的喜欢」修复：map 字段兼容标量与字典（{\"201\": id}）结构，解析失败自动用 cdlist 或 musicu order=3 兜底",
+                "QQ 歌单列表修复：fcg 返回空列表时不再跳过 musicu GetUserPlaylist，并补拉「我喜欢」歌单",
+                "移除播放器封面霓虹发光描边，封面恢复干净观感",
+            ],
+        ),
+        VersionLog(
             id: "1.5.9",
             version: "1.5.9",
             title: "QQ 歌单恢复 1.3.4 加载逻辑 / 移除大封面模式",
