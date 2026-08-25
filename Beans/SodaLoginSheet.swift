@@ -8,10 +8,10 @@ struct SodaLoginSheet: View {
     @EnvironmentObject private var theme: ThemeStore
     @Environment(\.dismiss) private var dismiss
 
-    @State private var mode: SodaLoginMode = .web
+    @State private var mode: SodaLoginMode = .qr
 
     enum SodaLoginMode: String, CaseIterable, Identifiable {
-        case web = "抖音授权"
+        case qr = "扫码登录"
         case paste = "粘贴Session"
         var id: String { rawValue }
     }
@@ -58,8 +58,8 @@ struct SodaLoginSheet: View {
 
                 Group {
                     switch mode {
-                    case .web:
-                        SodaWebLoginPanel(onSuccess: { dismiss() })
+                    case .qr:
+                        SodaQRLoginPanel(onSuccess: { dismiss() })
                     case .paste:
                         SodaSessionImportPanel(onSuccess: { dismiss() })
                     }
@@ -70,38 +70,44 @@ struct SodaLoginSheet: View {
     }
 }
 
-// MARK: - 网页登录（WKWebView 打开汽水音乐网页版，登录后自动读取 Cookie）
+// MARK: - 扫码登录（抖音护照二维码，参考 qishui-api auth_qrcode / check_qrconnect）
 
-struct SodaWebLoginPanel: View {
+struct SodaQRLoginPanel: View {
     @EnvironmentObject private var theme: ThemeStore
-    @State private var pageLoaded = false
-    @State private var syncing = false
+    @State private var qrImage: UIImage?
+    @State private var qrToken = ""
+    @State private var loading = true
     @State private var message = ""
     @State private var timer: Timer?
-    @State private var lastHeader = ""
+    @State private var finished = false
     let onSuccess: () -> Void
 
     var body: some View {
         let _ = theme.accent
-        VStack(spacing: 10) {
-            Text("汽水音乐暂无独立网页登录，请使用抖音账号授权（同一字节账号体系）：扫码或手机号登录抖音后自动同步歌单")
+        VStack(spacing: 16) {
+            Text("请使用「抖音 APP」扫码登录（同一字节账号体系）。汽水音乐暂无独立账号，扫码授权后自动同步歌单")
                 .font(BeansFont.appFont(12))
                 .foregroundStyle(Color.beansComment)
                 .multilineTextAlignment(.center)
                 .padding(.horizontal, 20)
 
             ZStack {
-                SodaWebView(onLoaded: { pageLoaded = true })
-                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .fill(Color.white)
                     .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
-                    .padding(.horizontal, 20)
-
-                if !pageLoaded {
-                    ProgressView("正在加载抖音登录…")
+                    .frame(width: 220, height: 220)
+                if let qrImage {
+                    Image(uiImage: qrImage)
+                        .resizable()
+                        .interpolation(.none)
+                        .scaledToFit()
+                        .frame(width: 200, height: 200)
+                } else if loading {
+                    ProgressView("正在获取二维码…")
                         .tint(Color.beansAmber)
                 }
             }
-            .frame(maxHeight: .infinity)
+            .frame(width: 220, height: 220)
 
             if !message.isEmpty {
                 Text(message)
@@ -112,105 +118,95 @@ struct SodaWebLoginPanel: View {
             }
 
             Button {
-                syncNow()
+                refresh()
             } label: {
-                HStack(spacing: 6) {
-                    if syncing {
-                        ProgressView().tint(.white)
-                    } else {
-                        Image(systemName: "arrow.triangle.2.circlepath")
-                    }
-                    Text(syncing ? "正在读取登录状态…" : "同步登录状态")
-                }
-                .font(BeansFont.appFont(14, .semibold))
-                .foregroundStyle(Color.white)
-                .frame(maxWidth: .infinity)
-                .padding(.vertical, 12)
-                .background(Color.beansAmber, in: Capsule())
+                Label("刷新二维码", systemImage: "arrow.clockwise")
+                    .font(BeansFont.appFont(14, .semibold))
+                    .foregroundStyle(Color.white)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 12)
+                    .background(Color.beansAmber, in: Capsule())
             }
             .buttonStyle(GlassPressButtonStyle(scale: 0.96))
-            .disabled(syncing)
             .padding(.horizontal, 20)
-            .padding(.bottom, 12)
+
+            Spacer(minLength: 8)
         }
-        .onAppear { startAutoDetect() }
+        .onAppear { refresh() }
         .onDisappear { timer?.invalidate(); timer = nil }
     }
 
-    private func startAutoDetect() {
-        timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
-            readCookies { header in
-                guard !header.isEmpty, header != lastHeader else { return }
-                importCookies(header)
-            }
-        }
-    }
-
-    private func syncNow() {
-        syncing = true
+    private func refresh() {
+        timer?.invalidate(); timer = nil
+        loading = true
+        qrImage = nil
         message = ""
-        readCookies { header in
-            syncing = false
-            if header.isEmpty {
-                message = "未检测到登录态，请先在抖音网页中扫码或手机号登录"
-            } else {
-                importCookies(header)
+        Task {
+            do {
+                let info = try await SodaAuth.shared.fetchLoginQR()
+                await MainActor.run {
+                    qrImage = UIImage(data: info.imageData)
+                    qrToken = info.token
+                    loading = false
+                    startPolling()
+                }
+            } catch {
+                await MainActor.run {
+                    loading = false
+                    message = error.localizedDescription
+                }
             }
         }
     }
 
-    private func importCookies(_ header: String) {
-        lastHeader = header
-        SodaAuth.shared.importCookieHeader(header)
-        timer?.invalidate()
-        timer = nil
-        syncing = true
-        message = "正在验证登录态并同步歌单…"
+    private func startPolling() {
+        timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
+            poll()
+        }
+    }
+
+    private func poll() {
+        let token = qrToken
+        guard !token.isEmpty, !finished else { return }
+        Task {
+            let status = await SodaAuth.shared.pollLoginQR(token: token)
+            await MainActor.run {
+                switch status {
+                case .waiting:
+                    message = "等待扫码…"
+                case .scanned:
+                    message = "已扫码，请在手机上确认授权"
+                case .success:
+                    finishSuccess()
+                case .expired:
+                    timer?.invalidate(); timer = nil
+                    message = "二维码已过期，请点击刷新"
+                case .error(let err):
+                    message = err
+                }
+            }
+        }
+    }
+
+    private func finishSuccess() {
+        guard !finished else { return }
+        finished = true
+        timer?.invalidate(); timer = nil
+        message = "✓ 汽水音乐登录成功，正在同步歌单…"
+        BeansHaptics.success()
         Task {
             let error = await SodaAuth.shared.verifyLogin()
             await MainActor.run {
-                syncing = false
                 if let error {
-                    message = "已获取登录态，但歌单同步失败：\(error)"
-                    ToastCenter.shared.show("汽水登录态已保存，歌单同步失败")
+                    message = "登录成功，但歌单同步失败：\(error)"
+                    ToastCenter.shared.show("汽水登录成功，歌单同步失败")
                 } else {
                     message = "✓ 汽水音乐登录成功，歌单已同步"
-                    BeansHaptics.success()
                     ToastCenter.shared.show("汽水音乐登录成功")
                     DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
                         onSuccess()
                     }
                 }
-            }
-        }
-    }
-
-    /// 从 WKWebView Cookie 存储读取登录态（优先汽水官网 qishui.com 域，兜底抖音 SSO sessionid）
-    private func readCookies(_ completion: @escaping (String) -> Void) {
-        let wanted = SodaAuth.webCookieNames
-        WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
-            var parts: [String] = []
-            var qishuiHasSession = false
-            var douyinSession: [String] = []
-            for cookie in cookies {
-                let domain = cookie.domain.lowercased()
-                if domain.contains("qishui.com") {
-                    if cookie.name == "sessionid" || cookie.name == "sessionid_ss" || cookie.name == "sid_guard" {
-                        qishuiHasSession = true
-                    }
-                    parts.append("\(cookie.name)=\(cookie.value)")
-                } else if domain.contains("douyin.com") || domain.contains("bytedance.com") || domain.contains("amemv.com") {
-                    if wanted.contains(cookie.name) || cookie.name.hasPrefix("sessionid") || cookie.name == "sid_guard" || cookie.name == "sid_tt" {
-                        douyinSession.append("\(cookie.name)=\(cookie.value)")
-                    }
-                }
-            }
-            // 无 qishui 域登录态时，退回抖音 SSO sessionid（同一字节账号体系）
-            if !qishuiHasSession {
-                parts = douyinSession
-            }
-            DispatchQueue.main.async {
-                completion(parts.isEmpty ? "" : parts.joined(separator: "; "))
             }
         }
     }

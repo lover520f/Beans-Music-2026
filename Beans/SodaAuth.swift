@@ -160,6 +160,110 @@ final class SodaAuth: ObservableObject {
         }
     }
 
+    // MARK: - 抖音护照扫码登录（参考 qishui-api auth_qrcode / check_qrconnect）
+
+    /// 扫码登录二维码信息
+    struct SodaQRInfo {
+        let token: String
+        let imageData: Data
+    }
+
+    /// 扫码登录轮询状态
+    enum SodaQRStatus: Equatable {
+        case waiting
+        case scanned
+        case success
+        case expired
+        case error(String)
+    }
+
+    private var loginQRCookie = ""
+
+    /// 获取抖音护照扫码登录二维码（GET /passport/web/get_qrcode/），返回二维码 PNG 数据
+    func fetchLoginQR() async throws -> SodaQRInfo {
+        let urlString = "https://api.qishui.com/passport/web/get_qrcode/?passport_jssdk_version=2.4.13&passport_jssdk_type=normal&is_from_ttaccountsdk=1&aid=386088&next=https%3A%2F%2Fapi.qishui.com&need_logo=false&need_short_url=false&is_new_login=1"
+        guard let url = URL(string: urlString) else { throw NetEaseError.unknown("二维码地址无效") }
+        var request = URLRequest(url: url)
+        request.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        request.setValue("https://api.qishui.com/", forHTTPHeaderField: "Referer")
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+              let json = Self.parseJSON(data) else { throw NetEaseError.network }
+        loginQRCookie = Self.csrfCookie(from: http, url: url)
+        let obj = (json["data"] as? [String: Any]) ?? json
+        guard let token = Self.string(obj["token"]), !token.isEmpty,
+              let qr = Self.string(obj["qrcode"]), qr.hasPrefix("data:image"),
+              let comma = qr.firstIndex(of: ","),
+              let imageData = Data(base64Encoded: String(qr[qr.index(after: comma)...])) else {
+            throw NetEaseError.unknown("获取汽水登录二维码失败，请重试")
+        }
+        return SodaQRInfo(token: token, imageData: imageData)
+    }
+
+    /// 轮询扫码状态（POST /passport/web/check_qrconnect/），成功后自动导入 sessionid
+    func pollLoginQR(token: String) async -> SodaQRStatus {
+        var comps = URLComponents(string: "https://api.qishui.com/passport/web/check_qrconnect/")!
+        comps.queryItems = [
+            URLQueryItem(name: "passport_jssdk_version", value: "2.4.13"),
+            URLQueryItem(name: "passport_jssdk_type", value: "normal"),
+            URLQueryItem(name: "is_from_ttaccountsdk", value: "1"),
+            URLQueryItem(name: "aid", value: "386088"),
+            URLQueryItem(name: "iid", value: "27960026095955"),
+        ]
+        let body = "need_logo=false&need_short_url=false&is_frontier=true&token=\(token)&is_new_login=1&next=https%3A%2F%2Fapi.qishui.com"
+        var request = URLRequest(url: comps.url!)
+        request.httpMethod = "POST"
+        request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
+        request.setValue("Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36", forHTTPHeaderField: "User-Agent")
+        if !loginQRCookie.isEmpty { request.setValue(loginQRCookie, forHTTPHeaderField: "Cookie") }
+        request.httpBody = body.data(using: .utf8)
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse, http.statusCode == 200,
+                  let json = Self.parseJSON(data) else { return .error("登录接口异常，请重试") }
+            // 成功时 Set-Cookie 携带 sessionid，整段导入登录态
+            if let cookie = Self.sessionCookie(from: http, url: comps.url!), Self.extractSessionID(from: cookie) != nil {
+                importSessionCookie(cookie)
+                return .success
+            }
+            let obj = (json["data"] as? [String: Any]) ?? json
+            let status = Self.string(obj["status"]) ?? ""
+            switch status {
+            case "confirm": return .scanned
+            case "success": return .error("登录成功但未获取到会话，请重新登录")
+            case "expired": return .expired
+            default: return .waiting
+            }
+        } catch {
+            return .error("网络异常，请重试")
+        }
+    }
+
+    /// 从响应中提取 passport_csrf_token 作为轮询 Cookie
+    private static func csrfCookie(from response: HTTPURLResponse, url: URL) -> String {
+        let cookies = HTTPCookie.cookies(withResponseHeaderFields: response.allHeaderFields as? [String: String] ?? [:], for: url)
+        for cookie in cookies where cookie.name == "passport_csrf_token" || cookie.name == "passport_csrf_token_default" {
+            return "\(cookie.name)=\(cookie.value)"
+        }
+        return ""
+    }
+
+    /// 从响应中提取登录后的整段 Cookie（含 sessionid）
+    private static func sessionCookie(from response: HTTPURLResponse, url: URL) -> String {
+        let cookies = HTTPCookie.cookies(withResponseHeaderFields: response.allHeaderFields as? [String: String] ?? [:], for: url)
+        return cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
+    }
+
+
+    /// 从整段 Cookie 中提取 sessionid（无则返回 nil）
+    private static func extractSessionID(from cookie: String) -> String? {
+        let parts = cookie.split(separator: ";").map { $0.trimmingCharacters(in: .whitespaces) }
+        for part in parts where part.lowercased().hasPrefix("sessionid=") {
+            let value = part.dropFirst("sessionid=".count)
+            return value.isEmpty ? nil : String(value)
+        }
+        return nil
+    }
     /// 我的歌单
     /// 我的歌单（我创建的 + 收藏的，网页版接口）
     func fetchPlaylists() async throws -> [Playlist] {

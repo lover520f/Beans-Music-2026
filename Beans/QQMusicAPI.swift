@@ -802,7 +802,7 @@ final class QQMusicAPI {
             let newFormat = attempt < 2 ? "1" : "0"
             let uin = useLogin ? qqAuth.uin : "0"
             let gtk = useLogin ? "\(qqAuth.gtk)" : "5381"
-            let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=\(newFormat)&disstid=\(listID)&loginUin=\(uin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&g_tk=\(gtk)"
+            let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=\(newFormat)&disstid=\(listID)&loginUin=\(uin)&hostUin=\(useLogin ? uin : "0")&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&g_tk=\(gtk)"
             guard let detailJson = try? await get(detailURL, referer: "https://y.qq.com/n/yqq/playlist", cookie: useLogin ? cookie : ""),
                   let cdlist = detailJson["cdlist"] as? [[String: Any]],
                   let first = cdlist.first,
@@ -839,7 +839,7 @@ final class QQMusicAPI {
             if !songs.isEmpty { return songs }
         }
         BeansLogger.shared.log("QQ 歌单歌曲加载失败（listID=\(listID)）", level: .error)
-        throw NetEaseError.unknown("QQ 歌单歌曲加载失败，请确认已登录或稍后重试")
+        throw NetEaseError.unknown("QQ 歌单歌曲加载失败，可能受登录或版权限制，请稍后重试")
     }
     /// 歌单第一首歌曲封面（歌单封面缺失时的兜底；失败返回 nil）
     func firstSongCover(listID: Int) async throws -> URL? {
