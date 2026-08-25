@@ -53,7 +53,6 @@ final class PlayerManager: NSObject, ObservableObject {
     private var orderPosition = 0
     private var sleepTimer: Timer?
     private var lastCountedSongID: String?
-    private var wasPlayingBeforeInterruption = false
     private var liveActivity: Any?
     private var lastLiveActivitySync: Date?
 
@@ -605,14 +604,14 @@ final class PlayerManager: NSObject, ObservableObject {
               let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
         switch type {
         case .began:
-            wasPlayingBeforeInterruption = isPlaying
             player?.pause()
             isPlaying = false
+            updateNowPlaying()
         case .ended:
-            if wasPlayingBeforeInterruption {
-                player?.playImmediately(atRate: Float(rate))
-                isPlaying = true
-            }
+            // 不自动恢复播放：开启“其他音频播放时自动暂停”后，其他音频停止时应保持暂停，由用户手动恢复
+            do {
+                try AVAudioSession.sharedInstance().setActive(true)
+            } catch {}
         @unknown default:
             break
         }
