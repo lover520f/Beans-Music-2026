@@ -376,7 +376,7 @@ final class QQMusicAPI {
         let favJson = try await get(favURL, referer: "https://y.qq.com/n/yqq/playlist", cookie: qqAuth.cookieHeader)
         let mapid = favJson["map"] as? Int ?? 0
         guard mapid > 0 else { return [] }
-        let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=\(mapid)&loginUin=0&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
+        let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=\(mapid)&loginUin=\(qqAuth.uin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&g_tk=\(gtk)"
         let detailJson = try await get(detailURL, referer: "https://y.qq.com/", cookie: qqAuth.cookieHeader)
         let cdlist = detailJson["cdlist"] as? [[String: Any]] ?? []
         let songlist = cdlist.first?["songlist"] as? [[String: Any]] ?? []
@@ -738,10 +738,10 @@ final class QQMusicAPI {
 
     /// QQ 歌单项解析（字段对齐 Mineradio：dissid/tid/dirid/id/diss_id + diss_name/name/title…）
     private static func playlist(fromQQDiss item: [String: Any]) -> Playlist? {
-        let rawName = item["diss_name"] as? String ?? (item["name"] as? String ?? item["title"] as? String ?? "")
+        let rawName = item["diss_name"] as? String ?? (item["dissname"] as? String ?? (item["name"] as? String ?? item["title"] as? String ?? ""))
         let dirid = item["dirid"] as? Int ?? Int(item["dirid"] as? String ?? "") ?? 0
         let dissid = item["dissid"] as? Int ?? Int(item["dissid"] as? String ?? "") ?? 0
-        let tid = item["tid"] as? Int ?? 0
+        let tid = item["tid"] as? Int ?? Int(item["tid"] as? String ?? "") ?? 0
         // 「我喜欢」文件夹（dirid 201）映射为固定歌单：稳定封面 + 专用歌曲接口，
         // 避免其被当作普通歌单导致封面一直加载、歌曲为空（仅精确匹配名称，避免误伤用户自建歌单）
         let trimmedName = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -752,12 +752,12 @@ final class QQMusicAPI {
         }
         // 过滤「创建的歌单 / 收藏的歌单」等纯文件夹条目（无真实歌单 ID，封面与歌曲都无法解析）
         if dissid == 0 && tid == 0 && dirid > 0 { return nil }
-        let fallbackID = item["id"] as? Int ?? 0
+        let fallbackID = item["id"] as? Int ?? Int(item["id"] as? String ?? "") ?? 0
         let id = dissid > 0 ? dissid : (tid > 0 ? tid : (dirid > 0 ? dirid : fallbackID))
         guard id > 0 else { return nil }
         let name = rawName
         guard !name.isEmpty else { return nil }
-        var cover = item["diss_cover"] as? String ?? (item["logo"] as? String ?? item["picurl"] as? String ?? item["cover"] as? String ?? "")
+        var cover = item["diss_cover"] as? String ?? (item["logo"] as? String ?? item["picurl"] as? String ?? item["imgurl"] as? String ?? item["cover"] as? String ?? "")
         if cover.hasPrefix("http://") { cover = "https://" + cover.dropFirst(7) }
         // fcg 接口返回的 diss_cover 可能是相对路径（/music/photo_new/...），补全 y.gtimg.cn 域名
         if cover.hasPrefix("/") { cover = "https://y.gtimg.cn" + cover }
@@ -797,12 +797,17 @@ final class QQMusicAPI {
             if let liked = try? await favoriteSongs(limit: 500), !liked.isEmpty { return liked }
         }
         let cookie = qqAuth.isLoggedIn ? qqAuth.cookieHeader : ""
-        let loginUin = qqAuth.isLoggedIn ? qqAuth.uin : "0"
-        let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=\(listID)&loginUin=\(loginUin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
-        if let detailJson = try? await get(detailURL, referer: "https://y.qq.com/n/yqq/playlist", cookie: cookie),
-           let cdlist = detailJson["cdlist"] as? [[String: Any]],
-           let songlist = cdlist.first?["songlist"] as? [[String: Any]],
-           !songlist.isEmpty {
+        // 主通道 fcg_ucc_getcdinfo_byids_cp：先以游客参数请求，登录用户未命中再带登录态重试一次
+        for attempt in 0..<2 {
+            let useLogin = attempt == 1 && qqAuth.isLoggedIn
+            let uin = useLogin ? qqAuth.uin : "0"
+            let gtk = useLogin ? qqAuth.gtk : "5381"
+            let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=\(listID)&loginUin=\(uin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&g_tk=\(gtk)"
+            guard let detailJson = try? await get(detailURL, referer: "https://y.qq.com/n/yqq/playlist", cookie: useLogin ? cookie : ""),
+                  let cdlist = detailJson["cdlist"] as? [[String: Any]],
+                  let first = cdlist.first,
+                  let songlist = first["songlist"] as? [[String: Any]],
+                  !songlist.isEmpty else { continue }
             let songs = songlist.compactMap { item -> Song? in
                 // 部分接口返回会把歌曲包在 track_info 里，先解包再走统一解析
                 let raw = (item["track_info"] as? [String: Any]) ?? item
@@ -810,23 +815,31 @@ final class QQMusicAPI {
             }
             if !songs.isEmpty { return songs }
         }
-        // 兜底：musicu GetPlaylistDetail
+        // 兜底：musicu GetPlaylistDetail（带登录参数与 Cookie，手机网络可用）
         let payload: [String: Any] = [
-            "comm": ["ct": 24, "cv": 0],
+            "comm": [
+                "ct": 24,
+                "cv": 0,
+                "uin": qqAuth.isLoggedIn ? qqAuth.uin : "0",
+                "g_tk": qqAuth.isLoggedIn ? qqAuth.gtk : "5381",
+                "platform": "yqq",
+            ],
             "req_1": [
                 "module": "music.playlist.PlayListDataServer",
                 "method": "GetPlaylistDetail",
-                "param": ["id": listID, "uin": 0, "song_begin": 0, "song_num": 100]
-            ]
+                "param": ["id": listID, "uin": qqAuth.isLoggedIn ? qqAuth.uin : 0, "song_begin": 0, "song_num": 200],
+            ],
         ]
-        let json = try await musicu(payload)
-        let list = nestedArray(json, path: ["req_1", "data", "songlist"])
-        return list.compactMap { item -> Song? in
-            let raw = (item["track_info"] as? [String: Any]) ?? item
-            return song(from: raw)
+        if let json = try? await musicu(payload, cookie: qqAuth.isLoggedIn ? qqAuth.cookieHeader : "") {
+            let list = nestedArray(json, path: ["req_1", "data", "songlist"])
+            let songs = list.compactMap { item -> Song? in
+                let raw = (item["track_info"] as? [String: Any]) ?? item
+                return song(from: raw)
+            }
+            if !songs.isEmpty { return songs }
         }
+        return []
     }
-
     /// 歌单第一首歌曲封面（歌单封面缺失时的兜底；失败返回 nil）
     func firstSongCover(listID: Int) async throws -> URL? {
         let songs = try await playlistSongs(listID: listID)

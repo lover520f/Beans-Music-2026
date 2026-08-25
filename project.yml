@@ -13,10 +13,13 @@ targets:
     type: application
     platform: iOS
     sources: [Beans]
+    dependencies:
+      - target: BeansWidget
+        embed: true
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.beans.app
-        MARKETING_VERSION: "1.5.4"  # 版本规则见 VERSIONING.md：修 bug +0.0.1，加功能 +0.1
+        MARKETING_VERSION: "1.5.5"  # 版本规则见 VERSIONING.md：修 bug +0.0.1，加功能 +0.1
         CURRENT_PROJECT_VERSION: "40"
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_OBJC_BRIDGING_HEADER: Beans/Beans-Bridging-Header.h
@@ -38,11 +41,33 @@ targets:
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
 
+  BeansWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: BeansWidget
+      - path: Beans/NowPlayingActivity.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.beans.app.widget
+        MARKETING_VERSION: "1.5.5"
+        CURRENT_PROJECT_VERSION: $(CURRENT_PROJECT_VERSION)
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: NO
+    info:
+      path: BeansWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Beans Music
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
+
 schemes:
   Beans:
     build:
       targets:
         Beans: all
+        BeansWidget: all
     run:
       config: Debug
     archive:

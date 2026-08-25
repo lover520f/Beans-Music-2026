@@ -24,9 +24,9 @@ final class SodaAuth: ObservableObject {
     private let vipKey = "beans.soda.vip.v1"
     private let session: URLSession
 
-    private let aid = "386088"
-    private let iid = "27960026095955"
-    private let versionCode = "30020100"
+    /// 网页登录后从 /luna/pc/me 获取的 user_id（歌单接口需要）
+    private var userId = ""
+    private let userIdKey = "beans.soda.userid.v1"
 
     /// 网页登录关注的 Cookie 名（WKWebView / 粘贴整段 Cookie 时按此过滤）
     static let webCookieNames: Set<String> = [
@@ -120,95 +120,171 @@ final class SodaAuth: ObservableObject {
 
     func fetchProfile() async {
         guard isLoggedIn else { return }
-        guard let json = try? await getPc("/luna/pc/me", query: ["aid": aid]) else { return }
-        let info = (json["my_info"] as? [String: Any]) ?? (json["user"] as? [String: Any]) ?? json
-        let nick = Self.string(info["nickname"]) ?? Self.string(info["name"]) ?? ""
+        guard let json = try? await getPc("/luna/pc/me") else { return }
+        let data = (json["data"] as? [String: Any]) ?? json
+        let info = (data["my_info"] as? [String: Any])
+            ?? (data["myInfo"] as? [String: Any])
+            ?? (data["user"] as? [String: Any])
+            ?? data
+        let nick = Self.string(info["nickname"])
+            ?? Self.string(info["display_name"])
+            ?? Self.string(info["name"])
+            ?? Self.string(data["nickname"]) ?? ""
         if !nick.isEmpty {
             nickname = nick
             defaults.set(nick, forKey: nickKey)
         }
-        if let isVIP = info["is_vip"] as? Bool, isVIP {
+        if Self.bool(info["is_vip"]) == true || Self.bool(info["isVip"]) == true {
             vipBadge = "VIP"
             defaults.set("VIP", forKey: vipKey)
         }
-        let avatar = Self.string(info["medium_avatar_url"]) ?? Self.string(info["avatar_url"]) ?? ""
+        let avatar = Self.string(info["medium_avatar_url"])
+            ?? Self.string(info["avatar_url"])
+            ?? Self.string(data["medium_avatar_url"])
+            ?? Self.string(data["avatar_url"]) ?? ""
         if !avatar.isEmpty {
             avatarURL = URL(string: avatar)
+        }
+        // 保存 user_id（歌单接口需要）
+        if let uid = Self.string(info["id"])
+            ?? Self.string(info["user_id"])
+            ?? Self.string(info["userId"])
+            ?? Self.string(info["uid"])
+            ?? Self.string(info["sec_uid"])
+            ?? Self.string(data["user_id"])
+            ?? Self.string(data["userId"])
+            ?? Self.string(data["uid"])
+            ?? Self.string(data["id"]), !uid.isEmpty {
+            userId = uid
+            defaults.set(uid, forKey: userIdKey)
         }
     }
 
     /// 我的歌单
+    /// 我的歌单（我创建的 + 收藏的，网页版接口）
     func fetchPlaylists() async throws -> [Playlist] {
         guard isLoggedIn else { throw NetEaseError.unknown("请先登录汽水音乐") }
-        let json = try await getPc("/luna/pc/me/playlist", query: [
-            "aid": aid,
-            "iid": iid,
-            "version_code": versionCode,
-        ])
-        let playlists = json["playlists"] as? [[String: Any]] ?? []
-        return playlists.compactMap { item -> Playlist? in
-            let id = Self.string(item["id"]) ?? ""
-            guard !id.isEmpty else { return nil }
-            let name = Self.string(item["title"]) ?? Self.string(item["name"]) ?? ""
-            let cover = Self.string(item["url_cover"]) ?? Self.string(item["cover"]) ?? Self.string(item["cover_url"]) ?? ""
-            let count = Self.int(item["count_tracks"]) ?? Self.int(item["track_count"]) ?? Self.int(item["song_count"]) ?? 0
-            return Playlist(id: Int(id) ?? BeansHash.stable(id), name: name, coverURL: URL(string: cover), trackCount: count, source: .soda, rawID: id)
+        if userId.isEmpty, let saved = defaults.string(forKey: userIdKey), !saved.isEmpty {
+            userId = saved
         }
+        var seen = Set<String>()
+        var result: [Playlist] = []
+        // 1) 我创建的歌单
+        if !userId.isEmpty,
+           let json = try? await getPc("/luna/pc/user/playlist", extra: ["user_id": userId, "cursor": "", "count": "50"]) {
+            for item in Self.extractPlaylistCards(json) {
+                appendPlaylist(item, seen: &seen, into: &result)
+            }
+        }
+        // 2) 收藏的歌单
+        if let json = try? await getPc("/luna/pc/me/collection/mixed", extra: ["cursor": "", "count": "50"]) {
+            for item in Self.extractPlaylistCards(json) {
+                appendPlaylist(item, seen: &seen, into: &result)
+            }
+        }
+        return result
     }
 
-    /// 歌单歌曲列表
+    private func appendPlaylist(_ item: [String: Any], seen: inout Set<String>, into result: inout [Playlist]) {
+        guard let id = Self.string(item["id"]), !id.isEmpty,
+              let name = Self.string(item["name"]), !name.isEmpty else { return }
+        if seen.contains(id) { return }
+        seen.insert(id)
+        let cover = Self.string(item["cover"]) ?? ""
+        let count = Self.int(item["trackCount"]) ?? Self.int(item["count"]) ?? 0
+        result.append(Playlist(id: Int(id) ?? BeansHash.stable(id), name: name, coverURL: URL(string: cover), trackCount: count, source: .soda, rawID: id))
+    }
+
+    /// 歌单歌曲列表（网页版接口，游标分页）
     func fetchPlaylistTracks(playlistID: String) async throws -> [Song] {
         guard isLoggedIn else { throw NetEaseError.unknown("请先登录汽水音乐") }
-        let json = try await postLuna("/luna/playlist/detail", payload: ["playlist_id": playlistID, "count": 50])
-        let resources = json["media_resources"] as? [[String: Any]] ?? []
-        return resources.compactMap { item -> Song? in
-            let entity = item["entity"] as? [String: Any] ?? item
-            let track = (entity["track_wrapper"] as? [String: Any])?["track"] as? [String: Any]
-                ?? entity["track"] as? [String: Any]
-                ?? entity
-            let id = Self.string(track["id"]) ?? ""
-            guard !id.isEmpty else { return nil }
-            let name = Self.string(track["name"]) ?? ""
-            let albumDict = track["album"] as? [String: Any]
-            let album = Self.string(albumDict?["name"]) ?? ""
-            let cover = Self.pickURL(albumDict?["url_cover"]) ?? Self.pickURL(albumDict?["cover_url"])
-            let artists = (track["artists"] as? [[String: Any]])?.compactMap { Self.string($0["name"]) }.joined(separator: " / ") ?? ""
-            let durationMS = Self.double(track["duration"]) ?? Self.double(track["duration_ms"]) ?? 0
-            return Song(soda: Int(id) ?? BeansHash.stable(id), name: name, artists: artists, album: album, coverURL: URL(string: cover), duration: durationMS / 1000, trackID: id)
+        var all: [[String: Any]] = []
+        var cursor = ""
+        var hasMore = true
+        var page = 0
+        while hasMore && page < 20 {
+            page += 1
+            var extra: [String: String] = ["playlist_id": playlistID, "count": "100"]
+            if !cursor.isEmpty { extra["cursor"] = cursor }
+            let json = try await getPc("/luna/pc/playlist/detail", extra: extra)
+            let data = (json["data"] as? [String: Any]) ?? json
+            let items = Self.extractMediaList(json)
+            all += items
+            let nextCursor = Self.string(data["next_cursor"]) ?? Self.string(data["nextCursor"]) ?? ""
+            let hasMoreFlag = Self.bool(data["has_more"]) ?? Self.bool(data["hasMore"]) ?? false
+            cursor = nextCursor
+            hasMore = hasMoreFlag && !nextCursor.isEmpty && !items.isEmpty
         }
+        return all.compactMap { mapMediaToSong($0) }
+    }
+
+    private func mapMediaToSong(_ item: [String: Any]) -> Song? {
+        let entity = (item["entity"] as? [String: Any]) ?? item
+        let track = ((entity["track_wrapper"] as? [String: Any])?["track"] as? [String: Any])
+            ?? (entity["track"] as? [String: Any])
+            ?? entity
+        let id = Self.string(track["id"]) ?? ""
+        guard !id.isEmpty else { return nil }
+        let name = Self.string(track["name"]) ?? ""
+        let albumDict = track["album"] as? [String: Any]
+        let album = Self.string(albumDict?["name"]) ?? ""
+        let cover = Self.pickURL(albumDict?["url_cover"])
+            ?? Self.pickURL(albumDict?["cover_url"])
+            ?? Self.pickURL(track["cover_url"])
+            ?? Self.pickURL(track["url_cover"])
+        let artists = (track["artists"] as? [[String: Any]])?.compactMap { Self.string($0["name"]) }.joined(separator: " / ")
+            ?? (track["author"] as? [[String: Any]])?.compactMap { Self.string($0["name"]) }.joined(separator: " / ")
+            ?? (track["singer"] as? String) ?? ""
+        let durationMS = Self.double(track["duration"]) ?? Self.double(track["duration_ms"]) ?? 0
+        return Song(soda: Int(id) ?? BeansHash.stable(id), name: name, artists: artists, album: album, coverURL: URL(string: cover), duration: durationMS / 1000, trackID: id)
     }
 
     // MARK: - 请求
 
-    private func getPc(_ path: String, query: [String: String]) async throws -> [String: Any] {
+    /// PC 版通用参数（参考 Mineradio qishuiPcAppParams）
+    private func pcParams(_ extra: [String: String]?) -> [String: String] {
+        let deviceId = String(Int(Date().timeIntervalSince1970 * 1000))
+        var params: [String: String] = [
+            "aid": "386088",
+            "app_name": "luna_pc",
+            "region": "cn",
+            "geo_region": "cn",
+            "os_region": "cn",
+            "sim_region": "",
+            "device_id": deviceId,
+            "cdid": "",
+            "iid": deviceId,
+            "version_name": "3.3.0",
+            "version_code": "30030000",
+            "channel": "official",
+            "build_mode": "master",
+            "network_carrier": "",
+            "ac": "wifi",
+            "tz_name": "Asia/Shanghai",
+            "resolution": "",
+            "device_platform": "windows",
+            "device_type": "Windows",
+            "os_version": "Windows 11",
+            "fp": deviceId,
+        ]
+        if let extra { params.merge(extra) { _, new in new } }
+        return params
+    }
+
+    private func getPc(_ path: String, extra: [String: String]? = nil) async throws -> [String: Any] {
         var comps = URLComponents(string: "https://api.qishui.com\(path)")!
-        comps.queryItems = query.map { URLQueryItem(name: $0.key, value: $0.value) }
+        comps.queryItems = pcParams(extra).compactMap { pair in
+            guard !pair.value.isEmpty else { return nil }
+            return URLQueryItem(name: pair.key, value: pair.value)
+        }
         var request = URLRequest(url: comps.url!)
-        request.setValue(Self.ua, forHTTPHeaderField: "User-Agent")
-        request.setValue("https://www.qishui.com/", forHTTPHeaderField: "Referer")
-        if !cookieHeader.isEmpty {
-            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
-        }
-        let (data, response) = try await session.data(for: request)
-        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw NetEaseError.network }
-        guard let json = Self.parseJSON(data) else {
-            let snippet = String(data: data, encoding: .utf8)?.prefix(120) ?? ""
-            throw NetEaseError.decoding(String(snippet))
-        }
-        return json
-    }
-
-    private func postLuna(_ path: String, payload: [String: Any]) async throws -> [String: Any] {
-        guard let url = URL(string: "https://beta-luna.douyin.com\(path)"),
-              let body = try? JSONSerialization.data(withJSONObject: payload) else {
-            throw NetEaseError.unknown("请求参数错误")
-        }
-        var request = URLRequest(url: url)
-        request.httpMethod = "POST"
-        request.httpBody = body
+        request.setValue("LunaPC/3.3.0(359450208)", forHTTPHeaderField: "User-Agent")
+        request.setValue("application/json,text/plain,*/*", forHTTPHeaderField: "Accept")
         request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
-        request.setValue("LunaPC/3.0.0(290101097)", forHTTPHeaderField: "User-Agent")
         request.setValue("https://www.qishui.com/", forHTTPHeaderField: "Referer")
+        request.setValue("foreground", forHTTPHeaderField: "x-luna-background-type")
+        request.setValue("0", forHTTPHeaderField: "x-luna-is-background-req")
+        request.setValue("1", forHTTPHeaderField: "x-luna-is-local-user")
         if !cookieHeader.isEmpty {
             request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
         }
@@ -221,9 +297,105 @@ final class SodaAuth: ObservableObject {
         return json
     }
 
-    private static let ua = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120 Safari/537.36"
+
 
     private static func parseJSON(_ data: Data) -> [String: Any]? {
+
+    // MARK: - 歌单 / 歌曲提取（参考 Mineradio qishui-api）
+
+    /// 从接口响应中递归提取歌单卡片（统一输出 id/name/cover/trackCount）
+    private static func extractPlaylistCards(_ payload: [String: Any]) -> [[String: Any]] {
+        let data = (payload["data"] as? [String: Any]) ?? payload
+        var out: [[String: Any]] = []
+        var seen = Set<String>()
+        func visit(_ node: Any?, _ depth: Int) {
+            if node == nil || depth > 6 { return }
+            if let array = node as? [Any] {
+                for item in array { visit(item, depth + 1) }
+                return
+            }
+            guard let dict = node as? [String: Any] else { return }
+            var candidates: [[String: Any]] = []
+            for key in ["playlist", "playlist_info", "collection", "collect_playlist", "fav_playlist", "resource"] {
+                if let sub = dict[key] as? [String: Any] { candidates.append(sub) }
+            }
+            candidates.append(dict)
+            for item in candidates {
+                let id = playlistID(from: item)
+                let name = playlistName(from: item)
+                guard !id.isEmpty, !name.isEmpty else { continue }
+                let key = "\(id)|\(name)"
+                if seen.contains(key) { continue }
+                seen.insert(key)
+                let count = Self.int(item["count_tracks"]) ?? Self.int(item["track_count"])
+                    ?? Self.int(item["media_count"]) ?? Self.int(item["count"]) ?? Self.int(item["total"]) ?? 0
+                out.append([
+                    "id": id,
+                    "name": name,
+                    "cover": playlistCover(from: item),
+                    "trackCount": count,
+                ])
+            }
+            for (_, value) in dict.prefix(80) { visit(value, depth + 1) }
+        }
+        visit(data, 0)
+        return out
+    }
+
+    private static func playlistID(from item: [String: Any]) -> String {
+        Self.string(item["playlist_id"]) ?? Self.string(item["playlistId"])
+            ?? Self.string(item["collection_id"]) ?? Self.string(item["collectionId"])
+            ?? Self.string(item["id"]) ?? Self.string(item["item_id"])
+            ?? Self.string(item["resource_id"]) ?? Self.string(item["object_id"])
+            ?? Self.string(item["server_id"]) ?? ""
+    }
+
+    private static func playlistName(from item: [String: Any]) -> String {
+        Self.string(item["title"]) ?? Self.string(item["public_title"]) ?? Self.string(item["publicTitle"])
+            ?? Self.string(item["name"]) ?? Self.string(item["display_title"])
+            ?? Self.string(item["display_name"]) ?? Self.string(item["playlist_name"])
+            ?? Self.string(item["collection_name"]) ?? ""
+    }
+
+    private static func playlistCover(from item: [String: Any]) -> String {
+        for key in ["cover_url", "cover", "cover_uri", "image", "image_url", "url_cover", "icon", "avatar"] {
+            if let text = Self.string(item[key]), !text.isEmpty { return text }
+        }
+        return ""
+    }
+
+    /// 从接口响应中提取歌曲资源列表（优先常见字段，递归兜底）
+    private static func extractMediaList(_ payload: [String: Any]) -> [[String: Any]] {
+        let data = (payload["data"] as? [String: Any]) ?? payload
+        let keys = ["media_resources", "media_list", "related_media", "medias", "media",
+                    "tracks", "track_list", "songs", "items", "list", "result",
+                    "song_list", "recommend_media_list"]
+        for key in keys {
+            if let array = data[key] as? [[String: Any]] { return array }
+        }
+        var candidates: [[String: Any]] = []
+        var bestCount = 0
+        func walk(_ node: Any?, _ depth: Int) {
+            if node == nil || depth > 4 { return }
+            if let array = node as? [Any] {
+                let mediaLike = array.compactMap { item -> [String: Any]? in
+                    guard let dict = item as? [String: Any] else { return nil }
+                    let hit = dict["media"] != nil || dict["track_entity"] != nil || dict["entity"] != nil
+                        || dict["base_info"] != nil || dict["id"] != nil || dict["media_id"] != nil
+                    return hit ? dict : nil
+                }
+                if mediaLike.count > bestCount {
+                    bestCount = mediaLike.count
+                    candidates = mediaLike
+                }
+                for item in array { walk(item, depth + 1) }
+            } else if let dict = node as? [String: Any] {
+                for (_, value) in dict.prefix(80) { walk(value, depth + 1) }
+            }
+        }
+        walk(data, 0)
+        return candidates
+    }
         try? JSONSerialization.jsonObject(with: data) as? [String: Any]
     }
 
@@ -247,6 +419,18 @@ final class SodaAuth: ObservableObject {
         if let num = value as? Double { return num }
         if let num = value as? NSNumber { return num.doubleValue }
         if let text = value as? String, let num = Double(text) { return num }
+
+        return nil
+    }
+
+    private static func bool(_ value: Any?) -> Bool? {
+        if let flag = value as? Bool { return flag }
+        if let num = value as? NSNumber { return num.boolValue }
+        if let text = value as? String {
+            let lowered = text.lowercased()
+            if lowered == "true" || text == "1" { return true }
+            if lowered == "false" || text == "0" { return false }
+        }
         return nil
     }
 

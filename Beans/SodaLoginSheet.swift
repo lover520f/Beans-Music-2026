@@ -11,7 +11,7 @@ struct SodaLoginSheet: View {
     @State private var mode: SodaLoginMode = .web
 
     enum SodaLoginMode: String, CaseIterable, Identifiable {
-        case web = "网页登录"
+        case web = "抖音授权"
         case paste = "粘贴Session"
         var id: String { rawValue }
     }
@@ -84,7 +84,7 @@ struct SodaWebLoginPanel: View {
     var body: some View {
         let _ = theme.accent
         VStack(spacing: 10) {
-            Text("在下方网页完成汽水音乐登录（支持扫码或手机号），登录成功后自动同步歌单")
+            Text("汽水音乐暂无独立网页登录，请使用抖音账号授权（同一字节账号体系）：扫码或手机号登录抖音后自动同步歌单")
                 .font(BeansFont.appFont(12))
                 .foregroundStyle(Color.beansComment)
                 .multilineTextAlignment(.center)
@@ -97,7 +97,7 @@ struct SodaWebLoginPanel: View {
                     .padding(.horizontal, 20)
 
                 if !pageLoaded {
-                    ProgressView("正在加载汽水音乐…")
+                    ProgressView("正在加载抖音登录…")
                         .tint(Color.beansAmber)
                 }
             }
@@ -152,7 +152,7 @@ struct SodaWebLoginPanel: View {
         readCookies { header in
             syncing = false
             if header.isEmpty {
-                message = "未检测到登录态，请先在网页中完成汽水音乐登录"
+                message = "未检测到登录态，请先在抖音网页中扫码或手机号登录"
             } else {
                 importCookies(header)
             }
@@ -216,7 +216,7 @@ struct SodaWebLoginPanel: View {
     }
 }
 
-// MARK: - WKWebView 封装（打开汽水音乐网页版）
+// MARK: - WKWebView 封装（打开抖音网页版授权登录，读取同体系登录态 Cookie）
 
 struct SodaWebView: UIViewRepresentable {
     let onLoaded: () -> Void
@@ -231,7 +231,7 @@ struct SodaWebView: UIViewRepresentable {
         let webView = WKWebView(frame: .zero, configuration: config)
         webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
         webView.navigationDelegate = context.coordinator
-        if let url = URL(string: "https://www.qishui.com/") {
+        if let url = URL(string: "https://www.douyin.com/") {
             webView.load(URLRequest(url: url))
         }
         return webView
@@ -247,6 +247,21 @@ struct SodaWebView: UIViewRepresentable {
         }
 
         func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            // 自动点击「登录」按钮弹出登录框（抖音为 SPA，登录按钮由 JS 触发）
+            let autoLoginJS = """
+            (() => {
+              const tryClick = () => {
+                const els = document.querySelectorAll('button, [role="button"], div, span, a');
+                for (const el of els) {
+                  const t = (el.textContent || '').trim();
+                  if (t === '登录' && el.offsetParent !== null) { el.click(); return true; }
+                }
+                return false;
+              };
+              if (!tryClick()) setTimeout(tryClick, 900);
+            })();
+            """
+            webView.evaluateJavaScript(autoLoginJS, completionHandler: nil)
             DispatchQueue.main.async {
                 self.onLoaded()
             }

@@ -972,6 +972,7 @@ struct AccountHubSheet: View {
 
 struct SettingsView: View {
     @EnvironmentObject private var theme: ThemeStore
+    @EnvironmentObject private var player: PlayerManager
     @Environment(\.dismiss) private var dismiss
     @AppStorage("beans.themeMode") private var themeModeRaw = BeansThemeMode.system.rawValue
     /// 音质等级（借鉴 Kumone）
@@ -1449,6 +1450,54 @@ struct SettingsView: View {
                                 .font(BeansFont.appFont(15))
                                 .foregroundStyle(Color.beansLabel)
                             Text("灰色 / VIP / 周杰伦等版权歌曲自动从已导入的第三方音源匹配播放（需先导入并开启音源，默认关闭）")
+                                .font(BeansFont.appFont(11))
+                                .foregroundStyle(Color.beansComment)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .tint(Color.beansAmber)
+
+                Divider().overlay(Color.beansComment.opacity(0.15))
+
+                Toggle(isOn: Binding(
+                    get: { player.mixesWithOthers },
+                    set: { player.mixesWithOthers = $0 }
+                )) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "speaker.wave.2.circle.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("不打断其他音频")
+                                .font(BeansFont.appFont(15))
+                                .foregroundStyle(Color.beansLabel)
+                            Text("与其他 App 音频混合播放，播放音乐时不中断其他软件的声音（默认开启）")
+                                .font(BeansFont.appFont(11))
+                                .foregroundStyle(Color.beansComment)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .tint(Color.beansAmber)
+
+                Divider().overlay(Color.beansComment.opacity(0.15))
+
+                Toggle(isOn: Binding(
+                    get: { player.liveActivityEnabled },
+                    set: { player.liveActivityEnabled = $0 }
+                )) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "iphone.gen3")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("灵动岛实时活动")
+                                .font(BeansFont.appFont(15))
+                                .foregroundStyle(Color.beansLabel)
+                            Text("播放音乐时在灵动岛 / 锁屏显示正在播放（需 iOS 16.1+，默认开启）")
                                 .font(BeansFont.appFont(11))
                                 .foregroundStyle(Color.beansComment)
                         }

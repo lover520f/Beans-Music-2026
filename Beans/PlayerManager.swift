@@ -1,3 +1,4 @@
+import ActivityKit
 import AVFoundation
 import MediaPlayer
 import SwiftUI
@@ -53,9 +54,13 @@ final class PlayerManager: NSObject, ObservableObject {
     private var sleepTimer: Timer?
     private var lastCountedSongID: String?
     private var wasPlayingBeforeInterruption = false
+    private var liveActivity: Any?
+    private var lastLiveActivitySync: Date?
 
     private let historyKey = "beans.history"
     private let countsKey = "beans.playcounts"
+    private let liveActivityKey = "beans.liveActivity"
+    private let audioMixKey = "beans.audio.mixothers.v1"
     private let defaults = UserDefaults.standard
 
     var currentSong: Song? {
@@ -525,6 +530,10 @@ final class PlayerManager: NSObject, ObservableObject {
             self.progress = player.currentTime().seconds
             if let itemDuration = player.currentItem?.duration, itemDuration.isNumeric {
                 self.duration = itemDuration.seconds
+                if self.lastLiveActivitySync == nil || Date().timeIntervalSince(self.lastLiveActivitySync!) >= 15 {
+                    self.lastLiveActivitySync = Date()
+                    self.syncLiveActivity()
+                }
             }
             if let item = player.currentItem {
                 let waiting = player.timeControlStatus == .waitingToPlayAtSpecifiedRate
@@ -568,7 +577,12 @@ final class PlayerManager: NSObject, ObservableObject {
         guard !sessionConfigured else { return }
         do {
             let session = AVAudioSession.sharedInstance()
-            try session.setCategory(.playback, mode: .default)
+            let mixWithOthers = defaults.object(forKey: audioMixKey) as? Bool ?? true
+            if mixWithOthers {
+                try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
+            } else {
+                try session.setCategory(.playback, mode: .default)
+            }
             try session.setActive(true)
             sessionConfigured = true
         } catch {}
@@ -669,6 +683,7 @@ final class PlayerManager: NSObject, ObservableObject {
                 }
             }
         }
+        syncLiveActivity()
     }
 
     private func setupRemoteCommands() {
@@ -702,5 +717,69 @@ final class PlayerManager: NSObject, ObservableObject {
             self?.seek(to: event.positionTime)
             return .success
         }
+    }
+
+    // MARK: - 音频混合 / 灵动岛
+
+    /// 与其他 App 音频混合播放（不打断其他音频，默认开启）
+    var mixesWithOthers: Bool {
+        get { defaults.object(forKey: audioMixKey) as? Bool ?? true }
+        set {
+            defaults.set(newValue, forKey: audioMixKey)
+            sessionConfigured = false
+            configureAudioSession()
+        }
+    }
+
+    /// 灵动岛实时活动开关（默认开启，iOS 16.1+ 生效）
+    var liveActivityEnabled: Bool {
+        get { defaults.object(forKey: liveActivityKey) as? Bool ?? true }
+        set {
+            defaults.set(newValue, forKey: liveActivityKey)
+            if newValue { syncLiveActivity() } else { endLiveActivity() }
+        }
+    }
+
+    /// 播放状态变化时同步灵动岛（切歌 / 播放 / 暂停）
+    func syncLiveActivity() {
+        guard #available(iOS 16.1, *) else { return }
+        guard liveActivityEnabled, let song = currentSong else {
+            endLiveActivity()
+            return
+        }
+        let state = NowPlayingAttributes.ContentState(
+            songName: song.name,
+            artist: song.artists,
+            coverURL: song.coverURL?.absoluteString,
+            isPlaying: isPlaying,
+            progress: progress,
+            duration: max(duration, song.duration)
+        )
+        if let activity = liveActivity as? Activity<NowPlayingAttributes> {
+            Task {
+                await activity.update(using: state)
+            }
+        } else {
+            do {
+                let activity = try Activity<NowPlayingAttributes>.request(
+                    attributes: NowPlayingAttributes(),
+                    contentState: state,
+                    pushType: nil
+                )
+                liveActivity = activity
+            } catch {}
+        }
+    }
+
+    /// 结束灵动岛实时活动
+    func endLiveActivity() {
+        guard #available(iOS 16.1, *) else { return }
+        if let activity = liveActivity as? Activity<NowPlayingAttributes> {
+            let state = activity.contentState
+            Task {
+                await activity.end(using: state, dismissalPolicy: .immediate)
+            }
+        }
+        liveActivity = nil
     }
 }
