@@ -2,6 +2,13 @@
 
 本文件是 GitHub Release 正文的来源：每个新版本在此追加一条，CI 发布时自动提取对应版本的内容。
 
+## 1.5.6
+
+### 修复
+- 修复 QQ 音乐歌单歌曲加载失败（提示“可能受登录或版权限制”）：主通道恢复 1.3.4 已验证的登录组合（hostUin=0 + new_format=1），并保留游客 / new_format=0 / musicu 多级兜底
+- 修复 QQ 收藏歌单不同步：GetUserPlaylist 兜底改用官方 module（music.musichallSong.PlayListDataServer）并区分创建 / 收藏分两次拉取
+- 增强歌单接口诊断日志：失败时记录每个通道的 code / msg，便于定位问题
+
 ## 1.5.5
 
 ### 新增

@@ -36,6 +36,17 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.5.6",
+            version: "1.5.6",
+            title: "QQ 歌单歌曲加载修复",
+            features: [],
+            fixes: [
+                "修复 QQ 音乐歌单歌曲加载失败：主通道恢复 1.3.4 已验证的登录组合（hostUin=0 + new_format=1），并保留游客 / new_format=0 / musicu 多级兜底",
+                "修复 QQ 收藏歌单不同步：GetUserPlaylist 兜底改用官方 module 并区分创建 / 收藏分两次拉取",
+                "增强歌单接口诊断日志：失败时记录每个通道的 code / msg，便于定位",
+            ],
+        ),
+        VersionLog(
             id: "1.5.5",
             version: "1.5.5",
             title: "音乐服务器 / 音频混合 / QQ歌单修复 / 汽水歌单修复",

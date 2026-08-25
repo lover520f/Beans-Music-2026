@@ -49,7 +49,7 @@ final class QQMusicAPI {
     }
 
     /// musicu.fcg 统一入口：POST JSON body（与 wp_MusicApi 一致）；登录后附加 QQ Cookie
-    private func musicu(_ payload: [String: Any], cookie: String = "") async throws -> [String: Any] {
+    private func musicu(_ payload: [String: Any], cookie: String = "", timeout: TimeInterval = 6) async throws -> [String: Any] {
         guard let body = try? JSONSerialization.data(withJSONObject: payload),
               let url = URL(string: base) else {
             throw NetEaseError.unknown("请求参数错误")
@@ -57,7 +57,7 @@ final class QQMusicAPI {
         var request = URLRequest(url: url)
         request.httpMethod = "POST"
         // musicu 偶发挂起/风控，单独限制 6 秒超时，避免搜索卡住 20 秒
-        request.timeoutInterval = 6
+        request.timeoutInterval = timeout
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("Mozilla/5.0 (compatible; MSIE 9.0; Windows NT 6.1; WOW64; Trident/5.0)", forHTTPHeaderField: "User-Agent")
         request.setValue("https://y.qq.com/", forHTTPHeaderField: "Referer")
@@ -715,29 +715,34 @@ final class QQMusicAPI {
             playlists.append(playlist)
         }
 
+        var createdLoaded = false
+        var collectedLoaded = false
         if let created = try? await get(createdURL, referer: "https://y.qq.com/portal/profile.html", cookie: cookie),
            let data = created["data"] as? [String: Any],
            let disslist = data["disslist"] as? [[String: Any]] {
+            createdLoaded = true
             disslist.forEach(append)
         }
         if let collected = try? await get(collectURL, referer: "https://y.qq.com/portal/profile.html", cookie: cookie),
            let data = collected["data"] as? [String: Any],
            let cdlist = data["cdlist"] as? [[String: Any]] {
+            collectedLoaded = true
             cdlist.forEach(append)
         }
 
-        // 兜底：musicu GetUserPlaylist（官方 App 接口，创建 + 收藏一次拉齐；部分账号
+        // 兜底：musicu GetUserPlaylist（官方 App 接口，创建/收藏分两次拉取；部分账号
         // fcg_get_profile_order_asset 会被隐私策略拦截，此接口带登录 Cookie 成功率更高）
-        if playlists.isEmpty {
+        for (order, loaded) in [(1, createdLoaded), (2, collectedLoaded)] {
+            if loaded { continue }
             let payload: [String: Any] = [
                 "comm": ["ct": 24, "cv": 0, "uin": qqAuth.uin, "g_tk": "\(qqAuth.gtk)", "platform": "yqq"],
                 "req_1": [
-                    "module": "music.playlist.PlayListDataServer",
+                    "module": "music.musichallSong.PlayListDataServer",
                     "method": "GetUserPlaylist",
-                    "param": ["userinfo": 1, "sin": 0, "num": 200, "uin": qqAuth.uin],
+                    "param": ["uin": qqAuth.uin, "sin": 0, "size": 200, "order": order],
                 ],
             ]
-            if let json = try? await musicu(payload, cookie: cookie) {
+            if let json = try? await musicu(payload, cookie: cookie, timeout: 15) {
                 let list = nestedArray(json, path: ["req_1", "data", "v_playlist"])
                 if !list.isEmpty { list.forEach(append) }
             }
@@ -815,43 +820,52 @@ final class QQMusicAPI {
             if let liked = try? await favoriteSongs(limit: 500), !liked.isEmpty { return liked }
         }
         let cookie = qqAuth.isLoggedIn ? qqAuth.cookieHeader : ""
-        // 主通道 fcg_ucc_getcdinfo_byids_cp：游客/登录态 × new_format 1/0 多组合重试，
-        // 部分歌单会被反爬拦截（msg=check privacy error）或要求登录，多组合可提高命中率
-        for attempt in 0..<4 {
-            let useLogin = (attempt == 1 || attempt == 3) && qqAuth.isLoggedIn
-            let newFormat = attempt < 2 ? "1" : "0"
-            let uin = useLogin ? qqAuth.uin : "0"
-            let gtk = useLogin ? "\(qqAuth.gtk)" : "5381"
-            let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=\(newFormat)&disstid=\(listID)&loginUin=\(uin)&hostUin=\(useLogin ? uin : "0")&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&g_tk=\(gtk)"
-            guard let detailJson = try? await get(detailURL, referer: "https://y.qq.com/n/yqq/playlist", cookie: useLogin ? cookie : ""),
-                  let cdlist = detailJson["cdlist"] as? [[String: Any]],
-                  let first = cdlist.first,
-                  let songlist = first["songlist"] as? [[String: Any]],
-                  !songlist.isEmpty else { continue }
-            let songs = songlist.compactMap { item -> Song? in
-                // 部分接口返回会把歌曲包在 track_info 里，先解包再走统一解析
-                let raw = (item["track_info"] as? [String: Any]) ?? item
-                return song(from: raw)
-            }
-            if !songs.isEmpty { return songs }
+        // 主通道 fcg_ucc_getcdinfo_byids_cp：先按 1.3.4 验证过的组合（登录态 + hostUin=0 + new_format=1 + 无 g_tk）
+        // 逐次回退：游客 / new_format=0，全部失败再走 musicu 兜底
+        var attempts: [(login: Bool, newFormat: String, gtk: String)] = []
+        if qqAuth.isLoggedIn {
+            attempts.append((true, "1", ""))
         }
-        // 兜底：musicu GetPlaylistDetail（带登录参数与 Cookie，手机网络可用）
-        let payload: [String: Any] = [
-            "comm": [
-                "ct": 24,
-                "cv": 0,
-                "uin": qqAuth.isLoggedIn ? qqAuth.uin : "0",
-                "g_tk": qqAuth.isLoggedIn ? "\(qqAuth.gtk)" : "5381",
-                "platform": "yqq",
+        attempts.append((false, "1", "5381"))
+        if qqAuth.isLoggedIn {
+            attempts.append((true, "0", "\(qqAuth.gtk)"))
+        }
+        attempts.append((false, "0", "5381"))
+        for attempt in attempts {
+            let uin = attempt.login ? qqAuth.uin : "0"
+            var urlString = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=\(attempt.newFormat)&disstid=\(listID)&loginUin=\(uin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0"
+            if !attempt.gtk.isEmpty { urlString += "&g_tk=\(attempt.gtk)" }
+            guard let detailJson = try? await get(urlString, referer: "https://y.qq.com/n/yqq/playlist", cookie: attempt.login ? cookie : "") else { continue }
+            let code = detailJson["code"] as? Int ?? -1
+            let msg = (detailJson["msg"] as? String) ?? ""
+            if let cdlist = detailJson["cdlist"] as? [[String: Any]],
+               let first = cdlist.first,
+               let songlist = first["songlist"] as? [[String: Any]],
+               !songlist.isEmpty {
+                let songs = songlist.compactMap { item -> Song? in
+                    let raw = (item["track_info"] as? [String: Any]) ?? item
+                    return song(from: raw)
+                }
+                if !songs.isEmpty { return songs }
+            }
+            BeansLogger.shared.log("QQ 歌单歌曲通道失败（listID=\(listID) login=\(attempt.login) new_format=\(attempt.newFormat) code=\(code) msg=\(msg)）", level: .error)
+        }
+        // 兜底：musicu GetPlaylistDetail（登录/游客两套参数 + songlist/songInfoList 双路径）
+        let fallbacks: [[String: Any]] = [
+            [
+                "comm": ["ct": 24, "cv": 0, "uin": qqAuth.isLoggedIn ? qqAuth.uin : "0", "g_tk": qqAuth.isLoggedIn ? "\(qqAuth.gtk)" : "5381", "platform": "yqq"],
+                "req_1": ["module": "music.playlist.PlayListDataServer", "method": "GetPlaylistDetail", "param": ["id": listID, "uin": qqAuth.isLoggedIn ? qqAuth.uin : 0, "song_begin": 0, "song_num": 200]],
             ],
-            "req_1": [
-                "module": "music.playlist.PlayListDataServer",
-                "method": "GetPlaylistDetail",
-                "param": ["id": listID, "uin": qqAuth.isLoggedIn ? qqAuth.uin : 0, "song_begin": 0, "song_num": 200],
+            [
+                "comm": ["ct": 24, "cv": 0],
+                "req_1": ["module": "music.playlist.PlayListDataServer", "method": "GetPlaylistDetail", "param": ["id": listID, "uin": 0, "song_begin": 0, "song_num": 100]],
             ],
         ]
-        if let json = try? await musicu(payload, cookie: qqAuth.isLoggedIn ? qqAuth.cookieHeader : "") {
-            let list = nestedArray(json, path: ["req_1", "data", "songlist"])
+        for (index, payload) in fallbacks.enumerated() {
+            let useCookie = index == 0 && qqAuth.isLoggedIn
+            guard let json = try? await musicu(payload, cookie: useCookie ? cookie : "", timeout: 15) else { continue }
+            var list = nestedArray(json, path: ["req_1", "data", "songlist"])
+            if list.isEmpty { list = nestedArray(json, path: ["req_1", "data", "songInfoList"]) }
             let songs = list.compactMap { item -> Song? in
                 let raw = (item["track_info"] as? [String: Any]) ?? item
                 return song(from: raw)
