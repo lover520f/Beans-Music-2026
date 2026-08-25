@@ -767,7 +767,9 @@ final class PlayerManager: NSObject, ObservableObject {
                     pushType: nil
                 )
                 liveActivity = activity
-            } catch {}
+            } catch {
+                BeansLogger.shared.log("灵动岛启动失败：\(error)", level: .error)
+            }
         }
     }
 

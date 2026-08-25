@@ -171,7 +171,7 @@ final class SodaAuth: ObservableObject {
         var result: [Playlist] = []
         // 1) 我创建的歌单
         if !userId.isEmpty,
-           let json = try? await getPc("/luna/pc/user/playlist", extra: ["user_id": userId, "cursor": "", "count": "50"]) {
+           let json = try? await getPc("/luna/pc/me/playlist", extra: ["cursor": "", "count": "50"]) {
             for item in Self.extractPlaylistCards(json) {
                 appendPlaylist(item, seen: &seen, into: &result)
             }
@@ -186,16 +186,17 @@ final class SodaAuth: ObservableObject {
     }
 
     private func appendPlaylist(_ item: [String: Any], seen: inout Set<String>, into result: inout [Playlist]) {
-        guard let id = Self.string(item["id"]), !id.isEmpty,
-              let name = Self.string(item["name"]), !name.isEmpty else { return }
+        guard let id = Self.string(item["id"]), !id.isEmpty else { return }
+        let name = Self.string(item["name"]) ?? Self.string(item["title"]) ?? ""
+        guard !name.isEmpty else { return }
         if seen.contains(id) { return }
         seen.insert(id)
-        let cover = Self.string(item["cover"]) ?? ""
-        let count = Self.int(item["trackCount"]) ?? Self.int(item["count"]) ?? 0
-        result.append(Playlist(id: Int(id) ?? BeansHash.stable(id), name: name, coverURL: URL(string: cover), trackCount: count, source: .soda, rawID: id))
+        let cover = Self.string(item["cover"]) ?? Self.string(item["cover_url"]) ?? Self.string(item["url_cover"]) ?? ""
+        let count = Self.int(item["trackCount"]) ?? Self.int(item["count_tracks"]) ?? Self.int(item["track_count"]) ?? Self.int(item["count"]) ?? 0
+        result.append(Playlist(id: Int(id) ?? BeansHash.stable(id), name: name, coverURL: cover.isEmpty ? nil : URL(string: cover), trackCount: count, source: .soda, rawID: id))
     }
 
-    /// 歌单歌曲列表（网页版接口，游标分页）
+    /// 歌单歌曲列表（Luna App 接口 beta-luna.douyin.com/luna/playlist/detail，游标分页）
     func fetchPlaylistTracks(playlistID: String) async throws -> [Song] {
         guard isLoggedIn else { throw NetEaseError.unknown("请先登录汽水音乐") }
         var all: [[String: Any]] = []
@@ -204,9 +205,9 @@ final class SodaAuth: ObservableObject {
         var page = 0
         while hasMore && page < 20 {
             page += 1
-            var extra: [String: String] = ["playlist_id": playlistID, "count": "100"]
-            if !cursor.isEmpty { extra["cursor"] = cursor }
-            let json = try await getPc("/luna/pc/playlist/detail", extra: extra)
+            var payload: [String: Any] = ["playlist_id": playlistID, "count": 100]
+            if !cursor.isEmpty { payload["cursor"] = cursor }
+            let json = try await postLuna("/luna/playlist/detail", payload: payload)
             let data = (json["data"] as? [String: Any]) ?? json
             let items = Self.extractMediaList(json)
             all += items
@@ -269,6 +270,30 @@ final class SodaAuth: ObservableObject {
         ]
         if let extra { params.merge(extra) { _, new in new } }
         return params
+    }
+
+    /// Luna App 接口 POST（歌单详情等，参考 qishui-api postLuna；UA 为 Luna/19.1.0 Android）
+    private func postLuna(_ path: String, payload: [String: Any]) async throws -> [String: Any] {
+        guard let url = URL(string: "https://beta-luna.douyin.com\(path)"),
+              let body = try? JSONSerialization.data(withJSONObject: payload) else {
+            throw NetEaseError.unknown("请求参数错误")
+        }
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = 20
+        request.setValue("application/json; charset=utf-8", forHTTPHeaderField: "Content-Type")
+        request.setValue("Luna/19.1.0 Android", forHTTPHeaderField: "User-Agent")
+        if !cookieHeader.isEmpty {
+            request.setValue(cookieHeader, forHTTPHeaderField: "Cookie")
+        }
+        request.httpBody = body
+        let (data, response) = try await session.data(for: request)
+        guard let http = response as? HTTPURLResponse, http.statusCode == 200 else { throw NetEaseError.network }
+        guard let json = Self.parseJSON(data) else {
+            let snippet = String(data: data, encoding: .utf8)?.prefix(120) ?? ""
+            throw NetEaseError.decoding(String(snippet))
+        }
+        return json
     }
 
     private func getPc(_ path: String, extra: [String: String]? = nil) async throws -> [String: Any] {

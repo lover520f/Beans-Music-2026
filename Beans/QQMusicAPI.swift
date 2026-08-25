@@ -766,25 +766,22 @@ final class QQMusicAPI {
         return Playlist(id: id, name: name, coverURL: cover.isEmpty ? nil : URL(string: cover), trackCount: count, source: .qq)
     }
 
-    /// QQ 推荐歌单
+    /// QQ 推荐歌单（fcg_get_diss_by_tag 歌单广场；GetRecommendPlaylist 已被风控返回 500003）
     func recommendPlaylists(limit: Int = 12) async throws -> [Playlist] {
-        let payload: [String: Any] = [
-            "comm": ["ct": 24, "cv": 0],
-            "req_1": [
-                "module": "music.srfDissInfo.RecommendPlaylist",
-                "method": "GetRecommendPlaylist",
-                "param": ["uin": 0, "lastDissid": 0, "songtype": 1, "scene": 0]
-            ]
-        ]
-        let json = try await musicu(payload)
-        let list = nestedArray(json, path: ["req_1", "data", "v_playlist"])
+        let url = "https://c.y.qq.com/splcloud/fcgi-bin/fcg_get_diss_by_tag.fcg?categoryId=10000000&sortId=5&sin=0&ein=\(limit)&format=json"
+        let json = try await get(url, referer: "https://y.qq.com/")
+        let data = json["data"] as? [String: Any] ?? [:]
+        let list = data["list"] as? [[String: Any]] ?? []
         var playlists: [Playlist] = []
         for item in list {
-            guard let id = item["tid"] as? Int ?? (item["id"] as? Int) else { continue }
-            let name = item["title"] as? String ?? ""
-            let pic = item["cover"] as? String ?? (item["pic_url"] as? String ?? "")
-            let songNum = item["songnum"] as? Int ?? 0
-            playlists.append(Playlist(id: id, name: name, coverURL: pic.isEmpty ? nil : URL(string: pic), trackCount: songNum))
+            guard let id = item["dissid"] as? Int ?? Int(item["dissid"] as? String ?? "") ?? 0, id > 0 else { continue }
+            let name = item["dissname"] as? String ?? (item["diss_name"] as? String ?? item["name"] as? String ?? "")
+            guard !name.isEmpty else { continue }
+            var cover = item["imgurl"] as? String ?? (item["logo"] as? String ?? item["diss_cover"] as? String ?? "")
+            if cover.hasPrefix("http://") { cover = "https://" + cover.dropFirst(7) }
+            if cover.hasPrefix("//") { cover = "https:" + cover }
+            let count = item["song_cnt"] as? Int ?? (item["songnum"] as? Int ?? 0)
+            playlists.append(Playlist(id: id, name: name, coverURL: cover.isEmpty ? nil : URL(string: cover), trackCount: count, source: .qq))
         }
         return playlists
     }
@@ -797,12 +794,14 @@ final class QQMusicAPI {
             if let liked = try? await favoriteSongs(limit: 500), !liked.isEmpty { return liked }
         }
         let cookie = qqAuth.isLoggedIn ? qqAuth.cookieHeader : ""
-        // 主通道 fcg_ucc_getcdinfo_byids_cp：先以游客参数请求，登录用户未命中再带登录态重试一次
-        for attempt in 0..<2 {
-            let useLogin = attempt == 1 && qqAuth.isLoggedIn
+        // 主通道 fcg_ucc_getcdinfo_byids_cp：游客/登录态 × new_format 1/0 多组合重试，
+        // 部分歌单会被反爬拦截（msg=check privacy error）或要求登录，多组合可提高命中率
+        for attempt in 0..<4 {
+            let useLogin = (attempt == 1 || attempt == 3) && qqAuth.isLoggedIn
+            let newFormat = attempt < 2 ? "1" : "0"
             let uin = useLogin ? qqAuth.uin : "0"
             let gtk = useLogin ? "\(qqAuth.gtk)" : "5381"
-            let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=1&disstid=\(listID)&loginUin=\(uin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&g_tk=\(gtk)"
+            let detailURL = "https://c.y.qq.com/qzone/fcg-bin/fcg_ucc_getcdinfo_byids_cp.fcg?type=1&json=1&utf8=1&onlysong=0&new_format=\(newFormat)&disstid=\(listID)&loginUin=\(uin)&hostUin=0&format=json&inCharset=utf8&outCharset=utf-8&notice=0&platform=yqq.json&needNewCode=0&g_tk=\(gtk)"
             guard let detailJson = try? await get(detailURL, referer: "https://y.qq.com/n/yqq/playlist", cookie: useLogin ? cookie : ""),
                   let cdlist = detailJson["cdlist"] as? [[String: Any]],
                   let first = cdlist.first,
@@ -838,7 +837,8 @@ final class QQMusicAPI {
             }
             if !songs.isEmpty { return songs }
         }
-        return []
+        BeansLogger.shared.log("QQ 歌单歌曲加载失败（listID=\(listID)）", level: .error)
+        throw NetEaseError.unknown("QQ 歌单歌曲加载失败，请确认已登录或稍后重试")
     }
     /// 歌单第一首歌曲封面（歌单封面缺失时的兜底；失败返回 nil）
     func firstSongCover(listID: Int) async throws -> URL? {
