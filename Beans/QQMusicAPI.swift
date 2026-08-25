@@ -774,7 +774,8 @@ final class QQMusicAPI {
         let list = data["list"] as? [[String: Any]] ?? []
         var playlists: [Playlist] = []
         for item in list {
-            guard let id = item["dissid"] as? Int ?? Int(item["dissid"] as? String ?? "") ?? 0, id > 0 else { continue }
+            let id = item["dissid"] as? Int ?? Int(item["dissid"] as? String ?? "") ?? 0
+            guard id > 0 else { continue }
             let name = item["dissname"] as? String ?? (item["diss_name"] as? String ?? item["name"] as? String ?? "")
             guard !name.isEmpty else { continue }
             var cover = item["imgurl"] as? String ?? (item["logo"] as? String ?? item["diss_cover"] as? String ?? "")
