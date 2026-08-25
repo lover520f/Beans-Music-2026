@@ -95,9 +95,8 @@ jobs:
           print(body)
           PYEOF
 
-      # 临时：本轮先不发 GitHub Release，构建产物走 artifact 下载到桌面验证
       - name: Publish Release
-        if: ${{ false }}
+        if: success()
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
