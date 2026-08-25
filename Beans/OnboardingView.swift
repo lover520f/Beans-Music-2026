@@ -244,11 +244,11 @@ struct OnboardingView: View {
                 .font(.system(size: 40))
                 .foregroundStyle(LinearGradient.beansAccent)
 
-            Text("四平台聚合，一个 App 全听遍")
+            Text("三平台聚合，一个 App 全听遍")
                 .font(BeansFont.appFont(26, .bold))
                 .foregroundStyle(Color.beansLabel)
 
-            Text("网易云 / QQ 音乐 / 酷狗 / 汽水，一键切换数据源")
+            Text("网易云 / QQ 音乐 / 酷狗，一键切换数据源")
                 .font(BeansFont.appFont(14))
                 .foregroundStyle(Color.beansSecondary)
 
@@ -262,9 +262,6 @@ struct OnboardingView: View {
                 platformRow(imageName: "BrandKugou", tint: Color(red: 0.08, green: 0.60, blue: 0.94),
                             title: "酷狗音乐",
                             detail: "网页登录 / Cookie 导入，同步歌单")
-                platformRow(imageName: "BrandSoda", tint: Color(red: 0.12, green: 0.47, blue: 0.98),
-                            title: "汽水音乐",
-                            detail: "抖音扫码 / Session 登录，同步歌单")
             }
             .padding(.horizontal, 28)
 

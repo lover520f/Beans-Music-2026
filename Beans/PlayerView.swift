@@ -70,6 +70,8 @@ struct PlayerView: View {
     @AppStorage("beans.circularCover") private var circularCover = true
     /// 圆形封面自动旋转（默认开启）
     @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = true
+    /// 大封面模式：播放页封面放大撑满，隐藏底部预览歌词
+    @AppStorage("beans.largeCoverMode") private var largeCoverMode = false
     /// 歌词自定义发光颜色（留空跟随当前行颜色 / 封面取色）
     @AppStorage("beans.lyricGlowColorRaw") private var lyricGlowColorRaw = ""
     /// 侧边滑动切歌（抖音式刷视频交互，默认开启）
@@ -459,7 +461,10 @@ struct PlayerView: View {
 
     /// 封面尺寸：固定算法，与布局时序无关
     private func coverSize(in geo: GeometryProxy) -> CGFloat {
-        min(280, min(geo.size.width * 0.60, geo.size.height * 0.44))
+        if largeCoverMode {
+            return min(geo.size.width * 0.90, geo.size.height * 0.60)
+        }
+        return min(280, min(geo.size.width * 0.60, geo.size.height * 0.44))
     }
 
     /// 专辑模式：封面居中 + 歌名/歌手 + 轻点提示（VStack 自动居中）
@@ -571,8 +576,10 @@ struct PlayerView: View {
             .padding(.horizontal, 36)
 
 
-            // 封面下歌词阅览（固定高度预留，歌词加载后布局不跳动）
-            lyricPreviewBox
+            // 封面下歌词阅览（固定高度预留，歌词加载后布局不跳动；大封面模式不显示）
+            if !largeCoverMode {
+                lyricPreviewBox
+            }
 
             Spacer(minLength: 2)
         }
@@ -1159,11 +1166,6 @@ struct PlayerView: View {
             }
             let encodedK = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
             return URL(string: "https://www.kugou.com/yy/search?key=\(encodedK)")
-        case .soda:
-            if let trackID = song.sodaTrackID {
-                return URL(string: "https://www.qishui.com/song/\(trackID)")
-            }
-            return nil
         }
     }
 
@@ -1851,6 +1853,8 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
     @AppStorage("beans.circularCover") private var circularCover = true
     @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = true
+    /// 大封面模式：播放页封面放大撑满，隐藏底部预览歌词
+    @AppStorage("beans.largeCoverMode") private var largeCoverMode = false
     @AppStorage("beans.djVisual") private var djVisualEnabled = false
     @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
     @AppStorage("beans.lyricGlowColorRaw") private var glowColorRaw = ""
@@ -2263,6 +2267,9 @@ struct PlayerSettingsSheet: View {
             Divider().opacity(0.5)
             settingToggle("圆形封面旋转", isOn: $circularCoverSpin,
                           caption: "开启后播放时封面自动匀速旋转（默认开启）")
+            Divider().opacity(0.5)
+            settingToggle("大封面模式", isOn: $largeCoverMode,
+                          caption: "将播放页封面放大撑满，隐藏底部预览歌词")
         }
     }
 

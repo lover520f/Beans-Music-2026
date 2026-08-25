@@ -163,8 +163,6 @@ struct PlaylistView: View {
                 tracks = try await QQMusicAPI.shared.playlistSongs(listID: playlist.id)
             case .kugou:
                 tracks = try await KugouAuth.shared.fetchPlaylistTracks(listID: playlist.rawID ?? "\(playlist.id)")
-            case .soda:
-                tracks = try await SodaAuth.shared.fetchPlaylistTracks(playlistID: playlist.rawID ?? "\(playlist.id)")
             case .netease:
                 tracks = try await NetEaseAPI.shared.playlistTracks(id: playlist.id)
             }

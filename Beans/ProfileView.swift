@@ -42,7 +42,6 @@ struct ProfileView: View {
     @State private var pendingUpdateInfo: UpdateChecker.ReleaseInfo?
     @ObservedObject private var qqAuth = QQMusicAuth.shared
     @ObservedObject private var kugouAuth = KugouAuth.shared
-    @ObservedObject private var sodaAuth = SodaAuth.shared
 
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
@@ -69,10 +68,7 @@ struct ProfileView: View {
         if kugouAuth.isLoggedIn {
             parts.append(kugouAuth.nickname.isEmpty ? "酷狗已登录" : kugouAuth.nickname)
         }
-        if sodaAuth.isLoggedIn {
-            parts.append(sodaAuth.nickname.isEmpty ? "汽水已登录" : sodaAuth.nickname)
-        }
-        if parts.isEmpty { return "登录后可同步网易云 / QQ / 酷狗 / 汽水歌单" }
+        if parts.isEmpty { return "登录后可同步网易云 / QQ / 酷狗歌单" }
         return parts.joined(separator: " · ")
     }
 
@@ -297,7 +293,7 @@ struct ProfileView: View {
         .beansCardShadow(radius: 10, y: 4)
     }
 
-    /// 每个登录平台单独展示登录成功状态（网易云 / QQ / 酷狗 / 汽水）
+    /// 每个登录平台单独展示登录成功状态（网易云 / QQ / 酷狗）
     private var platformStatusRow: some View {
         VStack(alignment: .leading, spacing: 8) {
             if auth.isLoggedIn {
@@ -308,9 +304,6 @@ struct ProfileView: View {
             }
             if kugouAuth.isLoggedIn {
                 platformChip(icon: "music.note.house.fill", name: "酷狗音乐", status: kugouAuth.nickname.isEmpty ? "已登录" : kugouAuth.nickname, badge: kugouAuth.vipBadge, brand: "BrandKugou")
-            }
-            if sodaAuth.isLoggedIn {
-                platformChip(icon: "music.note.list", name: "汽水音乐", status: sodaAuth.nickname.isEmpty ? "已登录" : sodaAuth.nickname, badge: sodaAuth.vipBadge, brand: "BrandSoda")
             }
         }
         .padding(.top, 2)
@@ -687,17 +680,14 @@ struct AccountHubSheet: View {
     @EnvironmentObject private var auth: AuthStore
     @ObservedObject private var qqAuth = QQMusicAuth.shared
     @ObservedObject private var kugouAuth = KugouAuth.shared
-    @ObservedObject private var sodaAuth = SodaAuth.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var showNeteaseLogin = false
     @State private var showQQLogin = false
     @State private var showKugouLogin = false
-    @State private var showSodaLogin = false
     @State private var confirmNeteaseLogout = false
     @State private var confirmQQLogout = false
     @State private var confirmKugouLogout = false
-    @State private var confirmSodaLogout = false
 
     var body: some View {
         BeansNavigationStack {
@@ -709,8 +699,7 @@ struct AccountHubSheet: View {
                         neteaseCard
                         qqCard
                         kugouCard
-                        sodaCard
-                        Text("网易云登录可同步歌单、收藏与听歌排行；QQ / 酷狗 / 汽水登录可同步各自歌单")
+                        Text("网易云登录可同步歌单、收藏与听歌排行；QQ / 酷狗登录可同步各自歌单")
                             .font(BeansFont.appFont(11))
                             .foregroundStyle(Color.beansComment)
                             .padding(.horizontal, 4)
@@ -740,10 +729,6 @@ struct AccountHubSheet: View {
             KugouLoginSheet()
                 .environmentObject(theme)
         }
-        .sheet(isPresented: $showSodaLogin) {
-            SodaLoginSheet()
-                .environmentObject(theme)
-        }
         .confirmationDialog("退出网易云登录？", isPresented: $confirmNeteaseLogout, titleVisibility: .visible) {
             Button("退出登录", role: .destructive) {
                 auth.logout()
@@ -762,13 +747,6 @@ struct AccountHubSheet: View {
             Button("退出登录", role: .destructive) {
                 kugouAuth.logout()
                 ToastCenter.shared.show("已退出酷狗音乐")
-            }
-            Button("取消", role: .cancel) {}
-        }
-        .confirmationDialog("退出汽水音乐？", isPresented: $confirmSodaLogout, titleVisibility: .visible) {
-            Button("退出登录", role: .destructive) {
-                sodaAuth.logout()
-                ToastCenter.shared.show("已退出汽水音乐")
             }
             Button("取消", role: .cancel) {}
         }
@@ -918,53 +896,6 @@ struct AccountHubSheet: View {
         .buttonStyle(GlassPressButtonStyle(scale: 0.97))
     }
 
-    /// 汽水音乐账号卡片
-    private var sodaCard: some View {
-        Button {
-            BeansHaptics.tap()
-            if sodaAuth.isLoggedIn { confirmSodaLogout = true } else { showSodaLogin = true }
-        } label: {
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(.white.opacity(0.06))
-                        .frame(width: 48, height: 48)
-                    Image("BrandSoda")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("汽水音乐")
-                        .font(BeansFont.appFont(15, .semibold))
-                        .foregroundStyle(Color.beansLabel)
-                    HStack(spacing: 6) {
-                        Text(sodaAuth.isLoggedIn ? (sodaAuth.nickname.isEmpty ? "已登录" : sodaAuth.nickname) : "未登录 · 抖音扫码 / Session 登录同步歌单")
-                            .font(BeansFont.appFont(12))
-                            .foregroundStyle(Color.beansComment)
-                            .lineLimit(1)
-                        if sodaAuth.isLoggedIn, let badge = sodaAuth.vipBadge {
-                            VIPBadgeView(text: badge)
-                        }
-                    }
-                }
-                Spacer()
-                Text(sodaAuth.isLoggedIn ? "退出" : "登录")
-                    .font(BeansFont.appFont(13, .medium))
-                    .foregroundStyle(sodaAuth.isLoggedIn ? Color.red : Color.beansAmber)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
-            }
-            .padding(14)
-            .background {
-                                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
-    }
 
 }
 

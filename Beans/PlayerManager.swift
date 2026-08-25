@@ -346,9 +346,6 @@ final class PlayerManager: NSObject, ObservableObject {
                 if urlString == nil, enableUnblock {
                     (urlString, resolvedThirdParty) = await kugouFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
                 }
-            } else if song.source == .soda {
-                // 汽水音乐音源需解密，暂不支持播放
-                urlString = nil
             } else {
                 (urlString, resolvedThirdParty) = await neteaseResolve(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
             }
@@ -371,9 +368,6 @@ final class PlayerManager: NSObject, ObservableObject {
                     } else if song.source == .kugou {
                         BeansLogger.shared.log("播放失败：\(song.name) - 酷狗无可用音源", level: .error)
                         ToastCenter.shared.show("《\(song.name)》酷狗音源不可用或需会员，请尝试其他平台")
-                    } else if song.source == .soda {
-                        BeansLogger.shared.log("播放失败：\(song.name) - 汽水音乐暂不支持播放", level: .error)
-                        ToastCenter.shared.show("汽水音乐歌曲暂不支持播放，请使用网易云或 QQ 音乐")
                     } else if self.shouldLockOfficialOnly(song) {
                         let hasSource = UnblockSourceStore.shared.customSources.contains { $0.enabled }
                         if enableUnblock, !hasSource {
