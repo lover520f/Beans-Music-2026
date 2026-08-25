@@ -36,7 +36,6 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
-        VersionLog(
             id: "1.5.5",
             version: "1.5.5",
             title: "音频混合 / 灵动岛开关 / QQ歌单修复 / 汽水抖音授权",
