@@ -51,6 +51,7 @@ enum ChangelogStore {
                 "修复汽水歌单同步失败：补齐 PC 应用参数与请求头",
             ]
         ),
+        VersionLog(
             id: "1.5.4",
             version: "1.5.4",
             title: "汽水网页登录修复 / 酷狗 VIP 播放 / 歌单错误提示",
