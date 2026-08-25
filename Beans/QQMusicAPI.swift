@@ -737,9 +737,9 @@ final class QQMusicAPI {
                     "param": ["userinfo": 1, "sin": 0, "num": 200, "uin": qqAuth.uin],
                 ],
             ]
-            if let json = try? await musicu(payload, cookie: cookie),
-               let list = nestedArray(json, path: ["req_1", "data", "v_playlist"]) {
-                list.forEach(append)
+            if let json = try? await musicu(payload, cookie: cookie) {
+                let list = nestedArray(json, path: ["req_1", "data", "v_playlist"])
+                if !list.isEmpty { list.forEach(append) }
             }
         }
         if playlists.isEmpty {
