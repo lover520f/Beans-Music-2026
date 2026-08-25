@@ -48,6 +48,8 @@ enum SongSource: String, Codable {
     case qq
     case kugou
     case soda
+    /// 服务器音源（musicdl 服务器返回的可播放直链）
+    case server
 
     /// 兼容旧版本地收藏：未知来源统一回退为网易云
     init(from decoder: Decoder) throws {
@@ -74,6 +76,8 @@ struct Song: Identifiable, Hashable, Codable {
     let kugouAlbumAudioID: String?
     /// 汽水音乐曲目 ID（source == .soda 时用于标识歌曲）
     let sodaTrackID: String?
+    /// 服务器音源可播放直链（source == .server 时使用；nil 时尝试服务器地址）
+    let serverURL: String?
     /// 付费/VIP 标记（网易云：0 免费、1 VIP、4 付费单曲；QQ 音乐：0 免费、非 0 付费）
     let fee: Int
 
@@ -89,6 +93,7 @@ struct Song: Identifiable, Hashable, Codable {
         case .netease: return "netease-\(id)"
         case .kugou: return "kugou-\(id)"
         case .soda: return "soda-\(id)"
+        case .server: return "server-\(id)"
         }
     }
 
@@ -97,7 +102,7 @@ struct Song: Identifiable, Hashable, Codable {
         fee != 0
     }
 
-    init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil, fee: Int = 0, kugouHash: String? = nil, kugouAlbumID: String? = nil, kugouAlbumAudioID: String? = nil, sodaTrackID: String? = nil) {
+    init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil, fee: Int = 0, kugouHash: String? = nil, kugouAlbumID: String? = nil, kugouAlbumAudioID: String? = nil, sodaTrackID: String? = nil, serverURL: String? = nil) {
         self.id = id
         self.name = name
         self.artists = artists
@@ -111,6 +116,7 @@ struct Song: Identifiable, Hashable, Codable {
         self.kugouAlbumID = kugouAlbumID
         self.kugouAlbumAudioID = kugouAlbumAudioID
         self.sodaTrackID = sodaTrackID
+        self.serverURL = serverURL
     }
 
     /// 酷狗歌单歌曲
@@ -121,6 +127,11 @@ struct Song: Identifiable, Hashable, Codable {
     /// 汽水音乐歌单歌曲
     init(soda id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, trackID: String, fee: Int = 0) {
         self.init(id: id, name: name, artists: artists, album: album, coverURL: coverURL, duration: duration, source: .soda, fee: fee, sodaTrackID: trackID)
+    }
+
+    /// 服务器音源歌曲（musicdl 服务器解析出的可播放直链）
+    init(server id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, url: String, fee: Int = 0) {
+        self.init(id: id, name: name, artists: artists, album: album, coverURL: coverURL, duration: duration, source: .server, fee: fee, serverURL: url)
     }
 
     init?(json: [String: Any]) {
@@ -149,10 +160,11 @@ struct Song: Identifiable, Hashable, Codable {
         kugouAlbumID = nil
         kugouAlbumAudioID = nil
         sodaTrackID = nil
+        serverURL = nil
         fee = json["fee"] as? Int ?? 0
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, artists, album, coverURL, duration, source, qqMid, kugouHash, kugouAlbumID, kugouAlbumAudioID, sodaTrackID, fee }
+    private enum CodingKeys: String, CodingKey { case id, name, artists, album, coverURL, duration, source, qqMid, kugouHash, kugouAlbumID, kugouAlbumAudioID, sodaTrackID, serverURL, fee }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -168,6 +180,7 @@ struct Song: Identifiable, Hashable, Codable {
         kugouAlbumID = try c.decodeIfPresent(String.self, forKey: .kugouAlbumID)
         kugouAlbumAudioID = try c.decodeIfPresent(String.self, forKey: .kugouAlbumAudioID)
         sodaTrackID = try c.decodeIfPresent(String.self, forKey: .sodaTrackID)
+        serverURL = try c.decodeIfPresent(String.self, forKey: .serverURL)
         fee = try c.decodeIfPresent(Int.self, forKey: .fee) ?? 0
     }
 
@@ -185,6 +198,7 @@ struct Song: Identifiable, Hashable, Codable {
         try c.encodeIfPresent(kugouAlbumID, forKey: .kugouAlbumID)
         try c.encodeIfPresent(kugouAlbumAudioID, forKey: .kugouAlbumAudioID)
         try c.encodeIfPresent(sodaTrackID, forKey: .sodaTrackID)
+        try c.encodeIfPresent(serverURL, forKey: .serverURL)
         try c.encode(fee, forKey: .fee)
     }
 }

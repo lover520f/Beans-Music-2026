@@ -1164,6 +1164,9 @@ struct PlayerView: View {
                 return URL(string: "https://www.qishui.com/song/\(trackID)")
             }
             return nil
+        case .server:
+            let encodedS = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
+            return URL(string: "https://y.qq.com/n/ryqq/search?w=\(encodedS)")
         }
     }
 

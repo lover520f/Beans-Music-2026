@@ -726,6 +726,26 @@ final class QQMusicAPI {
             cdlist.forEach(append)
         }
 
+        // 兜底：musicu GetUserPlaylist（官方 App 接口，创建 + 收藏一次拉齐；部分账号
+        // fcg_get_profile_order_asset 会被隐私策略拦截，此接口带登录 Cookie 成功率更高）
+        if playlists.isEmpty {
+            let payload: [String: Any] = [
+                "comm": ["ct": 24, "cv": 0, "uin": qqAuth.uin, "g_tk": "\(qqAuth.gtk)", "platform": "yqq"],
+                "req_1": [
+                    "module": "music.playlist.PlayListDataServer",
+                    "method": "GetUserPlaylist",
+                    "param": ["userinfo": 1, "sin": 0, "num": 200, "uin": qqAuth.uin],
+                ],
+            ]
+            if let json = try? await musicu(payload, cookie: cookie),
+               let list = nestedArray(json, path: ["req_1", "data", "v_playlist"]) {
+                list.forEach(append)
+            }
+        }
+        if playlists.isEmpty {
+            BeansLogger.shared.log("QQ 歌单列表为空（uin=\(uin)），可能是账号无歌单或接口被隐私策略拦截", level: .error)
+        }
+
         // 喜欢的歌单（我喜欢 / 我的喜欢 / 喜欢的音乐）排最前
         playlists.sort { lhs, rhs in
             let a = lhs.name.contains("我喜欢") || lhs.name.contains("我的喜欢") || lhs.name.contains("喜欢的音乐")

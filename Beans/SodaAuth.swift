@@ -189,7 +189,7 @@ final class SodaAuth: ObservableObject {
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse, http.statusCode == 200,
               let json = Self.parseJSON(data) else { throw NetEaseError.network }
-        loginQRCookie = Self.csrfCookie(from: http, url: url)
+        loginQRCookie = Self.allCookies(from: http, url: url)
         let obj = (json["data"] as? [String: Any]) ?? json
         guard let token = Self.string(obj["token"]), !token.isEmpty,
               let qr = Self.string(obj["qrcode"]), qr.hasPrefix("data:image"),
@@ -229,24 +229,25 @@ final class SodaAuth: ObservableObject {
             }
             let obj = (json["data"] as? [String: Any]) ?? json
             let status = Self.string(obj["status"]) ?? ""
+            let errorCode = obj["error_code"] as? Int ?? 0
             switch status {
             case "confirm": return .scanned
             case "success": return .error("登录成功但未获取到会话，请重新登录")
             case "expired": return .expired
-            default: return .waiting
+            case "canceled", "cancel", "error": return .error(errorCode != 0 ? "扫码状态异常（\(errorCode)），请刷新二维码重试" : "扫码未完成，请刷新二维码重试")
+            default:
+                if errorCode != 0 { return .error("扫码状态异常（\(errorCode)），请刷新二维码重试") }
+                return .waiting
             }
         } catch {
             return .error("网络异常，请重试")
         }
     }
 
-    /// 从响应中提取 passport_csrf_token 作为轮询 Cookie
-    private static func csrfCookie(from response: HTTPURLResponse, url: URL) -> String {
+    /// 从响应中提取全部 Cookie 作为轮询 Cookie（抖音护照流程需要携带完整 Cookie，缺一不可）
+    private static func allCookies(from response: HTTPURLResponse, url: URL) -> String {
         let cookies = HTTPCookie.cookies(withResponseHeaderFields: response.allHeaderFields as? [String: String] ?? [:], for: url)
-        for cookie in cookies where cookie.name == "passport_csrf_token" || cookie.name == "passport_csrf_token_default" {
-            return "\(cookie.name)=\(cookie.value)"
-        }
-        return ""
+        return cookies.map { "\($0.name)=\($0.value)" }.joined(separator: "; ")
     }
 
     /// 从响应中提取登录后的整段 Cookie（含 sessionid）

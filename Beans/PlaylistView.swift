@@ -161,6 +161,8 @@ struct PlaylistView: View {
                 tracks = try await SodaAuth.shared.fetchPlaylistTracks(playlistID: playlist.rawID ?? "\(playlist.id)")
             case .netease:
                 tracks = try await NetEaseAPI.shared.playlistTracks(id: playlist.id)
+            case .server:
+                tracks = []
             }
             loading = false
         } catch {
