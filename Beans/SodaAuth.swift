@@ -1,5 +1,6 @@
 import Foundation
 import UIKit
+import Security
 import CoreImage.CIFilterBuiltins
 
 /// 汽水音乐账号（扫码登录 / sessionid 导入）＋ 歌单同步
@@ -25,6 +26,9 @@ final class SodaAuth: ObservableObject {
     private let cookieKey = "beans.soda.cookie.v1"
     private let nickKey = "beans.soda.nickname.v1"
     private let vipKey = "beans.soda.vip.v1"
+    private let deviceKey = "beans.soda.device.v1"
+    private let installKey = "beans.soda.install.v1"
+    private let msTokenKey = "beans.soda.mstoken.v1"
     private let session: URLSession
     /// 生成二维码时下发的 Cookie，轮询扫码状态时需原样带回
     private var qrCookieHeader = ""
@@ -32,6 +36,44 @@ final class SodaAuth: ObservableObject {
     private let aid = "386088"
     private let iid = "27960026095955"
     private let versionCode = "30020100"
+
+    /// 设备指纹：与官方 SDK commonParams 保持一致（缺失时由服务端生成）
+    private var deviceID: String {
+        if let saved = defaults.string(forKey: deviceKey), !saved.isEmpty { return saved }
+        let value = Self.randomDigits(16, firstMax: 8)
+        defaults.set(value, forKey: deviceKey)
+        return value
+    }
+    private var installID: String {
+        if let saved = defaults.string(forKey: installKey), !saved.isEmpty { return saved }
+        let value = Self.randomDigits(15, firstMax: 8)
+        defaults.set(value, forKey: installKey)
+        return value
+    }
+    /// msToken：本地生成的 118 位 base64url + ==（官方 SDK 同款格式）
+    private var msToken: String {
+        if let saved = defaults.string(forKey: msTokenKey), !saved.isEmpty { return saved }
+        var bytes = [UInt8](repeating: 0, count: 88)
+        let status = SecRandomCopyBytes(kSecRandomDefault, bytes.count, &bytes)
+        let raw = status == errSecSuccess ? Data(bytes).base64EncodedString()
+            .replacingOccurrences(of: "+", with: "-")
+            .replacingOccurrences(of: "/", with: "_")
+            .replacingOccurrences(of: "=", with: "") : Self.randomDigits(118, firstMax: 9)
+        let value = raw + "=="
+        defaults.set(value, forKey: msTokenKey)
+        return value
+    }
+    private static func randomDigits(_ length: Int, firstMax: Int) -> String {
+        var value = String(Int.random(in: 1...max(1, firstMax)))
+        while value.count < length { value += String(Int.random(in: 0...9)) }
+        return value
+    }
+    /// 网页登录关注的 Cookie 名（WKWebView / 粘贴整段 Cookie 时按此过滤）
+    static let webCookieNames: Set<String> = [
+        "sessionid", "sessionid_ss", "sid_guard", "sid_tt", "sid_ucp_v1",
+        "uid_tt", "uid_tt_ss", "uid_ucp_v1", "passport_csrf_token",
+        "passport_csrf_token_default", "msToken", "odin_tt", "ttwid", "s_v_web_id",
+    ]
 
     /// 播放链路 Cookie（整段登录 Cookie；仅导入 sessionid 时退化为 sessionid=...）
     var cookieHeader: String {
@@ -80,6 +122,11 @@ final class SodaAuth: ObservableObject {
         Task { await fetchProfile() }
     }
 
+    /// 导入整段登录 Cookie（网页登录成功 / 手动粘贴整段 Cookie 时调用）
+    func importCookieHeader(_ raw: String) {
+        importSessionCookie(raw)
+    }
+
     /// 登录成功后保存整段 session_cookie（含 sessionid 与其它登录态 Cookie）
     private func importSessionCookie(_ raw: String) {
         let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
@@ -118,6 +165,12 @@ final class SodaAuth: ObservableObject {
             URLQueryItem(name: "need_logo", value: "false"),
             URLQueryItem(name: "need_short_url", value: "false"),
             URLQueryItem(name: "is_new_login", value: "1"),
+            URLQueryItem(name: "device_id", value: deviceID),
+            URLQueryItem(name: "install_id", value: installID),
+            URLQueryItem(name: "did", value: deviceID),
+            URLQueryItem(name: "device_platform", value: "PC"),
+            URLQueryItem(name: "version_code", value: versionCode),
+            URLQueryItem(name: "msToken", value: msToken),
         ]
         var request = URLRequest(url: comps.url!)
         request.setValue(Self.ua, forHTTPHeaderField: "User-Agent")
@@ -172,6 +225,12 @@ final class SodaAuth: ObservableObject {
             URLQueryItem(name: "is_from_ttaccountsdk", value: "1"),
             URLQueryItem(name: "aid", value: aid),
             URLQueryItem(name: "iid", value: iid),
+            URLQueryItem(name: "device_id", value: deviceID),
+            URLQueryItem(name: "install_id", value: installID),
+            URLQueryItem(name: "did", value: deviceID),
+            URLQueryItem(name: "device_platform", value: "PC"),
+            URLQueryItem(name: "version_code", value: versionCode),
+            URLQueryItem(name: "msToken", value: msToken),
         ]
         var request = URLRequest(url: comps.url!)
         request.httpMethod = "POST"

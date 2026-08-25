@@ -282,6 +282,51 @@ final class ThemeStore: ObservableObject {
         restoreWallpapers()
     }
 
+    /// 配置备份导入后调用：先把备份里的壁纸列表 / base64 / 当前背景写回内存与文件，再重建缺失文件。
+    /// 修复「能备份但恢复不了壁纸」：旧实现只写 UserDefaults，内存中的 wallpaperPaths / backgroundImagePath 未更新。
+    func applyRestoredWallpapers(list: [String], data: [String: String], current: String) {
+        wallpaperPaths = list
+        saveWallpaperList()
+        // 合并备份里的 base64（避免备份文件比当前 defaults 更全时丢失条目）
+        var backup = UserDefaults.standard.dictionary(forKey: wallpaperDataKey) as? [String: String] ?? [:]
+        for (path, b64) in data where !backup.keys.contains(path) {
+            backup[path] = b64
+        }
+        UserDefaults.standard.set(backup, forKey: wallpaperDataKey)
+        // 重建缺失的壁纸文件（沙盒路径变化也适用）
+        var restored: [String] = []
+        for path in wallpaperPaths {
+            if FileManager.default.fileExists(atPath: path) {
+                restored.append(path)
+                continue
+            }
+            guard let b64 = backup[path], let imageData = Data(base64Encoded: b64) else { continue }
+            let fileName = URL(fileURLWithPath: path).lastPathComponent
+            let newPath = Self.wallpaperDirectory().appendingPathComponent(fileName).path
+            if (try? imageData.write(to: URL(fileURLWithPath: newPath), options: .atomic)) != nil {
+                restored.append(newPath)
+            }
+        }
+        wallpaperPaths = restored
+        saveWallpaperList()
+        // 恢复当前背景图
+        if current.isEmpty {
+            backgroundImagePath = ""
+            UserDefaults.standard.set("", forKey: backgroundImageKey)
+        } else if FileManager.default.fileExists(atPath: current) {
+            backgroundImagePath = current
+            UserDefaults.standard.set(current, forKey: backgroundImageKey)
+        } else if let b64 = backup[current], let imageData = Data(base64Encoded: b64) {
+            let fileName = URL(fileURLWithPath: current).lastPathComponent
+            let newPath = Self.wallpaperDirectory().appendingPathComponent(fileName).path
+            if (try? imageData.write(to: URL(fileURLWithPath: newPath), options: .atomic)) != nil {
+                backgroundImagePath = newPath
+                UserDefaults.standard.set(newPath, forKey: backgroundImageKey)
+            }
+        }
+        invalidateBackgroundCache()
+    }
+
     /// 切换全局玻璃材质（液态 / 磨砂）
     func setFXStyle(_ style: BeansFXStyle) {
         guard fxStyle != style else { return }

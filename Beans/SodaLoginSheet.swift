@@ -78,6 +78,7 @@ struct SodaScanContent: View {
     @State private var qrImage: UIImage?
     @State private var token = ""
     @State private var timer: Timer?
+    @State private var waitingTicks = 0
     let onSuccess: () -> Void
 
     private enum SodaScanStatus: Equatable {
@@ -150,9 +151,16 @@ struct SodaScanContent: View {
                     .font(BeansFont.appFont(13))
                     .foregroundStyle(Color.beansComment)
             case .waiting:
-                Label("请使用抖音 App 扫码", systemImage: "qrcode.viewfinder")
-                    .font(BeansFont.appFont(13))
-                    .foregroundStyle(Color.beansComment)
+                VStack(spacing: 4) {
+                    Label("请使用抖音 App 扫码", systemImage: "qrcode.viewfinder")
+                        .font(BeansFont.appFont(13))
+                        .foregroundStyle(Color.beansComment)
+                    if waitingTicks > 8 {
+                        Text("长时间未同步？可切换「粘贴 Session」方式登录，更稳定")
+                            .font(BeansFont.appFont(11))
+                            .foregroundStyle(Color.beansComment.opacity(0.7))
+                    }
+                }
             case .scanned:
                 Label("已扫码，请在手机上确认登录", systemImage: "checkmark.circle")
                     .font(BeansFont.appFont(13))
@@ -192,6 +200,7 @@ struct SodaScanContent: View {
         timer = nil
         status = .loading
         qrImage = nil
+        waitingTicks = 0
         Task {
             do {
                 let (newToken, imageData) = try await SodaAuth.shared.fetchQRCode()
@@ -248,6 +257,7 @@ struct SodaScanContent: View {
             timer = nil
             status = .error(message)
         case .waiting:
+            waitingTicks += 1
             if status == .scanned { status = .waiting }
         }
     }
@@ -319,7 +329,11 @@ struct SodaSessionImportPanel: View {
             message = "未找到有效的 sessionid，请确认已完整复制"
             return
         }
-        SodaAuth.shared.importSessionID(session)
+        if raw.contains(";") || raw.contains("sessionid=") {
+            SodaAuth.shared.importCookieHeader(raw)
+        } else {
+            SodaAuth.shared.importSessionID(session)
+        }
         message = "✓ 汽水音乐登录成功"
         BeansHaptics.success()
         ToastCenter.shared.show("汽水音乐登录成功")

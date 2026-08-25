@@ -1724,8 +1724,11 @@ struct SettingsView: View {
             defaults.set(restored, forKey: key)
             count += 1
         }
-        // 恢复壁纸：写回 beans.wallpapers.* 后重建文件（沙盒路径变化也能恢复）
-        theme.reloadWallpapersFromBackup()
+        // 恢复壁纸：先更新内存中的壁纸库 / 当前背景，再按 base64 重建文件（修复「能备份但恢复不了壁纸」）
+        let wallpaperList = defaults.stringArray(forKey: "beans.wallpapers.list") ?? []
+        let wallpaperData = defaults.dictionary(forKey: "beans.wallpapers.data") as? [String: String] ?? [:]
+        let backgroundPath = defaults.string(forKey: "beans.background.image") ?? ""
+        theme.applyRestoredWallpapers(list: wallpaperList, data: wallpaperData, current: backgroundPath)
         // 恢复字体文件
         if let fontPayload = json["beans.font.restore"] as? [String: Any],
            let name = fontPayload["name"] as? String,

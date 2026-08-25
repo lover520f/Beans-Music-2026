@@ -23,14 +23,52 @@ final class KugouAuth: ObservableObject {
     private let session: URLSession
 
     /// 播放链路需要的凭证（歌单 / 播放地址接口）
-    var userid: String { cookieValue("userid") }
-    var token: String { cookieValue("token") }
+    /// 网页登录的 Cookie 常把 KugooID / token 存在 KuGoo 复合字段里，这里统一解析兜底
+    var userid: String {
+        var raw = cookieValue("userid")
+        if raw.isEmpty { raw = cookieValue("UserId") }
+        if raw.isEmpty { raw = cookieValue("KugooID") }
+        if raw.isEmpty { raw = cookieValue("kugouID") }
+        if raw.isEmpty { raw = cookieValue("uid") }
+        if raw.isEmpty {
+            for key in ["KuGoo", "kugou", "Kugou"] {
+                let compound = Self.parseKuGoo(cookieValue(key))
+                if let v = compound["KugooID"] ?? compound["kugouID"] ?? compound["userid"] ?? compound["uid"], !v.isEmpty {
+                    raw = v
+                    break
+                }
+            }
+        }
+        return raw.replacingOccurrences(of: "\\D", with: "", options: .regularExpression)
+    }
+    var token: String {
+        var raw = cookieValue("token")
+        if raw.isEmpty { raw = cookieValue("Token") }
+        if raw.isEmpty { raw = cookieValue("t") }
+        if raw.isEmpty { raw = cookieValue("T") }
+        if raw.isEmpty {
+            for key in ["KuGoo", "kugou", "Kugou"] {
+                let compound = Self.parseKuGoo(cookieValue(key))
+                if let v = compound["t"] ?? compound["token"] ?? compound["Token"], !v.isEmpty {
+                    raw = v
+                    break
+                }
+            }
+        }
+        return raw.trimmingCharacters(in: .whitespacesAndNewlines)
+    }
     var mid: String {
-        let value = cookieValue("kg_mid")
+        var value = cookieValue("kg_mid")
+        if value.isEmpty { value = cookieValue("KG_MID") }
+        if value.isEmpty { value = cookieValue("KUGOU_API_MID") }
+        if value.isEmpty { value = cookieValue("mid") }
         return value.isEmpty ? Self.createMid() : value
     }
     var dfid: String {
-        let value = cookieValue("kg_dfid")
+        var value = cookieValue("kg_dfid")
+        if value.isEmpty { value = cookieValue("KG_DFID") }
+        if value.isEmpty { value = cookieValue("dfid") }
+        if value.isEmpty { value = cookieValue("DFID") }
         return value.isEmpty ? "-" : value
     }
 
@@ -107,8 +145,9 @@ final class KugouAuth: ObservableObject {
 
     /// 网页登录关注的 Cookie 名（WKWebView 读取时按此过滤）
     static let webCookieNames: Set<String> = [
-        "KuGoo", "kugou", "Kugou", "kg_mid", "KG_MID", "kg_dfid", "KG_DFID",
-        "userid", "token", "dfid", "KugooID", "nickname", "NickName", "username", "UserName",
+        "KuGoo", "kugou", "Kugou", "kg_mid", "KG_MID", "KUGOU_API_MID", "kg_dfid", "KG_DFID",
+        "userid", "UserId", "token", "Token", "dfid", "DFID", "KugooID", "uid",
+        "nickname", "NickName", "unick", "username", "UserName",
     ]
 
     /// 解析浏览器复制出来的完整 Cookie 字符串："a=b; c=d"
@@ -326,7 +365,7 @@ final class KugouAuth: ObservableObject {
             throw NetEaseError.unknown("酷狗登录态不完整：请重新在网页登录，或在电脑浏览器复制完整 Cookie 粘贴导入")
         }
         let body = "{\"userid\":\(userid),\"token\":\"\(Self.jsonEscape(token))\",\"total_ver\":979,\"type\":2,\"page\":1,\"pagesize\":50}"
-        var params = h5Params()
+        var params = h5Params(extra: ["plat": 1])
         params["signature"] = h5Signature(params: params, bodyText: body)
         let json = try await postJSON(gatewayURL(path: "/v7/get_all_list", params: params), bodyText: body, headers: gatewayHeaders())
         if let status = json["status"] as? Int, status == 0 {
@@ -361,7 +400,7 @@ final class KugouAuth: ObservableObject {
         let pagesize = 50
         while true {
             let body = "{\"listid\":\(rawID),\"userid\":\(userid),\"area_code\":1,\"show_relate_goods\":0,\"pagesize\":\(pagesize),\"allplatform\":1,\"show_cover\":1,\"type\":0,\"token\":\"\(Self.jsonEscape(token))\",\"page\":\(page)}"
-            var params = h5Params()
+            var params = h5Params(extra: ["plat": 1])
             params["signature"] = h5Signature(params: params, bodyText: body)
             let json = try await postJSON(gatewayURL(path: "/v4/get_list_all_file", params: params), bodyText: body, headers: gatewayHeaders())
             if let status = json["status"] as? Int, status == 0 {

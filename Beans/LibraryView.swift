@@ -271,42 +271,43 @@ struct LibraryView: View {
         }
     }
 
-    /// 平台选择（网易云 / QQ / 酷狗 / 汽水，样式与主页一致）
+    /// 平台选择（网易云 / QQ / 酷狗 / 汽水：固定等宽点击，不滚动，适当缩小）
     private var providerPicker: some View {
-        ScrollView(.horizontal, showsIndicators: false) {
-            HStack(spacing: 4) {
-                ForEach(LibraryProvider.allCases) { p in
-                    Button {
-                        BeansHaptics.tap()
-                        if source != p { source = p }
-                    } label: {
-                        HStack(spacing: 6) {
-                            Image(systemName: p.icon)
-                                .font(.system(size: 11, weight: .semibold))
-                            Text(p.rawValue)
-                                .font(BeansFont.appFont(13, .semibold))
-                        }
-                        .foregroundStyle(source == p ? Color.white : Color.beansComment)
-                        .padding(.horizontal, 14)
-                        .padding(.vertical, 9)
-                        .background {
-                            if source == p {
-                                Capsule().fill(p.tint)
-                            } else {
-                                Capsule().fill(.clear)
-                            }
+        HStack(spacing: 3) {
+            ForEach(LibraryProvider.allCases) { p in
+                Button {
+                    BeansHaptics.tap()
+                    if source != p { source = p }
+                } label: {
+                    HStack(spacing: 4) {
+                        Image(systemName: p.icon)
+                            .font(.system(size: 10, weight: .semibold))
+                        Text(p.rawValue)
+                            .font(BeansFont.appFont(11, .semibold))
+                            .lineLimit(1)
+                            .minimumScaleFactor(0.7)
+                    }
+                    .foregroundStyle(source == p ? Color.white : Color.beansComment)
+                    .frame(maxWidth: .infinity)
+                    .padding(.vertical, 8)
+                    .background {
+                        if source == p {
+                            Capsule().fill(p.tint)
+                        } else {
+                            Capsule().fill(.clear)
                         }
                     }
-                    .buttonStyle(.plain)
+                    .contentShape(Capsule())
                 }
+                .buttonStyle(.plain)
             }
-            .padding(4)
-            .background {
-                            BeansGlass(shape: Capsule())
-            }
-            .clipShape(Capsule())
-            .beansCardShadow(radius: 6, y: 2)
         }
+        .padding(3)
+        .background {
+            BeansGlass(shape: Capsule())
+        }
+        .clipShape(Capsule())
+        .beansCardShadow(radius: 6, y: 2)
     }
 
     /// QQ 模式整体内容：用户歌单（创建 + 收藏同步）
