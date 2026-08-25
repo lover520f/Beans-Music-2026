@@ -43,8 +43,8 @@ jobs:
 
       - name: Build (unsigned)
         run: |
-          VER=$(grep -oE 'MARKETING_VERSION: "[^"]+"' project.yml | sed -E 's/.*"([^"]+)"/\1/')
-          BUILD=$(grep -oE 'CURRENT_PROJECT_VERSION: "[0-9]+"' project.yml | sed -E 's/.*"([0-9]+)"/\1/')
+          VER=$(cat version.txt)
+          BUILD=$(grep -oE 'CURRENT_PROJECT_VERSION: "[0-9]+"' project.yml | head -1 | sed -E 's/.*"([0-9]+)"/\1/')
           echo "Building with MARKETING_VERSION=$VER CURRENT_PROJECT_VERSION=$BUILD"
           echo "BUILD_NUMBER=$BUILD" >> "$GITHUB_ENV"
           echo "VERSION_LABEL=$VER" >> "$GITHUB_ENV"
