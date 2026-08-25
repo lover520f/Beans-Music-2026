@@ -393,7 +393,8 @@ final class QQMusicAPI {
         let gtk = qqAuth.gtk
         let favURL = "https://c.y.qq.com/splcloud/fcgi-bin/fcg_musiclist_getmyfav.fcg?dirid=201&dirinfo=1&g_tk=\(gtk)&format=json&utf8=1"
         if let favJson = try? await QQMusicAPI.shared.get(favURL, referer: "https://y.qq.com/n/yqq/playlist", cookie: qqAuth.cookieHeader) {
-            if let id = Self.likedMapID(favJson), id > 0 { return id }
+            let id = Self.likedMapID(favJson)
+            if id > 0 { return id }
             // cdlist[0].dissid 兜底
             let data = favJson["data"] as? [String: Any] ?? favJson
             if let cdlist = data["cdlist"] as? [[String: Any]], let first = cdlist.first {
@@ -427,11 +428,17 @@ final class QQMusicAPI {
             return 0
         }
         let data = json["data"] as? [String: Any] ?? json
-        if let id = resolve(json["map"]), id > 0 { return id }
-        if let id = resolve(data["map"]), id > 0 { return id }
+        let topID = resolve(json["map"])
+        if topID > 0 { return topID }
+        let dataID = resolve(data["map"])
+        if dataID > 0 { return dataID }
         if let dict = (json["map"] as? [String: Any]) ?? (data["map"] as? [String: Any]) {
-            if let id = resolve(dict["201"]), id > 0 { return id }
-            for (_, v) in dict { if let id = resolve(v), id > 0 { return id } }
+            let likedID = resolve(dict["201"])
+            if likedID > 0 { return likedID }
+            for (_, v) in dict {
+                let id = resolve(v)
+                if id > 0 { return id }
+            }
         }
         return 0
     }
@@ -891,9 +898,9 @@ final class QQMusicAPI {
         var attempts: [(login: Bool, newFormat: String, gtk: String)] = []
         attempts.append((qqAuth.isLoggedIn, "1", ""))
         attempts.append((false, "1", ""))
-        if qqAuth.isLoggedIn { attempts.append((true, "1", gtk)) }
+        if qqAuth.isLoggedIn { attempts.append((true, "1", "\(gtk)")) }
         attempts.append((false, "1", "5381"))
-        if qqAuth.isLoggedIn { attempts.append((true, "0", gtk)) }
+        if qqAuth.isLoggedIn { attempts.append((true, "0", "\(gtk)")) }
         attempts.append((false, "0", "5381"))
 
         for attempt in attempts {
