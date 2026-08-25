@@ -1,4 +1,6 @@
 import Foundation
+import UIKit
+import CoreImage.CIFilterBuiltins
 
 /// 汽水音乐账号（扫码登录 / sessionid 导入）＋ 歌单同步
 /// 逆向结论参考 qishui-api（github.com/guowenye/qishui-api）：
@@ -16,8 +18,11 @@ final class SodaAuth: ObservableObject {
     @Published private(set) var vipBadge: String?
 
     private var sessionID = ""
+    /// 扫码登录成功后下发的整段登录 Cookie（session_cookie），播放链路原样带回
+    private var cookieHeaderValue = ""
     private let defaults = UserDefaults.standard
     private let sessionKey = "beans.soda.sessionid.v1"
+    private let cookieKey = "beans.soda.cookie.v1"
     private let nickKey = "beans.soda.nickname.v1"
     private let vipKey = "beans.soda.vip.v1"
     private let session: URLSession
@@ -28,9 +33,10 @@ final class SodaAuth: ObservableObject {
     private let iid = "27960026095955"
     private let versionCode = "30020100"
 
-    /// 播放链路 Cookie（sessionid）
+    /// 播放链路 Cookie（整段登录 Cookie；仅导入 sessionid 时退化为 sessionid=...）
     var cookieHeader: String {
-        sessionID.isEmpty ? "" : "sessionid=\(sessionID);"
+        if !cookieHeaderValue.isEmpty { return cookieHeaderValue }
+        return sessionID.isEmpty ? "" : "sessionid=\(sessionID);"
     }
 
     private init() {
@@ -39,6 +45,7 @@ final class SodaAuth: ObservableObject {
         session = URLSession(configuration: config)
         if let saved = defaults.string(forKey: sessionKey), !saved.isEmpty {
             sessionID = saved
+            cookieHeaderValue = defaults.string(forKey: cookieKey) ?? ""
             isLoggedIn = true
             nickname = defaults.string(forKey: nickKey) ?? ""
             vipBadge = defaults.string(forKey: vipKey)
@@ -50,11 +57,13 @@ final class SodaAuth: ObservableObject {
 
     func logout() {
         sessionID = ""
+        cookieHeaderValue = ""
         isLoggedIn = false
         nickname = ""
         avatarURL = nil
         vipBadge = nil
         defaults.removeObject(forKey: sessionKey)
+        defaults.removeObject(forKey: cookieKey)
         defaults.removeObject(forKey: nickKey)
         defaults.removeObject(forKey: vipKey)
     }
@@ -64,8 +73,25 @@ final class SodaAuth: ObservableObject {
         let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
         guard !cleaned.isEmpty else { return }
         sessionID = cleaned
+        cookieHeaderValue = ""
         isLoggedIn = true
         defaults.set(sessionID, forKey: sessionKey)
+        defaults.removeObject(forKey: cookieKey)
+        Task { await fetchProfile() }
+    }
+
+    /// 登录成功后保存整段 session_cookie（含 sessionid 与其它登录态 Cookie）
+    private func importSessionCookie(_ raw: String) {
+        let cleaned = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !cleaned.isEmpty else { return }
+        cookieHeaderValue = cleaned.hasSuffix(";") ? cleaned : cleaned + ";"
+        if let part = cleaned.split(separator: ";").first(where: { $0.trimmingCharacters(in: .whitespaces).lowercased().hasPrefix("sessionid=") }) {
+            let value = String(part.split(separator: "=", maxSplits: 1)[1]).trimmingCharacters(in: .whitespaces)
+            if !value.isEmpty { sessionID = value }
+        }
+        isLoggedIn = true
+        defaults.set(cookieHeaderValue, forKey: cookieKey)
+        if !sessionID.isEmpty { defaults.set(sessionID, forKey: sessionKey) }
         Task { await fetchProfile() }
     }
 
@@ -106,9 +132,25 @@ final class SodaAuth: ObservableObject {
         guard let token = payload["token"] as? String, !token.isEmpty else {
             throw NetEaseError.unknown("汽水音乐二维码生成失败，请检查网络后重试")
         }
+        // 官方扫码链路：二维码内容使用 bff-pc scan_login（扫码确认后服务端正常重定向，
+        // 避免网页 SDK 二维码在扫码确认后跳转 404）
+        var scanToken = token
+        if let indexURL = payload["qrcode_index_url"] as? String,
+           let comps = URLComponents(string: indexURL),
+           let t = comps.queryItems?.first(where: { $0.name == "token" })?.value, !t.isEmpty {
+            scanToken = t
+        }
+        let computerName = "Beans Music"
+        let encodedToken = scanToken.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? scanToken
+        let encodedName = computerName.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? computerName
+        let scanURL = "https://bff-pc.qishui.com/light/invoke/scan_login?token=\(encodedToken)&os=iOS&computer_name=\(encodedName)"
+
         let qrcode = payload["qrcode"] as? String ?? ""
         var imageData: Data?
-        if qrcode.hasPrefix("data:") {
+        // 优先本地生成官方 scan_login 二维码；失败再回退服务端 qrcode 图
+        if let png = Self.qrPNG(text: scanURL) {
+            imageData = png
+        } else if qrcode.hasPrefix("data:") {
             if let comma = qrcode.firstIndex(of: ",") {
                 let b64 = String(qrcode[qrcode.index(after: comma)...])
                 imageData = Data(base64Encoded: b64)
@@ -150,6 +192,26 @@ final class SodaAuth: ObservableObject {
         request.httpBody = form.query?.data(using: .utf8)
         let (data, response) = try await session.data(for: request)
         guard let http = response as? HTTPURLResponse else { throw NetEaseError.network }
+        let json = Self.parseJSON(data)
+        let payload: [String: Any]
+        if let dataDict = json?["data"] as? [String: Any] {
+            payload = dataDict
+        } else if let json {
+            payload = json
+        } else {
+            payload = [:]
+        }
+        let status = String(describing: payload["status"] ?? "")
+        let errorCode = Self.int(payload["error_code"]) ?? 0
+        // 二次验证（2046）：App 内无法完成短信 / 扫码验证，提示用户刷新重试
+        if errorCode == 2046 {
+            return .error("该账号需要安全验证，请刷新二维码后重试")
+        }
+        // 登录成功：优先解析 JSON 整段下发的 session_cookie（部分账号不会走 Set-Cookie）
+        if let sessionCookie = Self.string(payload["session_cookie"]), !sessionCookie.isEmpty {
+            importSessionCookie(sessionCookie)
+            return .success
+        }
         let newSession = Self.sessionID(from: http)
         if !newSession.isEmpty {
             sessionID = newSession
@@ -158,10 +220,7 @@ final class SodaAuth: ObservableObject {
             Task { await fetchProfile() }
             return .success
         }
-        guard let json = Self.parseJSON(data) else { return .waiting }
-        let payload = (json["data"] as? [String: Any]) ?? json
-        let status = String(describing: payload["status"] ?? "")
-        let errorCode = Self.int(payload["error_code"]) ?? 0
+        guard json != nil else { return .waiting }
         if errorCode != 0 && !status.isEmpty && status != "1" && status != "2" && status != "3" {
             return .expired
         }
@@ -331,6 +390,18 @@ final class SodaAuth: ObservableObject {
         if let num = value as? NSNumber { return num.doubleValue }
         if let text = value as? String, let num = Double(text) { return num }
         return nil
+    }
+
+    /// 本地生成二维码图片（官方 scan_login 链接）
+    private static func qrPNG(text: String) -> Data? {
+        let filter = CIFilter.qrCodeGenerator()
+        filter.message = Data(text.utf8)
+        filter.correctionLevel = "M"
+        guard let output = filter.outputImage else { return nil }
+        let scaled = output.transformed(by: CGAffineTransform(scaleX: 10, y: 10))
+        let context = CIContext()
+        guard let cgImage = context.createCGImage(scaled, from: scaled.extent) else { return nil }
+        return UIImage(cgImage: cgImage).pngData()
     }
 
     private static func pickURL(_ value: Any?) -> String {

@@ -307,20 +307,28 @@ struct ProfileView: View {
                 platformChip(icon: "play.rectangle.fill", name: "QQ 音乐", status: qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname, badge: qqAuth.vipBadge)
             }
             if kugouAuth.isLoggedIn {
-                platformChip(icon: "music.note.house.fill", name: "酷狗音乐", status: kugouAuth.nickname.isEmpty ? "已登录" : kugouAuth.nickname, badge: kugouAuth.vipBadge)
+                platformChip(icon: "music.note.house.fill", name: "酷狗音乐", status: kugouAuth.nickname.isEmpty ? "已登录" : kugouAuth.nickname, badge: kugouAuth.vipBadge, brand: "BrandKugou")
             }
             if sodaAuth.isLoggedIn {
-                platformChip(icon: "music.note.list", name: "汽水音乐", status: sodaAuth.nickname.isEmpty ? "已登录" : sodaAuth.nickname, badge: sodaAuth.vipBadge)
+                platformChip(icon: "music.note.list", name: "汽水音乐", status: sodaAuth.nickname.isEmpty ? "已登录" : sodaAuth.nickname, badge: sodaAuth.vipBadge, brand: "BrandSoda")
             }
         }
         .padding(.top, 2)
     }
 
-    private func platformChip(icon: String, name: String, status: String, badge: String?) -> some View {
+    private func platformChip(icon: String, name: String, status: String, badge: String?, brand: String? = nil) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Color.beansAmber)
+            if let brand {
+                Image(brand)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 15, height: 15)
+                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.beansAmber)
+            }
             Text(name)
                 .font(BeansFont.appFont(12, .semibold))
                 .foregroundStyle(Color.beansLabel)
@@ -873,9 +881,11 @@ struct AccountHubSheet: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(.white.opacity(0.06))
                         .frame(width: 48, height: 48)
-                    Image(systemName: "music.note.house.fill")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.beansAmber)
+                    Image("BrandKugou")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text("酷狗音乐")
@@ -919,9 +929,11 @@ struct AccountHubSheet: View {
                     RoundedRectangle(cornerRadius: 12, style: .continuous)
                         .fill(.white.opacity(0.06))
                         .frame(width: 48, height: 48)
-                    Image(systemName: "music.note.list")
-                        .font(.system(size: 22))
-                        .foregroundStyle(Color.beansAmber)
+                    Image("BrandSoda")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
                 }
                 VStack(alignment: .leading, spacing: 3) {
                     Text("汽水音乐")

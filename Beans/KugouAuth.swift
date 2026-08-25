@@ -333,14 +333,18 @@ final class KugouAuth: ObservableObject {
             let msg = json["error"] as? String ?? json["msg"] as? String ?? ""
             throw NetEaseError.unknown(msg.isEmpty ? "酷狗歌单加载失败，请稍后重试" : msg)
         }
-        guard let data = json["data"] as? [String: Any] else { return [] }
+        guard let rawData = json["data"] as? [String: Any] else { return [] }
+        // 兼容嵌套 data.data 与 info 分组（collect 收藏 / love 我喜欢 / self 自建 / list 歌单）
+        let data = (rawData["data"] as? [String: Any]) ?? rawData
         var lists: [[String: Any]] = []
         if let info = data["info"] as? [[String: Any]] {
             lists = info
         } else {
             let inner = data["info"] as? [String: Any] ?? data
-            if let collect = inner["collect"] as? [[String: Any]] { lists += collect }
-            if let love = inner["love"] as? [[String: Any]] { lists += love }
+            for key in ["collect", "love", "self", "list"] {
+                if let group = inner[key] as? [[String: Any]] { lists += group }
+            }
+            if let list = data["list"] as? [[String: Any]] { lists += list }
         }
         return lists.compactMap { mapPlaylist($0) }
     }
@@ -448,7 +452,9 @@ final class KugouAuth: ObservableObject {
             ?? Self.string(item["img"])
             ?? Self.string(item["imgurl"])
             ?? Self.string(item["sizable_cover"])
-            ?? Self.string(item["create_user_pic"]) ?? ""
+            ?? Self.string(item["create_user_pic"])
+            ?? (item["trans_param"] as? [String: Any]).flatMap { Self.string($0["union_cover"]) }
+            ?? ""
         let count = Self.int(item["count"])
             ?? Self.int(item["m_count"])
             ?? Self.int(item["song_count"])

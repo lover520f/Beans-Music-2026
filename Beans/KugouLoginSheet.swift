@@ -25,7 +25,12 @@ struct KugouLoginSheet: View {
                     .frame(width: 38, height: 4)
                     .padding(.top, 12)
 
-                HStack {
+                HStack(spacing: 10) {
+                    Image("BrandKugou")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 26, height: 26)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     Text("登录酷狗音乐")
                         .font(BeansFont.appFont(20, .bold))
                         .foregroundStyle(Color.beansLabel)

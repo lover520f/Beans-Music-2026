@@ -26,7 +26,12 @@ struct SodaLoginSheet: View {
                     .frame(width: 38, height: 4)
                     .padding(.top, 12)
 
-                HStack {
+                HStack(spacing: 10) {
+                    Image("BrandSoda")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 26, height: 26)
+                        .clipShape(RoundedRectangle(cornerRadius: 6, style: .continuous))
                     Text("登录汽水音乐")
                         .font(BeansFont.appFont(20, .bold))
                         .foregroundStyle(Color.beansLabel)
