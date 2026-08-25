@@ -1,7 +1,7 @@
 import Foundation
 import Combine
 
-// MARK: - 新版 IPA 自动下载（检查更新后下载到临时目录，随后由 UI 直接呼出系统分享面板）
+// MARK: - 新版 IPA 自动下载（检查更新后直接下载安装包到「文件」App 的 Beans/Downloads 目录）
 
 /// 下载状态：用于展示进度与结果
 enum IPADownloadState {
@@ -31,11 +31,11 @@ final class IPADownloader: NSObject, ObservableObject {
         session = URLSession(configuration: config, delegate: self, delegateQueue: .main)
     }
 
-    /// 下载指定版本 IPA 到临时目录（不占用本地存储，分享/保存位置由系统分享面板决定），返回临时文件 URL
+    /// 下载指定版本 IPA 到 Documents/Downloads，返回本地文件 URL
     func download(assetURL: URL, version: String) async throws -> URL {
         cancelQuietly()
-        let dir = FileManager.default.temporaryDirectory
-            .appendingPathComponent("BeansUpdate", isDirectory: true)
+        let dir = FileManager.default.urls(for: .documentDirectory, in: .userDomainMask)[0]
+            .appendingPathComponent("Downloads", isDirectory: true)
         try FileManager.default.createDirectory(at: dir, withIntermediateDirectories: true)
         destination = dir.appendingPathComponent("Beans-\(version)-unsigned.ipa")
 

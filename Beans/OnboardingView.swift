@@ -244,24 +244,21 @@ struct OnboardingView: View {
                 .font(.system(size: 40))
                 .foregroundStyle(LinearGradient.beansAccent)
 
-            Text("三平台聚合，一个 App 全听遍")
+            Text("双平台聚合，一个 App 全听遍")
                 .font(BeansFont.appFont(26, .bold))
                 .foregroundStyle(Color.beansLabel)
 
-            Text("网易云 / QQ 音乐 / 酷狗，一键切换数据源")
+            Text("网易云 + QQ 音乐，一键切换数据源")
                 .font(BeansFont.appFont(14))
                 .foregroundStyle(Color.beansSecondary)
 
-            VStack(spacing: 10) {
+            VStack(spacing: 12) {
                 platformRow(imageName: "BrandNetease", tint: Color(red: 0.87, green: 0.23, blue: 0.23),
                             title: "网易云音乐",
                             detail: "扫码 / 网页登录，同步歌单、收藏、听歌排行、VIP")
                 platformRow(imageName: "BrandQQ", tint: Color(red: 0.13, green: 0.51, blue: 0.95),
                             title: "QQ 音乐",
                             detail: "扫码 / 网页 / Cookie 登录，同步歌单与 VIP")
-                platformRow(imageName: "BrandKugou", tint: Color(red: 0.08, green: 0.60, blue: 0.94),
-                            title: "酷狗音乐",
-                            detail: "网页登录 / Cookie 导入，同步歌单")
             }
             .padding(.horizontal, 28)
 

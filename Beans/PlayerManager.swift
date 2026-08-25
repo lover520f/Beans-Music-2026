@@ -1,4 +1,3 @@
-import ActivityKit
 import AVFoundation
 import MediaPlayer
 import SwiftUI
@@ -53,13 +52,10 @@ final class PlayerManager: NSObject, ObservableObject {
     private var orderPosition = 0
     private var sleepTimer: Timer?
     private var lastCountedSongID: String?
-    private var liveActivity: Any?
-    private var lastLiveActivitySync: Date?
+    private var wasPlayingBeforeInterruption = false
 
     private let historyKey = "beans.history"
     private let countsKey = "beans.playcounts"
-    private let liveActivityKey = "beans.liveActivity"
-    private let audioMixKey = "beans.audio.mixothers.v1"
     private let defaults = UserDefaults.standard
 
     var currentSong: Song? {
@@ -332,19 +328,20 @@ final class PlayerManager: NSObject, ObservableObject {
             let strictUnlock = shouldLockOfficialOnly(song)
             let quality = BeansAudioQuality.current
             if song.source == .qq, let mid = song.qqMid {
-                // 优先 QQ 官方直链：登录了 VIP/SVIP 账号时 vkey 返回完整音轨；
-                // 未登录/无会员时 VIP 歌曲官方 vkey 不返回地址。
-                // 只有开启「免费听歌」（灰色歌曲解锁）时，官方直链失败才允许兜底
-                // （网易云同名歌曲 → 第三方解锁）。未开启时绝不静默替换为其他平台的音频。
-                urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
-                if urlString == nil, enableUnblock {
+                // VIP 歌曲：登录了 VIP/SVIP 账号时 vkey 可返回完整音轨（官方直链，优先使用）；
+                // 未登录或无会员时 vkey 只会返回试听片段，直接走网易云同名兜底（免费听 VIP）
+                if song.isVIP, QQMusicAuth.shared.isLoggedIn, QQMusicAuth.shared.vipBadge != nil {
+                    urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
+                    if urlString == nil {
+                        (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
+                    }
+                } else if song.isVIP {
                     (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
-                }
-            } else if song.source == .kugou, let hash = song.kugouHash {
-                // 酷狗：优先官方接口（登录后可拿完整音轨），失败且开启免费听歌时走网易云同名/第三方兜底
-                urlString = try? await KugouAuth.shared.songURL(hash: hash, albumID: song.kugouAlbumID, albumAudioID: song.kugouAlbumAudioID)
-                if urlString == nil, enableUnblock {
-                    (urlString, resolvedThirdParty) = await kugouFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
+                } else {
+                    urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
+                    if urlString == nil {
+                        (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
+                    }
                 }
             } else {
                 (urlString, resolvedThirdParty) = await neteaseResolve(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
@@ -362,21 +359,9 @@ final class PlayerManager: NSObject, ObservableObject {
                     guard generation == self.loadGeneration else { return }
                     self.isBuffering = false
                     self.loadFailed = true
-                    if song.source == .qq && song.isVIP && !enableUnblock {
-                        BeansLogger.shared.log("播放失败：\(song.name) - QQ VIP 歌曲未开启免费听歌", level: .error)
-                        ToastCenter.shared.show("《\(song.name)》为 QQ VIP 歌曲，请先在 我的 → 设置 → 播放设置 开启「免费听歌」")
-                    } else if song.source == .kugou {
-                        BeansLogger.shared.log("播放失败：\(song.name) - 酷狗无可用音源", level: .error)
-                        ToastCenter.shared.show("《\(song.name)》酷狗音源不可用或需会员，请尝试其他平台")
-                    } else if self.shouldLockOfficialOnly(song) {
-                        let hasSource = UnblockSourceStore.shared.customSources.contains { $0.enabled }
-                        if enableUnblock, !hasSource {
-                            BeansLogger.shared.log("播放失败：\(song.name) - 未找到原唱音源（未导入或未开启第三方音源）", level: .error)
-                            ToastCenter.shared.show("《\(song.name)》未找到原唱音源：请先在 设置 → 第三方音源 导入并开启音源（如星海、全豆要 JS）")
-                        } else {
-                            BeansLogger.shared.log("播放失败：\(song.name) - 未找到原唱音源（官方受限），拒绝翻唱版本", level: .error)
-                            ToastCenter.shared.show("《\(song.name)》未找到原唱音源（官方受限），已停止播放，拒绝翻唱版本")
-                        }
+                    if self.shouldLockOfficialOnly(song) {
+                        BeansLogger.shared.log("播放失败：\(song.name) - 未找到原唱音源（官方受限），拒绝翻唱版本", level: .error)
+                        ToastCenter.shared.show("《\(song.name)》未找到原唱音源（官方受限），已停止播放，拒绝翻唱版本")
                     } else {
                         BeansLogger.shared.log("播放失败：\(song.name) - 无法解析播放地址", level: .error)
                     }
@@ -453,19 +438,6 @@ final class PlayerManager: NSObject, ObservableObject {
         return (urlString, resolved)
     }
 
-    /// 酷狗歌曲兜底：开启免费听歌时，先按 歌名+歌手 匹配网易云同名歌曲，再交给第三方解锁
-    private func kugouFallback(song: Song, quality: BeansAudioQuality, enableUnblock: Bool, strict: Bool = false) async -> (String?, UnblockService.Resolved?) {
-        if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000), strict: strict) {
-            let result = await neteaseResolve(song: matched, quality: quality, enableUnblock: enableUnblock, strict: strict)
-            if result.0 != nil || result.1 != nil { return result }
-        }
-        if enableUnblock {
-            let resolved = await UnblockService.resolve(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000), neteaseID: 0, strict: strict)
-            return (nil, resolved)
-        }
-        return (nil, nil)
-    }
-
     /// 版权受限歌手名单：这些歌手的歌曲必须严格校验原唱（第三方搜索会误匹配翻唱，如周杰伦）
     /// 兼容第三方返回的英文歌手名（Jay Chou），统一按别名判断，避免漏判导致播放翻唱
     private func shouldLockOfficialOnly(_ song: Song) -> Bool {
@@ -496,8 +468,7 @@ final class PlayerManager: NSObject, ObservableObject {
            abs(hit.duration - target) < 20 {
             return hit
         }
-        // 没有任何歌名/歌手/时长关联的命中直接放弃，绝不盲匹配，避免播到与原版无关的音频
-        return nil
+        return results.first
     }
 
 
@@ -523,10 +494,6 @@ final class PlayerManager: NSObject, ObservableObject {
             self.progress = player.currentTime().seconds
             if let itemDuration = player.currentItem?.duration, itemDuration.isNumeric {
                 self.duration = itemDuration.seconds
-                if self.lastLiveActivitySync == nil || Date().timeIntervalSince(self.lastLiveActivitySync!) >= 15 {
-                    self.lastLiveActivitySync = Date()
-                    self.syncLiveActivity()
-                }
             }
             if let item = player.currentItem {
                 let waiting = player.timeControlStatus == .waitingToPlayAtSpecifiedRate
@@ -570,12 +537,7 @@ final class PlayerManager: NSObject, ObservableObject {
         guard !sessionConfigured else { return }
         do {
             let session = AVAudioSession.sharedInstance()
-            let mixWithOthers = defaults.object(forKey: audioMixKey) as? Bool ?? true
-            if mixWithOthers {
-                try session.setCategory(.playback, mode: .default, options: [.mixWithOthers])
-            } else {
-                try session.setCategory(.playback, mode: .default)
-            }
+            try session.setCategory(.playback, mode: .default)
             try session.setActive(true)
             sessionConfigured = true
         } catch {}
@@ -598,14 +560,14 @@ final class PlayerManager: NSObject, ObservableObject {
               let type = AVAudioSession.InterruptionType(rawValue: rawType) else { return }
         switch type {
         case .began:
+            wasPlayingBeforeInterruption = isPlaying
             player?.pause()
             isPlaying = false
-            updateNowPlaying()
         case .ended:
-            // 不自动恢复播放：开启“其他音频播放时自动暂停”后，其他音频停止时应保持暂停，由用户手动恢复
-            do {
-                try AVAudioSession.sharedInstance().setActive(true)
-            } catch {}
+            if wasPlayingBeforeInterruption {
+                player?.playImmediately(atRate: Float(rate))
+                isPlaying = true
+            }
         @unknown default:
             break
         }
@@ -676,7 +638,6 @@ final class PlayerManager: NSObject, ObservableObject {
                 }
             }
         }
-        syncLiveActivity()
     }
 
     private func setupRemoteCommands() {
@@ -710,71 +671,5 @@ final class PlayerManager: NSObject, ObservableObject {
             self?.seek(to: event.positionTime)
             return .success
         }
-    }
-
-    // MARK: - 音频混合 / 灵动岛
-
-    /// 与其他 App 音频混合播放（不打断其他音频，默认开启）
-    var mixesWithOthers: Bool {
-        get { defaults.object(forKey: audioMixKey) as? Bool ?? true }
-        set {
-            defaults.set(newValue, forKey: audioMixKey)
-            sessionConfigured = false
-            configureAudioSession()
-        }
-    }
-
-    /// 灵动岛实时活动开关（默认开启，iOS 16.1+ 生效）
-    var liveActivityEnabled: Bool {
-        get { defaults.object(forKey: liveActivityKey) as? Bool ?? true }
-        set {
-            defaults.set(newValue, forKey: liveActivityKey)
-            if newValue { syncLiveActivity() } else { endLiveActivity() }
-        }
-    }
-
-    /// 播放状态变化时同步灵动岛（切歌 / 播放 / 暂停）
-    func syncLiveActivity() {
-        guard #available(iOS 16.1, *) else { return }
-        guard liveActivityEnabled, let song = currentSong else {
-            endLiveActivity()
-            return
-        }
-        let state = NowPlayingAttributes.ContentState(
-            songName: song.name,
-            artist: song.artists,
-            coverURL: song.coverURL?.absoluteString,
-            isPlaying: isPlaying,
-            progress: progress,
-            duration: max(duration, song.duration)
-        )
-        if let activity = liveActivity as? Activity<NowPlayingAttributes> {
-            Task {
-                await activity.update(using: state)
-            }
-        } else {
-            do {
-                let activity = try Activity<NowPlayingAttributes>.request(
-                    attributes: NowPlayingAttributes(),
-                    contentState: state,
-                    pushType: nil
-                )
-                liveActivity = activity
-            } catch {
-                BeansLogger.shared.log("灵动岛启动失败：\(error)", level: .error)
-            }
-        }
-    }
-
-    /// 结束灵动岛实时活动
-    func endLiveActivity() {
-        guard #available(iOS 16.1, *) else { return }
-        if let activity = liveActivity as? Activity<NowPlayingAttributes> {
-            let state = activity.contentState
-            Task {
-                await activity.end(using: state, dismissalPolicy: .immediate)
-            }
-        }
-        liveActivity = nil
     }
 }

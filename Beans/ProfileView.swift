@@ -36,12 +36,8 @@ struct ProfileView: View {
     @State private var showDownloadOverlay = false
     @State private var downloadOutcome: DownloadOutcome?
     @State private var showDownloadOutcome = false
-    /// 新版 IPA 下载完成后直接呼出系统分享面板
-    @State private var showIPAShare = false
-    @State private var sharedIPAURL: URL?
     @State private var pendingUpdateInfo: UpdateChecker.ReleaseInfo?
     @ObservedObject private var qqAuth = QQMusicAuth.shared
-    @ObservedObject private var kugouAuth = KugouAuth.shared
 
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
@@ -52,7 +48,7 @@ struct ProfileView: View {
         return "Beans Music · \(ver)"
     }
 
-    /// 多平台登录状态的合并提示（展示各平台真实昵称）
+    /// 三个平台登录状态的合并提示（展示各平台真实昵称）
     private var accountStatusLine: String {
         var parts: [String] = []
         if auth.isLoggedIn {
@@ -65,10 +61,7 @@ struct ProfileView: View {
         if qqAuth.isLoggedIn {
             parts.append(qqAuth.nickname.isEmpty ? "QQ 已登录" : qqAuth.nickname)
         }
-        if kugouAuth.isLoggedIn {
-            parts.append(kugouAuth.nickname.isEmpty ? "酷狗已登录" : kugouAuth.nickname)
-        }
-        if parts.isEmpty { return "登录后可同步网易云 / QQ / 酷狗歌单" }
+        if parts.isEmpty { return "登录后可同步网易云歌单 / 播放 QQ 歌曲" }
         return parts.joined(separator: " · ")
     }
 
@@ -167,28 +160,24 @@ struct ProfileView: View {
         .overlay {
             if showDownloadOverlay { downloadProgressOverlay }
         }
-        .alert("下载失败", isPresented: $showDownloadOutcome) {
-            Button("好", role: .cancel) {}
-            Button("前往更新页") {
-                if let info = pendingUpdateInfo {
-                    UIApplication.shared.open(info.htmlURL)
+        .alert("下载新版", isPresented: $showDownloadOutcome, presenting: downloadOutcome) { outcome in
+            switch outcome {
+            case .success:
+                Button("好", role: .cancel) {}
+            case .failure:
+                Button("好", role: .cancel) {}
+                Button("前往更新页") {
+                    if let info = pendingUpdateInfo {
+                        UIApplication.shared.open(info.htmlURL)
+                    }
                 }
             }
-        } message: {
-            if case .failure(let message) = downloadOutcome {
+        } message: { outcome in
+            switch outcome {
+            case .success(let fileName):
+                Text("新版 IPA 已下载到「文件」App → Beans → Downloads\n文件名：\(fileName)")
+            case .failure(let message):
                 Text("下载失败：\(message)\n如果长时间无反应，可能需要特殊网络环境（代理 / VPN）才能访问 GitHub")
-            } else {
-                Text("下载失败，请稍后重试")
-            }
-        }
-        .sheet(isPresented: $showIPAShare, onDismiss: {
-            if let url = sharedIPAURL {
-                try? FileManager.default.removeItem(at: url)
-            }
-            sharedIPAURL = nil
-        }) {
-            if let url = sharedIPAURL {
-                ShareSheet(items: [url])
             }
         }
     }
@@ -220,7 +209,7 @@ struct ProfileView: View {
                         .font(BeansFont.appFont(12))
                         .foregroundStyle(Color.beansComment)
                 }
-                Text("下载完成后将自动弹出系统分享面板，可选择保存位置或转发")
+                Text("下载完成后可在「文件」App → Beans → Downloads 中查看")
                     .font(BeansFont.appFont(11))
                     .foregroundStyle(Color.beansComment.opacity(0.8))
                     .multilineTextAlignment(.center)
@@ -293,7 +282,7 @@ struct ProfileView: View {
         .beansCardShadow(radius: 10, y: 4)
     }
 
-    /// 每个登录平台单独展示登录成功状态（网易云 / QQ / 酷狗）
+    /// 每个登录平台单独展示登录成功状态（网易云 / QQ 音乐）
     private var platformStatusRow: some View {
         VStack(alignment: .leading, spacing: 8) {
             if auth.isLoggedIn {
@@ -302,26 +291,15 @@ struct ProfileView: View {
             if qqAuth.isLoggedIn {
                 platformChip(icon: "play.rectangle.fill", name: "QQ 音乐", status: qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname, badge: qqAuth.vipBadge)
             }
-            if kugouAuth.isLoggedIn {
-                platformChip(icon: "music.note.house.fill", name: "酷狗音乐", status: kugouAuth.nickname.isEmpty ? "已登录" : kugouAuth.nickname, badge: kugouAuth.vipBadge, brand: "BrandKugou")
-            }
         }
         .padding(.top, 2)
     }
 
-    private func platformChip(icon: String, name: String, status: String, badge: String?, brand: String? = nil) -> some View {
+    private func platformChip(icon: String, name: String, status: String, badge: String?) -> some View {
         HStack(spacing: 6) {
-            if let brand {
-                Image(brand)
-                    .resizable()
-                    .scaledToFit()
-                    .frame(width: 15, height: 15)
-                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
-            } else {
-                Image(systemName: icon)
-                    .font(.system(size: 11, weight: .semibold))
-                    .foregroundStyle(Color.beansAmber)
-            }
+            Image(systemName: icon)
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(Color.beansAmber)
             Text(name)
                 .font(BeansFont.appFont(12, .semibold))
                 .foregroundStyle(Color.beansLabel)
@@ -570,9 +548,8 @@ struct ProfileView: View {
                 let url = try await ipaDownloader.download(assetURL: assetURL, version: info.version)
                 await MainActor.run {
                     showDownloadOverlay = false
-                    sharedIPAURL = url
-                    showIPAShare = true
-                    ToastCenter.shared.show("下载完成，请选择保存或分享")
+                    downloadOutcome = .success(fileName: url.lastPathComponent)
+                    showDownloadOutcome = true
                 }
             } catch {
                 await MainActor.run {
@@ -679,15 +656,12 @@ struct AccountHubSheet: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
     @ObservedObject private var qqAuth = QQMusicAuth.shared
-    @ObservedObject private var kugouAuth = KugouAuth.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var showNeteaseLogin = false
     @State private var showQQLogin = false
-    @State private var showKugouLogin = false
     @State private var confirmNeteaseLogout = false
     @State private var confirmQQLogout = false
-    @State private var confirmKugouLogout = false
 
     var body: some View {
         BeansNavigationStack {
@@ -698,8 +672,7 @@ struct AccountHubSheet: View {
                         SectionHeader(title: "账号")
                         neteaseCard
                         qqCard
-                        kugouCard
-                        Text("网易云登录可同步歌单、收藏与听歌排行；QQ / 酷狗登录可同步各自歌单")
+                        Text("网易云登录可同步歌单、收藏与听歌排行；QQ 音乐登录可播放更多歌曲")
                             .font(BeansFont.appFont(11))
                             .foregroundStyle(Color.beansComment)
                             .padding(.horizontal, 4)
@@ -725,10 +698,6 @@ struct AccountHubSheet: View {
             QQLoginSheet()
                 .environmentObject(theme)
         }
-        .sheet(isPresented: $showKugouLogin) {
-            KugouLoginSheet()
-                .environmentObject(theme)
-        }
         .confirmationDialog("退出网易云登录？", isPresented: $confirmNeteaseLogout, titleVisibility: .visible) {
             Button("退出登录", role: .destructive) {
                 auth.logout()
@@ -740,13 +709,6 @@ struct AccountHubSheet: View {
             Button("退出登录", role: .destructive) {
                 qqAuth.logout()
                 ToastCenter.shared.show("已退出 QQ 音乐")
-            }
-            Button("取消", role: .cancel) {}
-        }
-        .confirmationDialog("退出酷狗音乐？", isPresented: $confirmKugouLogout, titleVisibility: .visible) {
-            Button("退出登录", role: .destructive) {
-                kugouAuth.logout()
-                ToastCenter.shared.show("已退出酷狗音乐")
             }
             Button("取消", role: .cancel) {}
         }
@@ -774,7 +736,7 @@ struct AccountHubSheet: View {
                         .font(BeansFont.appFont(15, .semibold))
                         .foregroundStyle(Color.beansLabel)
                     HStack(spacing: 6) {
-                        Text(auth.isLoggedIn ? (auth.user?.nickname ?? "已登录") : "未登录 · 网页 / 扫码登录同步歌单")
+                        Text(auth.isLoggedIn ? (auth.user?.nickname ?? "已登录") : "未登录 · 扫码登录同步歌单")
                             .font(BeansFont.appFont(12))
                             .foregroundStyle(Color.beansComment)
                             .lineLimit(1)
@@ -822,7 +784,7 @@ struct AccountHubSheet: View {
                         .font(BeansFont.appFont(15, .semibold))
                         .foregroundStyle(Color.beansLabel)
                     HStack(spacing: 6) {
-                        Text(qqAuth.isLoggedIn ? (qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname) : "未登录 · 网页 / Cookie 登录")
+                        Text(qqAuth.isLoggedIn ? (qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname) : "未登录 · 网页 / 扫码 / Cookie 登录")
                             .font(BeansFont.appFont(12))
                             .foregroundStyle(Color.beansComment)
                             .lineLimit(1)
@@ -848,62 +810,12 @@ struct AccountHubSheet: View {
         .buttonStyle(GlassPressButtonStyle(scale: 0.97))
     }
 
-    /// 酷狗音乐账号卡片
-    private var kugouCard: some View {
-        Button {
-            BeansHaptics.tap()
-            if kugouAuth.isLoggedIn { confirmKugouLogout = true } else { showKugouLogin = true }
-        } label: {
-            HStack(spacing: 14) {
-                ZStack {
-                    RoundedRectangle(cornerRadius: 12, style: .continuous)
-                        .fill(.white.opacity(0.06))
-                        .frame(width: 48, height: 48)
-                    Image("BrandKugou")
-                        .resizable()
-                        .scaledToFit()
-                        .frame(width: 44, height: 44)
-                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
-                }
-                VStack(alignment: .leading, spacing: 3) {
-                    Text("酷狗音乐")
-                        .font(BeansFont.appFont(15, .semibold))
-                        .foregroundStyle(Color.beansLabel)
-                    HStack(spacing: 6) {
-                        Text(kugouAuth.isLoggedIn ? (kugouAuth.nickname.isEmpty ? "已登录" : kugouAuth.nickname) : "未登录 · 网页 / Cookie 登录同步歌单")
-                            .font(BeansFont.appFont(12))
-                            .foregroundStyle(Color.beansComment)
-                            .lineLimit(1)
-                        if kugouAuth.isLoggedIn, let badge = kugouAuth.vipBadge {
-                            VIPBadgeView(text: badge)
-                        }
-                    }
-                }
-                Spacer()
-                Text(kugouAuth.isLoggedIn ? "退出" : "登录")
-                    .font(BeansFont.appFont(13, .medium))
-                    .foregroundStyle(kugouAuth.isLoggedIn ? Color.red : Color.beansAmber)
-                    .padding(.horizontal, 14)
-                    .padding(.vertical, 6)
-                    .background(.ultraThinMaterial, in: Capsule())
-            }
-            .padding(14)
-            .background {
-                                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
-            }
-            .contentShape(Rectangle())
-        }
-        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
-    }
-
-
 }
 
 // MARK: - 设置页（外观 + 歌词翻译，从「我的」右上角齿轮进入）
 
 struct SettingsView: View {
     @EnvironmentObject private var theme: ThemeStore
-    @EnvironmentObject private var player: PlayerManager
     @Environment(\.dismiss) private var dismiss
     @AppStorage("beans.themeMode") private var themeModeRaw = BeansThemeMode.system.rawValue
     /// 音质等级（借鉴 Kumone）
@@ -917,9 +829,6 @@ struct SettingsView: View {
     /// 第三方音源管理
     @ObservedObject private var unblockStore = UnblockSourceStore.shared
     @State private var showSourceImport = false
-    @State private var testingSourceID: String?
-    @State private var sourceTestResult: String?
-    @State private var showSourceTestResult = false
     /// 更新日志
     @State private var showChangelog = false
     /// 配置备份与恢复
@@ -1380,55 +1289,7 @@ struct SettingsView: View {
                             Text("免费听歌")
                                 .font(BeansFont.appFont(15))
                                 .foregroundStyle(Color.beansLabel)
-                            Text("灰色 / VIP / 周杰伦等版权歌曲自动从已导入的第三方音源匹配播放（需先导入并开启音源，默认关闭）")
-                                .font(BeansFont.appFont(11))
-                                .foregroundStyle(Color.beansComment)
-                        }
-                    }
-                }
-                .toggleStyle(.switch)
-                .tint(Color.beansAmber)
-
-                Divider().overlay(Color.beansComment.opacity(0.15))
-
-                Toggle(isOn: Binding(
-                    get: { player.mixesWithOthers },
-                    set: { player.mixesWithOthers = $0 }
-                )) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "speaker.wave.2.circle.fill")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color.beansAmber)
-                            .frame(width: 28)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("不打断其他音频")
-                                .font(BeansFont.appFont(15))
-                                .foregroundStyle(Color.beansLabel)
-                            Text("与其他 App 音频混合播放，播放音乐时不中断其他软件的声音（默认开启）")
-                                .font(BeansFont.appFont(11))
-                                .foregroundStyle(Color.beansComment)
-                        }
-                    }
-                }
-                .toggleStyle(.switch)
-                .tint(Color.beansAmber)
-
-                Divider().overlay(Color.beansComment.opacity(0.15))
-
-                Toggle(isOn: Binding(
-                    get: { player.liveActivityEnabled },
-                    set: { player.liveActivityEnabled = $0 }
-                )) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "iphone.gen3")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color.beansAmber)
-                            .frame(width: 28)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("灵动岛实时活动")
-                                .font(BeansFont.appFont(15))
-                                .foregroundStyle(Color.beansLabel)
-                            Text("播放音乐时在灵动岛 / 锁屏显示正在播放（需 iOS 16.1+，默认开启）")
+                            Text("灰色 / VIP / 周杰伦等版权歌曲自动从第三方音源匹配播放（默认关闭，手动开启）")
                                 .font(BeansFont.appFont(11))
                                 .foregroundStyle(Color.beansComment)
                         }
@@ -1446,11 +1307,17 @@ struct SettingsView: View {
         }
     }
 
-    /// 第三方音源管理：仅用户导入的音源，支持独立开关与取流自检
+    /// 第三方音源管理：内置源开关 + 导入自定义源
     private var unblockSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "第三方音源")
             VStack(spacing: 10) {
+                unblockSourceToggle(id: "pyncmd", icon: "bolt.fill", title: "GD 音乐台", subtitle: "按网易云 ID 取高音质地址")
+                unblockSourceToggle(id: "kuwo", icon: "music.note", title: "酷我音源", subtitle: "酷我搜索 + 双直链兜底")
+                unblockSourceToggle(id: "bodian", icon: "waveform.badge.plus", title: "波点音源", subtitle: "波点签名取流（Splayer 解锁插件）")
+
+                Divider().overlay(Color.beansComment.opacity(0.15))
+
                 Button {
                     BeansHaptics.tap()
                     showSourceImport = true
@@ -1472,20 +1339,12 @@ struct SettingsView: View {
                 .buttonStyle(.plain)
 
                 if unblockStore.customSources.isEmpty {
-                    Text("尚未导入第三方音源（支持 JSON 配置或落雪 LX 脚本音源 JS 文件），导入后可独立开关并自检")
+                    Text("尚未导入自定义音源（JSON 配置：请求模板 + 播放地址字段路径）")
                         .font(BeansFont.appFont(11))
                         .foregroundStyle(Color.beansComment)
                 } else {
                     ForEach(unblockStore.customSources) { source in
                         HStack(spacing: 10) {
-                            Toggle("", isOn: Binding(
-                                get: { source.enabled },
-                                set: { unblockStore.setEnabled(source, enabled: $0) }
-                            ))
-                            .labelsHidden()
-                            .toggleStyle(.switch)
-                            .tint(Color.beansAmber)
-                            .frame(width: 46)
                             Image(systemName: "externaldrive.fill")
                                 .font(.system(size: 12))
                                 .foregroundStyle(Color.beansAmber)
@@ -1495,26 +1354,11 @@ struct SettingsView: View {
                                     .font(BeansFont.appFont(14, .semibold))
                                     .foregroundStyle(Color.beansLabel)
                                     .lineLimit(1)
-                                Text(source.kind == "netease-id" ? "按网易云 ID 查询" : source.kind == "lxscript" ? "落雪 LX 脚本音源" : source.kind == "lx" ? "落雪 API 服务器" : "关键词查询")
+                                Text(source.kind == "netease-id" ? "按网易云 ID 查询" : "关键词查询")
                                     .font(BeansFont.appFont(10))
                                     .foregroundStyle(Color.beansComment)
                             }
                             Spacer()
-                            if testingSourceID == source.id {
-                                ProgressView()
-                                    .controlSize(.small)
-                                    .frame(width: 24)
-                            } else {
-                                Button {
-                                    BeansHaptics.tap()
-                                    testSource(source)
-                                } label: {
-                                    Image(systemName: "wrench.and.screwdriver")
-                                        .font(.system(size: 13))
-                                        .foregroundStyle(Color.beansAmber)
-                                }
-                                .buttonStyle(.plain)
-                            }
                             Button(role: .destructive) {
                                 BeansHaptics.medium()
                                 unblockStore.remove(source)
@@ -1525,7 +1369,6 @@ struct SettingsView: View {
                             }
                             .buttonStyle(.plain)
                         }
-                        .opacity(source.enabled ? 1 : 0.45)
                     }
                 }
             }
@@ -1535,29 +1378,33 @@ struct SettingsView: View {
             }
             .beansCardShadow(radius: 9, y: 3)
         }
-        .alert("音源自检", isPresented: $showSourceTestResult) {
-            Button("好", role: .cancel) {}
-        } message: {
-            Text(sourceTestResult ?? "")
-        }
     }
 
-    /// 用固定测试歌曲（周杰伦-晴天）验证导入音源能否取到播放地址，失败时显示真实原因
-    private func testSource(_ source: ThirdPartySource) {
-        testingSourceID = source.id
-        Task {
-            let result = await UnblockService.testSource(source)
-            await MainActor.run {
-                testingSourceID = nil
-                switch result {
-                case .success(let url):
-                    sourceTestResult = "✅ 测试成功，已获取播放地址：\n\(url)"
-                case .failure(let error):
-                    sourceTestResult = "❌ 测试失败：\n\(error.localizedDescription)\n\n可在「设置 → 日志」导出日志反馈。"
+    private func unblockSourceToggle(id: String, icon: String, title: String, subtitle: String) -> some View {
+        Toggle(isOn: Binding(
+            get: { unblockStore.isEnabled(id) },
+            set: {
+                unblockStore.setBuiltin(id, enabled: $0)
+                ToastCenter.shared.show("部分音源开关需重启 App 后完全生效")
+            }
+        )) {
+            HStack(spacing: 10) {
+                Image(systemName: icon)
+                    .font(.system(size: 13))
+                    .foregroundStyle(Color.beansAmber)
+                    .frame(width: 28)
+                VStack(alignment: .leading, spacing: 2) {
+                    Text(title)
+                        .font(BeansFont.appFont(14))
+                        .foregroundStyle(Color.beansLabel)
+                    Text(subtitle)
+                        .font(BeansFont.appFont(10))
+                        .foregroundStyle(Color.beansComment)
                 }
-                showSourceTestResult = true
             }
         }
+        .toggleStyle(.switch)
+        .tint(Color.beansAmber)
     }
 
     /// 更新日志入口
@@ -1593,32 +1440,25 @@ struct SettingsView: View {
         }
     }
 
-
     /// 配置备份与恢复：导出全部 beans.* 设置为 JSON 分享；导入后写回 UserDefaults
     private var backupSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "备份与恢复")
-            VStack(spacing: 8) {
-                HStack(spacing: 10) {
-                    backupActionButton(icon: "square.and.arrow.up", title: "导出备份") {
-                        BeansHaptics.tap()
-                        exportBackup()
-                    }
-                    backupActionButton(icon: "square.and.arrow.down", title: "导入恢复") {
-                        BeansHaptics.tap()
-                        showRestorePicker = true
-                    }
+            HStack(spacing: 10) {
+                backupActionButton(icon: "square.and.arrow.up", title: "导出备份") {
+                    BeansHaptics.tap()
+                    exportBackup()
                 }
-                if let backupMessage {
-                    Text(backupMessage)
-                        .font(BeansFont.appFont(11))
-                        .foregroundStyle(Color.beansComment)
-                        .frame(maxWidth: .infinity, alignment: .leading)
+                backupActionButton(icon: "square.and.arrow.down", title: "导入恢复") {
+                    BeansHaptics.tap()
+                    showRestorePicker = true
                 }
             }
-            .padding(14)
-            .background {
-                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            if let backupMessage {
+                Text(backupMessage)
+                    .font(BeansFont.appFont(11))
+                    .foregroundStyle(Color.beansComment)
+                    .frame(maxWidth: .infinity, alignment: .leading)
             }
         }
     }
@@ -1633,9 +1473,7 @@ struct SettingsView: View {
             .foregroundStyle(Color.beansLabel)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background {
-                BeansGlass(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
-            }
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         }
         .buttonStyle(GlassPressButtonStyle(scale: 0.95))
     }
@@ -1705,11 +1543,8 @@ struct SettingsView: View {
             defaults.set(restored, forKey: key)
             count += 1
         }
-        // 恢复壁纸：先更新内存中的壁纸库 / 当前背景，再按 base64 重建文件（修复「能备份但恢复不了壁纸」）
-        let wallpaperList = defaults.stringArray(forKey: "beans.wallpapers.list") ?? []
-        let wallpaperData = defaults.dictionary(forKey: "beans.wallpapers.data") as? [String: String] ?? [:]
-        let backgroundPath = defaults.string(forKey: "beans.background.image") ?? ""
-        theme.applyRestoredWallpapers(list: wallpaperList, data: wallpaperData, current: backgroundPath)
+        // 恢复壁纸：写回 beans.wallpapers.* 后重建文件（沙盒路径变化也能恢复）
+        theme.reloadWallpapersFromBackup()
         // 恢复字体文件
         if let fontPayload = json["beans.font.restore"] as? [String: Any],
            let name = fontPayload["name"] as? String,
@@ -1810,9 +1645,7 @@ struct SettingsView: View {
             .foregroundStyle(Color.beansLabel)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 11)
-            .background {
-                BeansGlass(shape: RoundedRectangle(cornerRadius: 13, style: .continuous))
-            }
+            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
         }
         .buttonStyle(GlassPressButtonStyle(scale: 0.95))
     }

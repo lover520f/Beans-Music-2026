@@ -32,18 +32,12 @@ struct PlaylistView: View {
                     List {
                         header
                         Section {
-                            if tracks.isEmpty {
-                                EmptyStateView(icon: "music.note.list", text: "暂无歌曲，快去添加吧")
-                                    .listRowBackground(Color.clear)
-                                    .listRowSeparator(.hidden)
-                            } else {
-                                ForEach(Array(displayedTracks.enumerated()), id: \.element.identityKey) { index, song in
-                                    SongCell(song: song, glassRow: true) {
-                                        player.play(songs: displayedTracks, startAt: index)
-                                    }
-                                    .listRowBackground(Color.clear)
-                                    .listRowSeparator(.hidden)
+                            ForEach(Array(displayedTracks.enumerated()), id: \.element.identityKey) { index, song in
+                                SongCell(song: song, glassRow: true) {
+                                    player.play(songs: displayedTracks, startAt: index)
                                 }
+                                .listRowBackground(Color.clear)
+                                .listRowSeparator(.hidden)
                             }
                         }
                     }
@@ -158,12 +152,9 @@ struct PlaylistView: View {
         loading = true
         errorMessage = nil
         do {
-            switch playlist.source {
-            case .qq:
+            if playlist.source == .qq {
                 tracks = try await QQMusicAPI.shared.playlistSongs(listID: playlist.id)
-            case .kugou:
-                tracks = try await KugouAuth.shared.fetchPlaylistTracks(listID: playlist.rawID ?? "\(playlist.id)")
-            case .netease:
+            } else {
                 tracks = try await NetEaseAPI.shared.playlistTracks(id: playlist.id)
             }
             loading = false

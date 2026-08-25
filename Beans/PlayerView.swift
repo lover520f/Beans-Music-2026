@@ -68,8 +68,8 @@ struct PlayerView: View {
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
     /// 圆形封面模式（播放器大封面 / 歌词页左上角小封面）
     @AppStorage("beans.circularCover") private var circularCover = true
-    /// 圆形封面自动旋转（默认开启）
-    @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = true
+    /// 圆形封面自动旋转（默认关闭）
+    @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = false
     /// 歌词自定义发光颜色（留空跟随当前行颜色 / 封面取色）
     @AppStorage("beans.lyricGlowColorRaw") private var lyricGlowColorRaw = ""
     /// 侧边滑动切歌（抖音式刷视频交互，默认开启）
@@ -459,9 +459,10 @@ struct PlayerView: View {
 
     /// 封面尺寸：固定算法，与布局时序无关
     private func coverSize(in geo: GeometryProxy) -> CGFloat {
-        return min(280, min(geo.size.width * 0.60, geo.size.height * 0.44))
+        min(280, min(geo.size.width * 0.60, geo.size.height * 0.44))
     }
 
+    /// 专辑模式：封面居中 + 歌名/歌手 + 轻点提示（VStack 自动居中）
     private func albumPanel(geo: GeometryProxy) -> some View {
         let size = coverSize(in: geo)
         let coverRadius: CGFloat = circularCover ? size / 2 : min(24, size * 0.08)
@@ -521,21 +522,6 @@ struct PlayerView: View {
                         }
                         .clipShape(RoundedRectangle(cornerRadius: coverRadius, style: .continuous))
                         .shadow(color: .black.opacity(0.38), radius: 24, y: 12)
-
-                        // 封面下方柔和反光（地面光斑）
-                        Ellipse()
-                            .fill(
-                                RadialGradient(
-                                    colors: [palette.accent.opacity(0.55), palette.accent.opacity(0.0)],
-                                    center: .center,
-                                    startRadius: 0,
-                                    endRadius: size * 0.28
-                                )
-                            )
-                            .frame(width: size * 0.95, height: size * 0.18)
-                            .blur(radius: 10)
-                            .offset(y: size * 0.62)
-                            .allowsHitTesting(false)
                 }
                 .frame(width: size * 1.10, height: size * 1.10)
                 // 封面上的滑动切歌手势：与轻点（切歌词）互斥，拖动时不会误触
@@ -1167,12 +1153,6 @@ struct PlayerView: View {
             }
             let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
             return URL(string: "https://y.qq.com/n/ryqq/search?w=\(encoded)")
-        case .kugou:
-            if let hash = song.kugouHash {
-                return URL(string: "https://www.kugou.com/song/#hash=\(hash)")
-            }
-            let encodedK = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
-            return URL(string: "https://www.kugou.com/yy/search?key=\(encodedK)")
         }
     }
 
@@ -1859,7 +1839,7 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
     @AppStorage("beans.circularCover") private var circularCover = true
-    @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = true
+    @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = false
     @AppStorage("beans.djVisual") private var djVisualEnabled = false
     @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
     @AppStorage("beans.lyricGlowColorRaw") private var glowColorRaw = ""
@@ -2271,7 +2251,7 @@ struct PlayerSettingsSheet: View {
                           caption: "播放器封面与歌词页左上角封面显示为圆形")
             Divider().opacity(0.5)
             settingToggle("圆形封面旋转", isOn: $circularCoverSpin,
-                          caption: "开启后播放时封面自动匀速旋转（默认开启）")
+                          caption: "开启后播放时封面自动匀速旋转（默认关闭）")
         }
     }
 

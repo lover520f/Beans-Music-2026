@@ -9,111 +9,72 @@ enum QRStatus: Equatable {
     case error(String)
 }
 
-/// 网易云音乐登录页：网页登录（默认）/ 扫码登录，排版与 QQ 登录一致
 struct LoginView: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
-    @Environment(\.dismiss) private var dismiss
 
-    @State private var mode: NetEaseLoginMode = .web
     @State private var key: String?
     @State private var status: QRStatus = .loading
     @State private var timer: Timer?
-
-    enum NetEaseLoginMode: String, CaseIterable, Identifiable {
-        case web = "网页登录"
-        case scan = "扫码登录"
-        var id: String { rawValue }
-    }
+    @State private var showWebLogin = false
+    @Environment(\.dismiss) private var dismiss
 
     var body: some View {
         let _ = theme.accent
         ZStack {
             GlassBackdrop()
-            VStack(spacing: 16) {
-                Capsule()
-                    .fill(Color.beansComment.opacity(0.3))
-                    .frame(width: 38, height: 4)
-                    .padding(.top, 12)
+            VStack(spacing: 22) {
+                Spacer()
+                Image(systemName: "beats.headphones")
+                    .font(.system(size: 54, weight: .light))
+                    .foregroundStyle(LinearGradient.beansAccent)
+                Text("Beans Music")
+                    .font(BeansFont.appFont(34, .bold))
+                    .foregroundStyle(Color.beansLabel)
+                Text("登录网易云音乐，同步你的歌单")
+                    .font(BeansFont.appFont(14))
+                    .foregroundStyle(Color.beansComment)
 
-                HStack {
-                    Text("登录网易云音乐")
-                        .font(BeansFont.appFont(20, .bold))
-                        .foregroundStyle(Color.beansLabel)
-                    Spacer()
-                    Button {
-                        BeansHaptics.tap()
-                        dismiss()
-                    } label: {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.system(size: 22))
-                            .foregroundStyle(Color.beansComment)
-                    }
-                    .buttonStyle(GlassPressButtonStyle(scale: 0.9))
-                }
-                .padding(.horizontal, 24)
+                qrArea
+                    .frame(width: 250, height: 250)
+                    .padding(18)
+                    .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
+                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                    .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
 
-                Picker("登录方式", selection: $mode) {
-                    ForEach(NetEaseLoginMode.allCases) { m in
-                        Text(m.rawValue).tag(m)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 24)
+                statusView
 
-                Group {
-                    switch mode {
-                    case .web:
-                        webContent
-                    case .scan:
-                        scanContent
-                    }
+                Button {
+                    BeansHaptics.tap()
+                    showWebLogin = true
+                } label: {
+                    Label("网页登录", systemImage: "globe")
+                        .font(BeansFont.appFont(13, .medium))
+                        .foregroundStyle(Color.beansAmber)
                 }
-                .frame(maxWidth: .infinity, maxHeight: .infinity)
+                .buttonStyle(GlassPressButtonStyle(scale: 0.94))
+
+                Spacer()
             }
+            .padding(.horizontal, 28)
         }
-        .onDisappear { timer?.invalidate(); timer = nil }
-    }
-
-    // MARK: - 网页登录
-
-    private var webContent: some View {
-        VStack(spacing: 8) {
-            NetEaseWebLoginPanel(onSuccess: { dismiss() })
-            Text("为方便未下载网易云音乐的用户可直接使用网页手机号登录")
-                .font(BeansFont.appFont(11))
-                .foregroundStyle(Color.beansComment)
-                .multilineTextAlignment(.center)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 12)
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity)
-    }
-
-    // MARK: - 扫码登录内容（进入该页签时才启动二维码流程）
-
-    private var scanContent: some View {
-        VStack(spacing: 22) {
-            Spacer()
-            Text("使用网易云音乐 App 扫码登录，同步你的歌单")
-                .font(BeansFont.appFont(13))
-                .foregroundStyle(Color.beansComment)
-                .multilineTextAlignment(.center)
-
-            qrArea
-                .frame(width: 250, height: 250)
-                .padding(18)
-                .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 30, style: .continuous))
-                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                .shadow(color: .black.opacity(0.2), radius: 20, y: 10)
-
-            statusView
-
-            Spacer()
-            Spacer()
-        }
-        .padding(.horizontal, 28)
         .onAppear { startLogin() }
+        .onDisappear { timer?.invalidate() }
+        .sheet(isPresented: $showWebLogin) {
+            BeansNavigationStack {
+                NetEaseWebLoginPanel {
+                    dismiss()
+                }
+                .environmentObject(auth)
+                .environmentObject(theme)
+                .toolbar {
+                    ToolbarItem(placement: .confirmationAction) {
+                        Button("完成") { showWebLogin = false }
+                    }
+                }
+            }
+            .modifier(BeansSheetModifier(detents: [.large]))
+        }
     }
 
     @ViewBuilder
@@ -185,7 +146,7 @@ struct LoginView: View {
         return ""
     }
 
-    // MARK: - 扫码流程
+    // MARK: - 登录流程
 
     private func startLogin() {
         timer?.invalidate()
@@ -237,7 +198,7 @@ struct LoginView: View {
             Task {
                 do {
                     try await auth.finishLogin()
-                    // 登录成功：自动关闭登录页
+                    // 登录成功：二维码区域自动收起，无需手动下拉关闭
                     dismiss()
                 } catch {
                     status = .error(error.localizedDescription)
