@@ -36,8 +36,8 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
-            id: "1.6.0",
-            version: "1.6.0",
+            id: "1.5.3",
+            version: "1.5.3",
             title: "汽水网页登录 / 平台记忆 / 板块自定义排序",
             features: [
                 "汽水音乐新增应用内网页登录，扫码无反应时可网页登录自动同步登录态",
