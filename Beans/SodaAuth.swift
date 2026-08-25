@@ -300,6 +300,8 @@ final class SodaAuth: ObservableObject {
 
 
     private static func parseJSON(_ data: Data) -> [String: Any]? {
+        try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+    }
 
     // MARK: - 歌单 / 歌曲提取（参考 Mineradio qishui-api）
 
@@ -396,8 +398,7 @@ final class SodaAuth: ObservableObject {
         walk(data, 0)
         return candidates
     }
-        try? JSONSerialization.jsonObject(with: data) as? [String: Any]
-    }
+
 
     // MARK: - 工具
 
