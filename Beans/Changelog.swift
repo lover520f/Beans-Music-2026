@@ -36,6 +36,16 @@ enum ChangelogStore {
     /// 日志按新到旧排列；每次发版在顶部追加一条
     static let logs: [VersionLog] = [
         VersionLog(
+            id: "1.5.8",
+            version: "1.5.8",
+            title: "大封面模式全面改版 / 联动开关",
+            features: [
+                "大封面模式全新布局：封面撑满顶部屏幕，中下部显示歌曲信息与滚动歌词预览，底部黑色渐变平滑过渡到播放控制区",
+                "开启大封面模式时自动关闭圆形封面模式与旋转，避免两种封面形态同时冲突",
+            ],
+            fixes: [],
+        ),
+        VersionLog(
             id: "1.5.7",
             version: "1.5.7",
             title: "QQ 歌单修复 / 大封面模式 / 移除汽水与音乐服务器",

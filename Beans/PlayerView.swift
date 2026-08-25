@@ -467,8 +467,94 @@ struct PlayerView: View {
         return min(280, min(geo.size.width * 0.60, geo.size.height * 0.44))
     }
 
-    /// 专辑模式：封面居中 + 歌名/歌手 + 轻点提示（VStack 自动居中）
+    @ViewBuilder
     private func albumPanel(geo: GeometryProxy) -> some View {
+        if largeCoverMode {
+            largeCoverPanel(geo: geo)
+        } else {
+            normalAlbumPanel(geo: geo)
+        }
+    }
+
+    /// 大封面模式：封面撑满顶部，中下部显示歌词，底部黑色渐变过渡到控制区
+    private func largeCoverPanel(geo: GeometryProxy) -> some View {
+        let size = min(geo.size.width * 0.94, geo.size.height * 0.44)
+        return VStack(spacing: 0) {
+            // 顶部大封面（撑满顶部）
+            Button {
+                toggleLyrics()
+            } label: {
+                ZStack {
+                    CoverImage(url: song?.coverURL, size: size, cornerRadius: 20, emptyHint: player.isBuffering ? "等待开始播放…" : nil)
+                        .matchedGeometryEffect(id: "playerCover", in: coverNS)
+                }
+                .frame(maxWidth: .infinity)
+            }
+            .buttonStyle(GlassPressButtonStyle(scale: 0.98))
+
+            Spacer(minLength: 0)
+
+            // 歌曲信息
+            VStack(spacing: 6) {
+                HStack(spacing: 8) {
+                    Text(song?.name ?? "未在播放")
+                        .font(BeansFont.appFont(20, .bold))
+                        .foregroundStyle(palette.text)
+                        .lineLimit(1)
+                        .minimumScaleFactor(0.55)
+                    if song?.isVIP == true {
+                        Text("VIP")
+                            .font(BeansFont.appFont(9, .bold))
+                            .foregroundStyle(.white)
+                            .padding(.horizontal, 6)
+                            .padding(.vertical, 2)
+                            .background(Capsule().fill(Color(red: 0.93, green: 0.25, blue: 0.22)))
+                    }
+                }
+                Text(subtitle)
+                    .font(BeansFont.appFont(13, .medium))
+                    .foregroundStyle(palette.secondary)
+                    .lineLimit(1)
+                    .contentShape(Rectangle())
+                    .onTapGesture { openArtistHome() }
+            }
+            .padding(.horizontal, 36)
+
+            // 中下部歌词预览
+            lyricPreviewBox
+                .padding(.top, 14)
+
+            Spacer(minLength: 0)
+
+            // 黑色渐变（过渡到底部控制区）
+            LinearGradient(
+                colors: [.clear, .black.opacity(0.32), .black.opacity(0.68)],
+                startPoint: .top, endPoint: .bottom
+            )
+            .frame(height: 150)
+            .allowsHitTesting(false)
+        }
+        .padding(.bottom, deckInset + geo.safeAreaInsets.bottom)
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .offset(y: swipeOffset)
+        .opacity(1 - min(abs(swipeOffset) / 260, 0.35))
+        .gesture(
+            DragGesture(minimumDistance: 15)
+                .onChanged { value in
+                    guard swipeSwitchSong else { return }
+                    let h = value.translation.height
+                    if abs(h) > abs(value.translation.width) {
+                        swipeOffset = h
+                    }
+                }
+                .onEnded { value in
+                    handleSwipeEnd(height: value.translation.height)
+                }
+        )
+    }
+
+    /// 专辑模式：封面居中 + 歌名/歌手 + 轻点提示（VStack 自动居中）
+    private func normalAlbumPanel(geo: GeometryProxy) -> some View {
         let size = coverSize(in: geo)
         let coverRadius: CGFloat = circularCover ? size / 2 : min(24, size * 0.08)
         return VStack(spacing: 16) {
@@ -526,7 +612,29 @@ struct PlayerView: View {
                                 )
                         }
                         .clipShape(RoundedRectangle(cornerRadius: coverRadius, style: .continuous))
+                        .overlay {
+                            // 霓虹发光描边（跟随封面主色）
+                            RoundedRectangle(cornerRadius: coverRadius, style: .continuous)
+                                .strokeBorder(palette.accent.opacity(0.9), lineWidth: 2.5)
+                                .shadow(color: palette.accent.opacity(0.95), radius: 10)
+                                .shadow(color: palette.accent.opacity(0.55), radius: 26)
+                        }
                         .shadow(color: .black.opacity(0.38), radius: 24, y: 12)
+
+                        // 封面下方柔和反光（地面光斑）
+                        Ellipse()
+                            .fill(
+                                RadialGradient(
+                                    colors: [palette.accent.opacity(0.55), palette.accent.opacity(0.0)],
+                                    center: .center,
+                                    startRadius: 0,
+                                    endRadius: size * 0.28
+                                )
+                            )
+                            .frame(width: size * 0.95, height: size * 0.18)
+                            .blur(radius: 10)
+                            .offset(y: size * 0.62)
+                            .allowsHitTesting(false)
                 }
                 .frame(width: size * 1.10, height: size * 1.10)
                 // 封面上的滑动切歌手势：与轻点（切歌词）互斥，拖动时不会误触
@@ -2268,8 +2376,16 @@ struct PlayerSettingsSheet: View {
             settingToggle("圆形封面旋转", isOn: $circularCoverSpin,
                           caption: "开启后播放时封面自动匀速旋转（默认开启）")
             Divider().opacity(0.5)
-            settingToggle("大封面模式", isOn: $largeCoverMode,
-                          caption: "将播放页封面放大撑满，隐藏底部预览歌词")
+            settingToggle("大封面模式", isOn: Binding(
+                get: { largeCoverMode },
+                set: { newValue in
+                    largeCoverMode = newValue
+                    if newValue {
+                        circularCover = false
+                        circularCoverSpin = false
+                    }
+                }
+            ), caption: "封面撑满顶部，中下显示歌词，底部黑色渐变；开启后自动关闭圆形封面与旋转")
         }
     }
 
