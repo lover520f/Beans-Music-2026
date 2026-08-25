@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// 音乐库板块（本地音乐库 / 我的歌单 / 最近播放，顺序可自定义）
+enum LibrarySection: String, CaseIterable {
+    case local = "本地音乐库"
+    case playlists = "我的歌单"
+    case history = "最近播放"
+
+    static let defaultOrder: [String] = [local.rawValue, playlists.rawValue, history.rawValue]
+}
+
 struct LibraryView: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
@@ -25,6 +34,9 @@ struct LibraryView: View {
     @State private var sodaPlaylists: [Playlist] = []
     @State private var sodaLoading = false
     @State private var sodaSavedAt = Date.distantPast
+    /// 音乐库板块顺序（可自定义排序，持久化）
+    @State private var libraryOrder: [String] = LibrarySection.defaultOrder
+    @State private var showSectionOrder = false
 
     var body: some View {
         let _ = theme.accent
@@ -37,14 +49,9 @@ struct LibraryView: View {
                 VStack(alignment: .leading, spacing: 24) {
                     header
                     providerPicker
-                    LocalMusicSection()
-                    switch source {
-                    case .netease: playlistsSection
-                    case .qq: qqSection
-                    case .kugou: kugouSection
-                    case .soda: sodaSection
+                    ForEach(libraryOrder, id: \.self) { name in
+                        sectionContent(for: name)
                     }
-                    historySection
                 }
                 .padding(.horizontal, 16)
                 .padding(.top, 8)
@@ -63,6 +70,19 @@ struct LibraryView: View {
                     await loadSodaPlaylists(force: true)
                 }
             }
+        }
+        .onAppear {
+            libraryOrder = SectionOrderStore.load(SectionOrderStore.libraryKey, defaults: LibrarySection.defaultOrder)
+            if let raw = UserDefaults.standard.string(forKey: "beans.library.provider.v1"),
+               let p = LibraryProvider(rawValue: raw), p != source {
+                source = p
+            }
+        }
+        .onChange(of: libraryOrder) { order in
+            SectionOrderStore.save(SectionOrderStore.libraryKey, order)
+        }
+        .sheet(isPresented: $showSectionOrder) {
+            SectionOrderSheet(title: "音乐库板块排序", sections: LibrarySection.defaultOrder, order: $libraryOrder)
         }
         .task { await auth.loadLibrary() }
         .task(id: source) {
@@ -100,6 +120,26 @@ struct LibraryView: View {
         }
     }
 
+    /// 按自定义顺序渲染音乐库板块（我的歌单随平台切换内容）
+    @ViewBuilder
+    private func sectionContent(for name: String) -> some View {
+        switch name {
+        case LibrarySection.local.rawValue:
+            LocalMusicSection()
+        case LibrarySection.playlists.rawValue:
+            switch source {
+            case .netease: playlistsSection
+            case .qq: qqSection
+            case .kugou: kugouSection
+            case .soda: sodaSection
+            }
+        case LibrarySection.history.rawValue:
+            historySection
+        default:
+            EmptyView()
+        }
+    }
+
     private var header: some View {
         VStack(alignment: .leading, spacing: 14) {
             HStack(alignment: .center) {
@@ -112,14 +152,20 @@ struct LibraryView: View {
                         .foregroundStyle(Color.beansComment)
                 }
                 Spacer()
-                GlassIconButton(systemName: "arrow.clockwise") {
-                    BeansHaptics.tap()
-                    Task {
-                        switch source {
-                        case .netease: await auth.loadLibrary()
-                        case .qq: await loadQQPlaylists(force: true)
-                        case .kugou: await loadKugouPlaylists(force: true)
-                        case .soda: await loadSodaPlaylists(force: true)
+                HStack(spacing: 10) {
+                    GlassIconButton(systemName: "square.grid.2x2") {
+                        BeansHaptics.tap()
+                        showSectionOrder = true
+                    }
+                    GlassIconButton(systemName: "arrow.clockwise") {
+                        BeansHaptics.tap()
+                        Task {
+                            switch source {
+                            case .netease: await auth.loadLibrary()
+                            case .qq: await loadQQPlaylists(force: true)
+                            case .kugou: await loadKugouPlaylists(force: true)
+                            case .soda: await loadSodaPlaylists(force: true)
+                            }
                         }
                     }
                 }
@@ -127,7 +173,6 @@ struct LibraryView: View {
         }
         .padding(.top, 8)
     }
-
 
     private var playlistsSection: some View {
         VStack(alignment: .leading, spacing: 12) {
@@ -277,7 +322,10 @@ struct LibraryView: View {
             ForEach(LibraryProvider.allCases) { p in
                 Button {
                     BeansHaptics.tap()
-                    if source != p { source = p }
+                    if source != p {
+                        source = p
+                        UserDefaults.standard.set(p.rawValue, forKey: "beans.library.provider.v1")
+                    }
                 } label: {
                     HStack(spacing: 4) {
                         Image(systemName: p.icon)

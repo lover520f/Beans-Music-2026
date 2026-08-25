@@ -1,7 +1,8 @@
 import SwiftUI
 import UIKit
+import WebKit
 
-/// 汽水音乐登录页：扫码登录（默认）/ 手动粘贴 sessionid
+/// 汽水音乐登录页：网页登录（推荐）/ 扫码登录 / 手动粘贴 sessionid
 /// 扫码：使用「抖音 App」扫描二维码确认登录（汽水音乐官方登录页要求用抖音扫码），
 /// 确认后自动下发 sessionid 并同步账号歌单。
 struct SodaLoginSheet: View {
@@ -12,6 +13,7 @@ struct SodaLoginSheet: View {
 
     enum SodaLoginMode: String, CaseIterable, Identifiable {
         case scan = "扫码登录"
+        case web = "网页登录"
         case paste = "粘贴Session"
         var id: String { rawValue }
     }
@@ -60,6 +62,8 @@ struct SodaLoginSheet: View {
                     switch mode {
                     case .scan:
                         SodaScanContent(onSuccess: { dismiss() })
+                    case .web:
+                        SodaWebLoginPanel(onSuccess: { dismiss() })
                     case .paste:
                         SodaSessionImportPanel(onSuccess: { dismiss() })
                     }
@@ -259,6 +263,167 @@ struct SodaScanContent: View {
         case .waiting:
             waitingTicks += 1
             if status == .scanned { status = .waiting }
+        }
+    }
+}
+
+// MARK: - 网页登录（WKWebView 打开抖音网页版，登录后自动读取 Cookie）
+
+struct SodaWebLoginPanel: View {
+    @EnvironmentObject private var theme: ThemeStore
+    @State private var pageLoaded = false
+    @State private var syncing = false
+    @State private var message = ""
+    @State private var timer: Timer?
+    @State private var lastHeader = ""
+    let onSuccess: () -> Void
+
+    var body: some View {
+        let _ = theme.accent
+        VStack(spacing: 10) {
+            Text("在下方网页完成抖音 / 汽水音乐登录（支持扫码或手机号），登录成功后自动同步汽水音乐歌单")
+                .font(BeansFont.appFont(12))
+                .foregroundStyle(Color.beansComment)
+                .multilineTextAlignment(.center)
+                .padding(.horizontal, 20)
+
+            ZStack {
+                SodaWebView(onLoaded: { pageLoaded = true })
+                    .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+                    .shadow(color: .black.opacity(0.18), radius: 14, y: 6)
+                    .padding(.horizontal, 20)
+
+                if !pageLoaded {
+                    ProgressView("正在加载抖音网页版…")
+                        .tint(Color.beansAmber)
+                }
+            }
+            .frame(maxHeight: .infinity)
+
+            if !message.isEmpty {
+                Text(message)
+                    .font(BeansFont.appFont(12))
+                    .foregroundStyle(message.hasPrefix("✓") ? Color.beansSage : Color.red.opacity(0.85))
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 20)
+            }
+
+            Button {
+                syncNow()
+            } label: {
+                HStack(spacing: 6) {
+                    if syncing {
+                        ProgressView().tint(.white)
+                    } else {
+                        Image(systemName: "arrow.triangle.2.circlepath")
+                    }
+                    Text(syncing ? "正在读取登录状态…" : "同步登录状态")
+                }
+                .font(BeansFont.appFont(14, .semibold))
+                .foregroundStyle(Color.white)
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 12)
+                .background(Color.beansAmber, in: Capsule())
+            }
+            .buttonStyle(GlassPressButtonStyle(scale: 0.96))
+            .disabled(syncing)
+            .padding(.horizontal, 20)
+            .padding(.bottom, 12)
+        }
+        .onAppear { startAutoDetect() }
+        .onDisappear { timer?.invalidate(); timer = nil }
+    }
+
+    private func startAutoDetect() {
+        timer = Timer.scheduledTimer(withTimeInterval: 3, repeats: true) { _ in
+            readCookies { header in
+                guard !header.isEmpty, header != lastHeader else { return }
+                importCookies(header)
+            }
+        }
+    }
+
+    private func syncNow() {
+        syncing = true
+        message = ""
+        readCookies { header in
+            syncing = false
+            if header.isEmpty {
+                message = "未检测到登录态，请先在网页中完成抖音 / 汽水音乐登录"
+            } else {
+                importCookies(header)
+            }
+        }
+    }
+
+    private func importCookies(_ header: String) {
+        lastHeader = header
+        SodaAuth.shared.importCookieHeader(header)
+        timer?.invalidate()
+        timer = nil
+        message = "✓ 汽水音乐登录成功"
+        BeansHaptics.success()
+        ToastCenter.shared.show("汽水音乐登录成功")
+        DispatchQueue.main.asyncAfter(deadline: .now() + 0.8) {
+            onSuccess()
+        }
+    }
+
+    /// 从 WKWebView Cookie 存储读取登录态（抖音 / 汽水同属字节 SSO，sessionid 通用）
+    private func readCookies(_ completion: @escaping (String) -> Void) {
+        let wanted = SodaAuth.webCookieNames
+        WKWebsiteDataStore.default().httpCookieStore.getAllCookies { cookies in
+            var parts: [String] = []
+            var hasSession = false
+            for cookie in cookies where cookie.domain.contains("douyin.com") || cookie.domain.contains("qishui.com") {
+                if cookie.name == "sessionid" || cookie.name == "sessionid_ss" || cookie.name == "sid_guard" || cookie.name == "sid_tt" {
+                    hasSession = true
+                }
+                if wanted.contains(cookie.name) || cookie.name.hasPrefix("sessionid") || cookie.name == "sid_guard" {
+                    parts.append("\(cookie.name)=\(cookie.value)")
+                }
+            }
+            DispatchQueue.main.async {
+                completion(hasSession ? parts.joined(separator: "; ") : "")
+            }
+        }
+    }
+}
+
+// MARK: - WKWebView 封装（打开抖音网页版）
+
+struct SodaWebView: UIViewRepresentable {
+    let onLoaded: () -> Void
+
+    func makeCoordinator() -> Coordinator {
+        Coordinator(onLoaded: onLoaded)
+    }
+
+    func makeUIView(context: Context) -> WKWebView {
+        let config = WKWebViewConfiguration()
+        config.websiteDataStore = .default()
+        let webView = WKWebView(frame: .zero, configuration: config)
+        webView.customUserAgent = "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/17.4 Safari/605.1.15"
+        webView.navigationDelegate = context.coordinator
+        if let url = URL(string: "https://www.douyin.com/") {
+            webView.load(URLRequest(url: url))
+        }
+        return webView
+    }
+
+    func updateUIView(_ uiView: WKWebView, context: Context) {}
+
+    final class Coordinator: NSObject, WKNavigationDelegate {
+        let onLoaded: () -> Void
+
+        init(onLoaded: @escaping () -> Void) {
+            self.onLoaded = onLoaded
+        }
+
+        func webView(_ webView: WKWebView, didFinish navigation: WKNavigation!) {
+            DispatchQueue.main.async {
+                self.onLoaded()
+            }
         }
     }
 }
