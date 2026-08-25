@@ -1,5 +1,17 @@
 import Foundation
 
+/// 稳定字符串哈希（用于非数值 ID 的平台生成稳定唯一 ID，避免 String.hashValue 进程内随机）
+enum BeansHash {
+    static func stable(_ text: String) -> Int {
+        var hash: UInt64 = 0xcbf29ce484222325
+        for byte in text.utf8 {
+            hash ^= UInt64(byte)
+            hash = hash &* 0x100000001b3
+        }
+        return Int(truncatingIfNeeded: hash)
+    }
+}
+
 /// 音质等级（借鉴 Kumone：standard / higher / exhigh / lossless / hires）
 enum BeansAudioQuality: String, CaseIterable, Identifiable {
     case standard
@@ -30,12 +42,13 @@ enum BeansAudioQuality: String, CaseIterable, Identifiable {
     }
 }
 
-/// 歌曲来源（网易云 / QQ音乐）
+/// 歌曲来源（网易云 / QQ音乐 / 酷狗）
 enum SongSource: String, Codable {
     case netease
     case qq
+    case kugou
 
-    /// 兼容旧版本地收藏：历史数据里的 kugou 来源统一回退为网易云
+    /// 兼容旧版本地收藏：未知来源统一回退为网易云
     init(from decoder: Decoder) throws {
         let raw = try decoder.singleValueContainer().decode(String.self)
         self = SongSource(rawValue: raw) ?? .netease
@@ -53,6 +66,11 @@ struct Song: Identifiable, Hashable, Codable {
     let source: SongSource
     /// QQ 音乐 songmid（source == .qq 时用于获取播放地址与歌词）
     let qqMid: String?
+    /// 酷狗歌曲 hash（source == .kugou 时用于获取播放地址）
+    let kugouHash: String?
+    /// 酷狗专辑 ID / 专辑音频 ID（source == .kugou 时播放可选参数）
+    let kugouAlbumID: String?
+    let kugouAlbumAudioID: String?
     /// 付费/VIP 标记（网易云：0 免费、1 VIP、4 付费单曲；QQ 音乐：0 免费、非 0 付费）
     let fee: Int
 
@@ -61,11 +79,12 @@ struct Song: Identifiable, Hashable, Codable {
         return String(format: "%d:%02d", total / 60, total % 60)
     }
 
-    /// 跨平台唯一标识（避免网易云与 QQ 音乐歌曲 id 撞车）
+    /// 跨平台唯一标识（避免各平台歌曲 id 撞车）
     var identityKey: String {
         switch source {
         case .qq: return "qq-\(id)"
         case .netease: return "netease-\(id)"
+        case .kugou: return "kugou-\(id)"
         }
     }
 
@@ -74,7 +93,7 @@ struct Song: Identifiable, Hashable, Codable {
         fee != 0
     }
 
-    init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil, fee: Int = 0) {
+    init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil, fee: Int = 0, kugouHash: String? = nil, kugouAlbumID: String? = nil, kugouAlbumAudioID: String? = nil) {
         self.id = id
         self.name = name
         self.artists = artists
@@ -84,7 +103,16 @@ struct Song: Identifiable, Hashable, Codable {
         self.source = source
         self.qqMid = qqMid
         self.fee = fee
+        self.kugouHash = kugouHash
+        self.kugouAlbumID = kugouAlbumID
+        self.kugouAlbumAudioID = kugouAlbumAudioID
     }
+
+    /// 酷狗歌单歌曲
+    init(kugou id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, hash: String, albumID: String?, albumAudioID: String?, fee: Int = 0) {
+        self.init(id: id, name: name, artists: artists, album: album, coverURL: coverURL, duration: duration, source: .kugou, fee: fee, kugouHash: hash, kugouAlbumID: albumID, kugouAlbumAudioID: albumAudioID)
+    }
+
 
     init?(json: [String: Any]) {
         guard let id = json["id"] as? Int else { return nil }
@@ -108,10 +136,13 @@ struct Song: Identifiable, Hashable, Codable {
         duration = Double(ms) / 1000.0
         source = .netease
         qqMid = nil
+        kugouHash = nil
+        kugouAlbumID = nil
+        kugouAlbumAudioID = nil
         fee = json["fee"] as? Int ?? 0
     }
 
-    private enum CodingKeys: String, CodingKey { case id, name, artists, album, coverURL, duration, source, qqMid, fee }
+    private enum CodingKeys: String, CodingKey { case id, name, artists, album, coverURL, duration, source, qqMid, kugouHash, kugouAlbumID, kugouAlbumAudioID, fee }
 
     init(from decoder: Decoder) throws {
         let c = try decoder.container(keyedBy: CodingKeys.self)
@@ -123,6 +154,9 @@ struct Song: Identifiable, Hashable, Codable {
         duration = try c.decodeIfPresent(TimeInterval.self, forKey: .duration) ?? 0
         source = try c.decodeIfPresent(SongSource.self, forKey: .source) ?? .netease
         qqMid = try c.decodeIfPresent(String.self, forKey: .qqMid)
+        kugouHash = try c.decodeIfPresent(String.self, forKey: .kugouHash)
+        kugouAlbumID = try c.decodeIfPresent(String.self, forKey: .kugouAlbumID)
+        kugouAlbumAudioID = try c.decodeIfPresent(String.self, forKey: .kugouAlbumAudioID)
         fee = try c.decodeIfPresent(Int.self, forKey: .fee) ?? 0
     }
 
@@ -136,6 +170,9 @@ struct Song: Identifiable, Hashable, Codable {
         try c.encode(duration, forKey: .duration)
         try c.encode(source, forKey: .source)
         try c.encodeIfPresent(qqMid, forKey: .qqMid)
+        try c.encodeIfPresent(kugouHash, forKey: .kugouHash)
+        try c.encodeIfPresent(kugouAlbumID, forKey: .kugouAlbumID)
+        try c.encodeIfPresent(kugouAlbumAudioID, forKey: .kugouAlbumAudioID)
         try c.encode(fee, forKey: .fee)
     }
 }
@@ -164,16 +201,19 @@ struct Playlist: Identifiable, Hashable {
     var coverURL: URL?
     let trackCount: Int
     let creatorName: String
-    /// 歌单来源（网易云 / QQ音乐），QQ 歌单用对应接口加载
+    /// 歌单来源（网易云 / QQ音乐 / 酷狗）
     let source: SongSource
+    /// 原始歌单 ID（酷狗为字符串 ID，加载歌单歌曲时使用）
+    let rawID: String?
 
-    init(id: Int, name: String, coverURL: URL?, trackCount: Int = 0, source: SongSource = .netease) {
+    init(id: Int, name: String, coverURL: URL?, trackCount: Int = 0, source: SongSource = .netease, rawID: String? = nil, creatorName: String = "") {
         self.id = id
         self.name = name
         self.coverURL = coverURL
         self.trackCount = trackCount
-        self.creatorName = ""
+        self.creatorName = creatorName
         self.source = source
+        self.rawID = rawID
     }
 
     init?(json: [String: Any]) {
@@ -185,6 +225,7 @@ struct Playlist: Identifiable, Hashable {
         coverURL = pic.isEmpty ? nil : URL(string: pic)
         creatorName = (json["creator"] as? [String: Any])?["nickname"] as? String ?? ""
         source = .netease
+        rawID = nil
     }
 
     init?(personalizedJSON json: [String: Any]) {
@@ -196,6 +237,7 @@ struct Playlist: Identifiable, Hashable {
         coverURL = pic.isEmpty ? nil : URL(string: pic)
         creatorName = ""
         source = .netease
+        rawID = nil
     }
 }
 

@@ -38,6 +38,7 @@ struct ProfileView: View {
     @State private var showDownloadOutcome = false
     @State private var pendingUpdateInfo: UpdateChecker.ReleaseInfo?
     @ObservedObject private var qqAuth = QQMusicAuth.shared
+    @ObservedObject private var kugouAuth = KugouAuth.shared
 
     private var themeMode: BeansThemeMode {
         BeansThemeMode(rawValue: themeModeRaw) ?? .system
@@ -61,7 +62,10 @@ struct ProfileView: View {
         if qqAuth.isLoggedIn {
             parts.append(qqAuth.nickname.isEmpty ? "QQ 已登录" : qqAuth.nickname)
         }
-        if parts.isEmpty { return "登录后可同步网易云歌单 / 播放 QQ 歌曲" }
+        if kugouAuth.isLoggedIn {
+            parts.append(kugouAuth.nickname.isEmpty ? "酷狗已登录" : kugouAuth.nickname)
+        }
+        if parts.isEmpty { return "登录后可同步网易云 / QQ / 酷狗歌单" }
         return parts.joined(separator: " · ")
     }
 
@@ -291,15 +295,26 @@ struct ProfileView: View {
             if qqAuth.isLoggedIn {
                 platformChip(icon: "play.rectangle.fill", name: "QQ 音乐", status: qqAuth.nickname.isEmpty ? "已登录" : qqAuth.nickname, badge: qqAuth.vipBadge)
             }
+            if kugouAuth.isLoggedIn {
+                platformChip(icon: "music.note.house.fill", name: "酷狗音乐", status: kugouAuth.nickname.isEmpty ? "已登录" : kugouAuth.nickname, badge: kugouAuth.vipBadge, brand: "BrandKugou")
+            }
         }
         .padding(.top, 2)
     }
 
-    private func platformChip(icon: String, name: String, status: String, badge: String?) -> some View {
+    private func platformChip(icon: String, name: String, status: String, badge: String?, brand: String? = nil) -> some View {
         HStack(spacing: 6) {
-            Image(systemName: icon)
-                .font(.system(size: 11, weight: .semibold))
-                .foregroundStyle(Color.beansAmber)
+            if let brand {
+                Image(brand)
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 15, height: 15)
+                    .clipShape(RoundedRectangle(cornerRadius: 3, style: .continuous))
+            } else {
+                Image(systemName: icon)
+                    .font(.system(size: 11, weight: .semibold))
+                    .foregroundStyle(Color.beansAmber)
+            }
             Text(name)
                 .font(BeansFont.appFont(12, .semibold))
                 .foregroundStyle(Color.beansLabel)
@@ -656,12 +671,15 @@ struct AccountHubSheet: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
     @ObservedObject private var qqAuth = QQMusicAuth.shared
+    @ObservedObject private var kugouAuth = KugouAuth.shared
     @Environment(\.dismiss) private var dismiss
 
     @State private var showNeteaseLogin = false
     @State private var showQQLogin = false
+    @State private var showKugouLogin = false
     @State private var confirmNeteaseLogout = false
     @State private var confirmQQLogout = false
+    @State private var confirmKugouLogout = false
 
     var body: some View {
         BeansNavigationStack {
@@ -672,7 +690,8 @@ struct AccountHubSheet: View {
                         SectionHeader(title: "账号")
                         neteaseCard
                         qqCard
-                        Text("网易云登录可同步歌单、收藏与听歌排行；QQ 音乐登录可播放更多歌曲")
+                        kugouCard
+                        Text("网易云登录可同步歌单、收藏与听歌排行；QQ / 酷狗登录可同步各自歌单")
                             .font(BeansFont.appFont(11))
                             .foregroundStyle(Color.beansComment)
                             .padding(.horizontal, 4)
@@ -698,6 +717,10 @@ struct AccountHubSheet: View {
             QQLoginSheet()
                 .environmentObject(theme)
         }
+        .sheet(isPresented: $showKugouLogin) {
+            KugouLoginSheet()
+                .environmentObject(theme)
+        }
         .confirmationDialog("退出网易云登录？", isPresented: $confirmNeteaseLogout, titleVisibility: .visible) {
             Button("退出登录", role: .destructive) {
                 auth.logout()
@@ -709,6 +732,13 @@ struct AccountHubSheet: View {
             Button("退出登录", role: .destructive) {
                 qqAuth.logout()
                 ToastCenter.shared.show("已退出 QQ 音乐")
+            }
+            Button("取消", role: .cancel) {}
+        }
+        .confirmationDialog("退出酷狗音乐？", isPresented: $confirmKugouLogout, titleVisibility: .visible) {
+            Button("退出登录", role: .destructive) {
+                kugouAuth.logout()
+                ToastCenter.shared.show("已退出酷狗音乐")
             }
             Button("取消", role: .cancel) {}
         }
@@ -749,6 +779,54 @@ struct AccountHubSheet: View {
                 Text(auth.isLoggedIn ? "退出" : "登录")
                     .font(BeansFont.appFont(13, .medium))
                     .foregroundStyle(auth.isLoggedIn ? Color.red : Color.beansAmber)
+                    .padding(.horizontal, 14)
+                    .padding(.vertical, 6)
+                    .background(.ultraThinMaterial, in: Capsule())
+            }
+            .padding(14)
+            .background {
+                                BeansGlass(shape: RoundedRectangle(cornerRadius: 20, style: .continuous))
+            }
+            .contentShape(Rectangle())
+        }
+        .buttonStyle(GlassPressButtonStyle(scale: 0.97))
+    }
+
+    /// 酷狗音乐账号卡片
+    private var kugouCard: some View {
+        Button {
+            BeansHaptics.tap()
+            if kugouAuth.isLoggedIn { confirmKugouLogout = true } else { showKugouLogin = true }
+        } label: {
+            HStack(spacing: 14) {
+                ZStack {
+                    RoundedRectangle(cornerRadius: 12, style: .continuous)
+                        .fill(.white.opacity(0.06))
+                        .frame(width: 48, height: 48)
+                    Image("BrandKugou")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 44, height: 44)
+                        .clipShape(RoundedRectangle(cornerRadius: 9, style: .continuous))
+                }
+                VStack(alignment: .leading, spacing: 3) {
+                    Text("酷狗音乐")
+                        .font(BeansFont.appFont(15, .semibold))
+                        .foregroundStyle(Color.beansLabel)
+                    HStack(spacing: 6) {
+                        Text(kugouAuth.isLoggedIn ? (kugouAuth.nickname.isEmpty ? "已登录" : kugouAuth.nickname) : "未登录 · 网页 / Cookie 登录同步歌单")
+                            .font(BeansFont.appFont(12))
+                            .foregroundStyle(Color.beansComment)
+                            .lineLimit(1)
+                        if kugouAuth.isLoggedIn, let badge = kugouAuth.vipBadge {
+                            VIPBadgeView(text: badge)
+                        }
+                    }
+                }
+                Spacer()
+                Text(kugouAuth.isLoggedIn ? "退出" : "登录")
+                    .font(BeansFont.appFont(13, .medium))
+                    .foregroundStyle(kugouAuth.isLoggedIn ? Color.red : Color.beansAmber)
                     .padding(.horizontal, 14)
                     .padding(.vertical, 6)
                     .background(.ultraThinMaterial, in: Capsule())
@@ -826,6 +904,9 @@ struct SettingsView: View {
     @State private var appearanceExpanded = false
     @State private var showWallpaperPicker = false
     @State private var showFontImporter = false
+    /// 应用图标（预设一键切换 + 自定义上传）
+    @ObservedObject private var appIcons = AppIconStore.shared
+    @State private var showIconPicker = false
     /// 第三方音源管理
     @ObservedObject private var unblockStore = UnblockSourceStore.shared
     @State private var showSourceImport = false
@@ -882,6 +963,17 @@ struct SettingsView: View {
                 theme.addWallpaper(data)
                 BeansHaptics.success()
             }
+            .ignoresSafeArea()
+        }
+        .sheet(isPresented: $showIconPicker) {
+            WallpaperPhotoPicker(onPicked: { data in
+                if appIcons.saveCustomIcon(data) {
+                    BeansHaptics.success()
+                    ToastCenter.shared.show("自定义图标已保存")
+                } else {
+                    ToastCenter.shared.show("图标保存失败，请重试")
+                }
+            }, selectionLimit: 1)
             .ignoresSafeArea()
         }
         .sheet(isPresented: $showSourceImport) {
@@ -1239,6 +1331,117 @@ struct SettingsView: View {
                 }
                 Text("支持 ttf / otf 字体，上传后全局生效（含歌词），重启保留")
                     .font(BeansFont.appFont(12))
+                    .foregroundStyle(Color.beansComment)
+
+                Divider().overlay(Color.beansComment.opacity(0.15))
+
+                HStack(spacing: 12) {
+                    Image(systemName: "app.badge.fill")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.beansAmber)
+                        .frame(width: 28)
+                    Text("应用图标")
+                        .font(BeansFont.appFont(15))
+                        .foregroundStyle(Color.beansLabel)
+                    Spacer()
+                    Text(appIcons.currentPreset.title)
+                        .font(BeansFont.appFont(12))
+                        .foregroundStyle(Color.beansComment)
+                }
+
+                // 预设图标：一键切换桌面图标（仅支持 App 内置图标集）
+                LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 10), count: 4), spacing: 10) {
+                    ForEach(AppIconStore.presets) { preset in
+                        Button {
+                            appIcons.applyPreset(preset)
+                        } label: {
+                            VStack(spacing: 5) {
+                                ZStack {
+                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        .fill(Color.beansGlassFill)
+                                    if UIImage(named: preset.imageName) != nil {
+                                        Image(preset.imageName)
+                                            .resizable()
+                                            .scaledToFill()
+                                            .frame(width: 52, height: 52)
+                                            .clipShape(RoundedRectangle(cornerRadius: 13, style: .continuous))
+                                    } else {
+                                        Image(systemName: "app.fill")
+                                            .font(.system(size: 22, weight: .medium))
+                                            .foregroundStyle(Color.beansComment)
+                                    }
+                                }
+                                .frame(width: 56, height: 56)
+                                .overlay(
+                                    RoundedRectangle(cornerRadius: 13, style: .continuous)
+                                        .stroke(appIcons.presetIconName == preset.iconName ? Color.beansAmber : Color.clear, lineWidth: 2)
+                                )
+                                Text(preset.title)
+                                    .font(BeansFont.appFont(11))
+                                    .foregroundStyle(appIcons.presetIconName == preset.iconName ? Color.beansAmber : Color.beansComment)
+                            }
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Divider().overlay(Color.beansComment.opacity(0.15))
+
+                // 自定义图标：上传图片保存为软件内图标（引导页等）
+                HStack(spacing: 12) {
+                    if let customImage = appIcons.customIconImage {
+                        Image(uiImage: customImage)
+                            .resizable()
+                            .scaledToFill()
+                            .frame(width: 46, height: 46)
+                            .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))
+                    } else {
+                        RoundedRectangle(cornerRadius: 12, style: .continuous)
+                            .fill(Color.beansGlassFill)
+                            .frame(width: 46, height: 46)
+                            .overlay {
+                                Image(systemName: "photo.badge.plus")
+                                    .font(.system(size: 17, weight: .medium))
+                                    .foregroundStyle(Color.beansComment)
+                            }
+                    }
+                    VStack(alignment: .leading, spacing: 3) {
+                        Text("自定义图标")
+                            .font(BeansFont.appFont(15))
+                            .foregroundStyle(Color.beansLabel)
+                        Text(appIcons.customIconURL == nil ? "上传图片作为软件内图标（引导页等位置生效）" : "已保存，引导页等位置立即生效")
+                            .font(BeansFont.appFont(11))
+                            .foregroundStyle(Color.beansComment)
+                    }
+                    Spacer()
+                    Button {
+                        showIconPicker = true
+                    } label: {
+                        Text(appIcons.customIconURL == nil ? "上传" : "更换")
+                            .font(BeansFont.appFont(13, .medium))
+                            .foregroundStyle(Color.beansAmber)
+                            .padding(.horizontal, 12)
+                            .padding(.vertical, 6)
+                            .background(.ultraThinMaterial, in: Capsule())
+                    }
+                    .buttonStyle(.plain)
+                    if appIcons.customIconURL != nil {
+                        Button {
+                            appIcons.removeCustomIcon()
+                            BeansHaptics.select()
+                        } label: {
+                            Image(systemName: "trash")
+                                .font(.system(size: 13, weight: .medium))
+                                .foregroundStyle(.red)
+                                .frame(width: 30, height: 30)
+                                .background(.ultraThinMaterial, in: Circle())
+                        }
+                        .buttonStyle(.plain)
+                    }
+                }
+
+                Text("预设图标可一键切换桌面图标；受 iOS 系统限制，任意图片无法直接设为桌面图标，上传的自定义图片用于软件内图标展示（引导页等）")
+                    .font(BeansFont.appFont(11))
                     .foregroundStyle(Color.beansComment)
 
             }
@@ -1807,13 +2010,14 @@ struct NetEaseRankSheet: View {
 
 struct WallpaperPhotoPicker: UIViewControllerRepresentable {
     let onPicked: (Data) -> Void
+    var selectionLimit: Int = 0
 
     func makeCoordinator() -> Coordinator { Coordinator(self) }
 
     func makeUIViewController(context: Context) -> PHPickerViewController {
         var config = PHPickerConfiguration()
         config.filter = .images
-        config.selectionLimit = 0 // 0 = 多选
+        config.selectionLimit = selectionLimit
         let picker = PHPickerViewController(configuration: config)
         picker.delegate = context.coordinator
         return picker

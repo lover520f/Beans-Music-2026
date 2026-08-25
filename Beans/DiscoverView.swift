@@ -1,5 +1,14 @@
 import SwiftUI
 
+/// 主页板块（每日推荐 / 排行榜 / 歌单广场，顺序可自定义）
+enum HomeSection: String, CaseIterable {
+    case daily = "每日推荐"
+    case ranks = "排行榜"
+    case playlists = "歌单广场"
+
+    static let defaultOrder: [String] = [daily.rawValue, ranks.rawValue, playlists.rawValue]
+}
+
 struct DiscoverView: View {
     @EnvironmentObject private var theme: ThemeStore
     @EnvironmentObject private var auth: AuthStore
@@ -14,8 +23,11 @@ struct DiscoverView: View {
     @State private var selectedTopList: TopList?
     @State private var selectedPlaylist: Playlist?
     @State private var showDailyList = false
-    /// 首页数据源：网易云 / QQ音乐（与搜索页同一控件样式）
+    /// 首页数据源：网易云 / QQ音乐（记住上次选择，下次进入沿用）
     @State private var source: SearchProvider = .netease
+    /// 首页板块顺序：每日推荐 / 排行榜 / 歌单广场（可自定义排序）
+    @State private var homeOrder: [String] = HomeSection.defaultOrder
+    @State private var showSectionOrder = false
     @State private var qqTopLists: [QQTopInfo] = []
     @State private var selectedQQTopList: QQTopInfo?
     @State private var selectedQQPlaylist: Playlist?
@@ -47,14 +59,8 @@ struct DiscoverView: View {
                     } else if loading {
                         LoadingStateView()
                     } else {
-                        if !dailySongs.isEmpty {
-                            dailySection.sectionEntrance(delay: 0)
-                        }
-                        if hasRankData {
-                            topListsSection.sectionEntrance(delay: 0.08)
-                        }
-                        if !personalized.isEmpty {
-                            personalizedSection.sectionEntrance(delay: 0.16)
+                        ForEach(homeOrder, id: \.self) { name in
+                            sectionContent(for: name)
                         }
                     }
                 }
@@ -65,7 +71,20 @@ struct DiscoverView: View {
             }
             .beansScrollIndicatorsHidden()
             .refreshable { await load(force: true) }
+            .onAppear {
+                homeOrder = SectionOrderStore.load(SectionOrderStore.homeKey, defaults: HomeSection.defaultOrder)
+                if let raw = UserDefaults.standard.string(forKey: "beans.home.provider.v1"),
+                   let p = SearchProvider(rawValue: raw), p != source {
+                    source = p
+                }
+            }
+            .onChange(of: homeOrder) { order in
+                SectionOrderStore.save(SectionOrderStore.homeKey, order)
+            }
             .task(id: source) { await load(force: false) }
+            .sheet(isPresented: $showSectionOrder) {
+                SectionOrderSheet(title: "主页板块排序", sections: HomeSection.defaultOrder, order: $homeOrder)
+            }
             .onChange(of: disclaimerAccepted) { accepted in
                 // 免责声明确认进入后：若首页加载失败则自动刷新（无需手动下拉）
                 if accepted, errorMessage != nil {
@@ -114,6 +133,10 @@ struct DiscoverView: View {
                 }
                 Spacer()
                 HStack(spacing: 10) {
+                    GlassIconButton(systemName: "square.grid.2x2") {
+                        BeansHaptics.tap()
+                        showSectionOrder = true
+                    }
                     GlassIconButton(systemName: "arrow.clockwise") {
                         BeansHaptics.tap()
                         Task { await load(force: true) }
@@ -130,7 +153,10 @@ struct DiscoverView: View {
             ForEach(SearchProvider.allCases) { p in
                 Button {
                     BeansHaptics.tap()
-                    if source != p { source = p }
+                    if source != p {
+                        source = p
+                        UserDefaults.standard.set(p.rawValue, forKey: "beans.home.provider.v1")
+                    }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: p.icon)
@@ -158,6 +184,27 @@ struct DiscoverView: View {
         }
         .clipShape(Capsule())
         .beansCardShadow(radius: 6, y: 2)
+    }
+
+    /// 按自定义顺序渲染板块（内容为空时自动跳过）
+    @ViewBuilder
+    private func sectionContent(for name: String) -> some View {
+        switch name {
+        case HomeSection.daily.rawValue:
+            if !dailySongs.isEmpty {
+                dailySection.sectionEntrance(delay: 0)
+            }
+        case HomeSection.ranks.rawValue:
+            if hasRankData {
+                topListsSection.sectionEntrance(delay: 0.08)
+            }
+        case HomeSection.playlists.rawValue:
+            if !personalized.isEmpty {
+                personalizedSection.sectionEntrance(delay: 0.16)
+            }
+        default:
+            EmptyView()
+        }
     }
 
     private var greeting: String {

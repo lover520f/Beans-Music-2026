@@ -15,6 +15,10 @@ enum QQSearchType: Int {
 final class QQMusicAPI {
     static let shared = QQMusicAPI()
 
+    /// QQ「我喜欢」歌单的稳定占位 ID（真实歌单经 dirid=201 → fcg_musiclist_getmyfav 解析）
+    static let qqLikedPlaylistID = -201
+    private static let qqLikedCoverURL = URL(string: "https://y.gtimg.cn/mediastyle/global/img/cover_like.png")
+
     private let base = "https://u.y.qq.com/cgi-bin/musicu.fcg"
     private let searchBase = "https://c.y.qq.com/soso/fcgi-bin/search_for_qq_cp"
     private let session: URLSession
@@ -734,16 +738,26 @@ final class QQMusicAPI {
 
     /// QQ 歌单项解析（字段对齐 Mineradio：dissid/tid/dirid/id/diss_id + diss_name/name/title…）
     private static func playlist(fromQQDiss item: [String: Any]) -> Playlist? {
-        let id = item["dissid"] as? Int
-            ?? (item["tid"] as? Int)
-            ?? (item["dirid"] as? Int)
-            ?? (item["id"] as? Int)
-            ?? Int(item["dissid"] as? String ?? "")
-            ?? Int(item["dirid"] as? String ?? "")
-        guard let id, id > 0 else { return nil }
-        let name = item["diss_name"] as? String ?? (item["name"] as? String ?? item["title"] as? String ?? "")
+        let rawName = item["diss_name"] as? String ?? (item["dissname"] as? String ?? (item["name"] as? String ?? item["title"] as? String ?? ""))
+        let dirid = item["dirid"] as? Int ?? Int(item["dirid"] as? String ?? "") ?? 0
+        let dissid = item["dissid"] as? Int ?? Int(item["dissid"] as? String ?? "") ?? 0
+        let tid = item["tid"] as? Int ?? Int(item["tid"] as? String ?? "") ?? 0
+        // 「我喜欢」文件夹（dirid 201）映射为固定歌单：稳定封面 + 专用歌曲接口，
+        // 避免其被当作普通歌单导致封面一直加载、歌曲为空（仅精确匹配名称，避免误伤用户自建歌单）
+        let trimmedName = rawName.trimmingCharacters(in: .whitespacesAndNewlines)
+        let isLiked = dirid == 201 || trimmedName == "我喜欢" || trimmedName == "我的喜欢" || trimmedName == "喜欢的音乐"
+        if isLiked {
+            let count = item["song_cnt"] as? Int ?? (item["songnum"] as? Int ?? item["total_song_num"] as? Int ?? 0)
+            return Playlist(id: Self.qqLikedPlaylistID, name: "我的喜欢", coverURL: Self.qqLikedCoverURL, trackCount: count, source: .qq, rawID: "liked")
+        }
+        // 过滤「创建的歌单 / 收藏的歌单」等纯文件夹条目（无真实歌单 ID，封面与歌曲都无法解析）
+        if dissid == 0 && tid == 0 && dirid > 0 { return nil }
+        let fallbackID = item["id"] as? Int ?? Int(item["id"] as? String ?? "") ?? 0
+        let id = dissid > 0 ? dissid : (tid > 0 ? tid : (dirid > 0 ? dirid : fallbackID))
+        guard id > 0 else { return nil }
+        let name = rawName
         guard !name.isEmpty else { return nil }
-        var cover = item["diss_cover"] as? String ?? (item["logo"] as? String ?? item["picurl"] as? String ?? item["cover"] as? String ?? "")
+        var cover = item["diss_cover"] as? String ?? (item["logo"] as? String ?? item["picurl"] as? String ?? item["imgurl"] as? String ?? item["cover"] as? String ?? "")
         if cover.hasPrefix("http://") { cover = "https://" + cover.dropFirst(7) }
         // fcg 接口返回的 diss_cover 可能是相对路径（/music/photo_new/...），补全 y.gtimg.cn 域名
         if cover.hasPrefix("/") { cover = "https://y.gtimg.cn" + cover }

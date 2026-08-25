@@ -139,14 +139,24 @@ struct OnboardingView: View {
     private var welcomePage: some View {
         VStack(spacing: 24) {
             Spacer()
-            // 真实 App 图标
-            Image("OnboardingLogo")
-                .resizable()
-                .scaledToFill()
-                .frame(width: 132, height: 132)
-                .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
-                .shadow(color: Color.beansHighlight.opacity(0.45), radius: 24, y: 12)
-                .padding(.bottom, 6)
+            // 真实 App 图标（用户上传自定义图标后优先展示自定义图标）
+            if let customIcon = AppIconStore.shared.customIconImage {
+                Image(uiImage: customIcon)
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 132, height: 132)
+                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                    .shadow(color: Color.beansHighlight.opacity(0.45), radius: 24, y: 12)
+                    .padding(.bottom, 6)
+            } else {
+                Image("OnboardingLogo")
+                    .resizable()
+                    .scaledToFill()
+                    .frame(width: 132, height: 132)
+                    .clipShape(RoundedRectangle(cornerRadius: 30, style: .continuous))
+                    .shadow(color: Color.beansHighlight.opacity(0.45), radius: 24, y: 12)
+                    .padding(.bottom, 6)
+            }
 
             Text("欢迎使用 Beans Music")
                 .font(BeansFont.appFont(30, .bold))

@@ -287,6 +287,8 @@ struct CoverImage: View {
     var cornerRadius: CGFloat = 12
     /// 封面未加载时的提示文字（播放器大封面用：等待开始播放）；nil 显示中性图标
     var emptyHint: String? = nil
+    /// 封面缺失 / 加载失败时的兜底文字（如歌单名）：显示渐变占位封面而不是空图标
+    var fallbackText: String? = nil
 
     // 布局尺寸完全由外层固定容器决定；AsyncImage 只放在 overlay 中渲染，
     // 图片加载完成与否都不会改变任何布局尺寸（根治"封面加载后错乱"）。
@@ -334,6 +336,20 @@ struct CoverImage: View {
                     .multilineTextAlignment(.center)
                     .lineLimit(2)
                     .padding(.horizontal, 8)
+            } else if let fallbackText, !fallbackText.isEmpty {
+                // 兜底封面：主题色渐变 + 名称首字（歌单封面缺失时使用，不再空白 / 一直转圈）
+                LinearGradient(
+                    colors: [Color.beansAmber.opacity(0.55), Color.beansHighlight.opacity(0.4), Color.beansGlassFill],
+                    startPoint: .topLeading, endPoint: .bottomTrailing
+                )
+                VStack(spacing: 3) {
+                    Text(String(fallbackText.prefix(1)))
+                        .font(BeansFont.appFont(min(size * 0.34, 30), .bold))
+                        .foregroundStyle(.white.opacity(0.92))
+                    Image(systemName: "music.note")
+                        .font(.system(size: min(size * 0.18, 14), weight: .medium))
+                        .foregroundStyle(.white.opacity(0.55))
+                }
             } else {
                 // 中性等待图标（不再使用音乐音符）
                 Image(systemName: "waveform")

@@ -2,6 +2,12 @@ name: Build Unsigned IPA
 
 on:
   workflow_dispatch:
+    inputs:
+      publish_release:
+        description: '是否发布 GitHub Release（false = 只构建 IPA 供测试）'
+        required: false
+        default: 'false'
+        type: boolean
   push:
     branches: [main]
 
@@ -96,7 +102,7 @@ jobs:
           PYEOF
 
       - name: Publish Release
-        if: success()
+        if: success() && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish_release == 'true')
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -110,7 +116,7 @@ jobs:
           update_release_assets: true
 
       - name: Commit version bump back
-        if: success()
+        if: success() && github.ref == 'refs/heads/main'
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
