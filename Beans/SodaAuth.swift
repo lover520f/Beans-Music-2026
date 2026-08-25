@@ -222,7 +222,8 @@ final class SodaAuth: ObservableObject {
             guard let http = response as? HTTPURLResponse, http.statusCode == 200,
                   let json = Self.parseJSON(data) else { return .error("登录接口异常，请重试") }
             // 成功时 Set-Cookie 携带 sessionid，整段导入登录态
-            if let cookie = Self.sessionCookie(from: http, url: comps.url!), Self.extractSessionID(from: cookie) != nil {
+            let cookie = Self.sessionCookie(from: http, url: comps.url!)
+            if Self.extractSessionID(from: cookie) != nil {
                 importSessionCookie(cookie)
                 return .success
             }
