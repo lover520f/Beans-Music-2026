@@ -1153,6 +1153,17 @@ struct PlayerView: View {
             }
             let encoded = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
             return URL(string: "https://y.qq.com/n/ryqq/search?w=\(encoded)")
+        case .kugou:
+            if let hash = song.kugouHash {
+                return URL(string: "https://www.kugou.com/song/#hash=\(hash)")
+            }
+            let encodedK = song.name.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? song.name
+            return URL(string: "https://www.kugou.com/yy/search?key=\(encodedK)")
+        case .soda:
+            if let trackID = song.sodaTrackID {
+                return URL(string: "https://www.qishui.com/song/\(trackID)")
+            }
+            return nil
         }
     }
 

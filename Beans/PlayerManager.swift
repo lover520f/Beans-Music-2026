@@ -336,6 +336,15 @@ final class PlayerManager: NSObject, ObservableObject {
                 if urlString == nil, enableUnblock {
                     (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
                 }
+            } else if song.source == .kugou, let hash = song.kugouHash {
+                // 酷狗：优先官方接口（登录后可拿完整音轨），失败且开启免费听歌时走网易云同名/第三方兜底
+                urlString = try? await KugouAuth.shared.songURL(hash: hash, albumID: song.kugouAlbumID, albumAudioID: song.kugouAlbumAudioID)
+                if urlString == nil, enableUnblock {
+                    (urlString, resolvedThirdParty) = await kugouFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
+                }
+            } else if song.source == .soda {
+                // 汽水音乐音源需解密，暂不支持播放
+                urlString = nil
             } else {
                 (urlString, resolvedThirdParty) = await neteaseResolve(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
             }
@@ -355,6 +364,12 @@ final class PlayerManager: NSObject, ObservableObject {
                     if song.source == .qq && song.isVIP && !enableUnblock {
                         BeansLogger.shared.log("播放失败：\(song.name) - QQ VIP 歌曲未开启免费听歌", level: .error)
                         ToastCenter.shared.show("《\(song.name)》为 QQ VIP 歌曲，请先在 我的 → 设置 → 播放设置 开启「免费听歌」")
+                    } else if song.source == .kugou {
+                        BeansLogger.shared.log("播放失败：\(song.name) - 酷狗无可用音源", level: .error)
+                        ToastCenter.shared.show("《\(song.name)》酷狗音源不可用或需会员，请尝试其他平台")
+                    } else if song.source == .soda {
+                        BeansLogger.shared.log("播放失败：\(song.name) - 汽水音乐暂不支持播放", level: .error)
+                        ToastCenter.shared.show("汽水音乐歌曲暂不支持播放，请使用网易云或 QQ 音乐")
                     } else if self.shouldLockOfficialOnly(song) {
                         let hasSource = UnblockSourceStore.shared.customSources.contains { $0.enabled }
                         if enableUnblock, !hasSource {
@@ -438,6 +453,19 @@ final class PlayerManager: NSObject, ObservableObject {
             )
         }
         return (urlString, resolved)
+    }
+
+    /// 酷狗歌曲兜底：开启免费听歌时，先按 歌名+歌手 匹配网易云同名歌曲，再交给第三方解锁
+    private func kugouFallback(song: Song, quality: BeansAudioQuality, enableUnblock: Bool, strict: Bool = false) async -> (String?, UnblockService.Resolved?) {
+        if let matched = await matchNetEaseSong(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000), strict: strict) {
+            let result = await neteaseResolve(song: matched, quality: quality, enableUnblock: enableUnblock, strict: strict)
+            if result.0 != nil || result.1 != nil { return result }
+        }
+        if enableUnblock {
+            let resolved = await UnblockService.resolve(name: song.name, artists: song.artists, durationMS: Int(song.duration * 1000), neteaseID: 0, strict: strict)
+            return (nil, resolved)
+        }
+        return (nil, nil)
     }
 
     /// 版权受限歌手名单：这些歌手的歌曲必须严格校验原唱（第三方搜索会误匹配翻唱，如周杰伦）

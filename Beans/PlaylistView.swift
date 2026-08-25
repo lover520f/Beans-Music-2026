@@ -152,9 +152,14 @@ struct PlaylistView: View {
         loading = true
         errorMessage = nil
         do {
-            if playlist.source == .qq {
+            switch playlist.source {
+            case .qq:
                 tracks = try await QQMusicAPI.shared.playlistSongs(listID: playlist.id)
-            } else {
+            case .kugou:
+                tracks = try await KugouAuth.shared.fetchPlaylistTracks(listID: playlist.rawID ?? "\(playlist.id)")
+            case .soda:
+                tracks = try await SodaAuth.shared.fetchPlaylistTracks(playlistID: playlist.rawID ?? "\(playlist.id)")
+            case .netease:
                 tracks = try await NetEaseAPI.shared.playlistTracks(id: playlist.id)
             }
             loading = false
