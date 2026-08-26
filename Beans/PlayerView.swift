@@ -34,9 +34,6 @@ struct PlayerView: View {
     @State private var showArtistHome = false
     @State private var pickedArtistName = ""
     @State private var showArtistPicker = false
-    /// 首次进入播放器的切歌指引
-    @State private var showSwipeHint = false
-    @AppStorage("beans.swipeHintShown") private var swipeHintShown = false
     @AppStorage("beans.djVisual") private var djVisualEnabled = false
     @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
     @State private var dominantColor: RGBColor?
@@ -215,28 +212,12 @@ struct PlayerView: View {
                         .transition(.opacity)
                 }
 
-                // 首次进入播放器的切歌指引
-                if showSwipeHint {
-                    swipeHintOverlay
-                        .transition(.opacity)
-                        .zIndex(20)
-                }
             }
         }
         .task(id: song?.identityKey) {
             dominantColor = nil
             await loadLyrics()
             await extractCoverPalette()
-        }
-        .onAppear {
-            if !swipeHintShown {
-                swipeHintShown = true
-                withAnimation(.easeOut(duration: 0.25)) { showSwipeHint = true }
-                Task {
-                    try? await Task.sleep(nanoseconds: 3_000_000_000)
-                    withAnimation(.easeOut(duration: 0.35)) { showSwipeHint = false }
-                }
-            }
         }
         .onChange(of: layoutData) { newValue in
             PlayerLayoutStore.save(newValue)
@@ -295,42 +276,6 @@ struct PlayerView: View {
         }
         .overlay(alignment: .bottom) {
             ToastView(center: ToastCenter.shared)
-        }
-    }
-
-    /// 首次进入播放器的切歌指引：上滑下一首 / 下滑上一首
-    private var swipeHintOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.32).ignoresSafeArea()
-            VStack(spacing: 22) {
-                VStack(spacing: 5) {
-                    Image(systemName: "chevron.up")
-                        .font(.system(size: 20, weight: .semibold))
-                    Text("上滑 切换下一首")
-                        .font(BeansFont.appFont(15, .semibold))
-                }
-                Divider().frame(width: 60).overlay(Color.white.opacity(0.45))
-                VStack(spacing: 5) {
-                    Image(systemName: "chevron.down")
-                        .font(.system(size: 20, weight: .semibold))
-                    Text("下滑 切换上一首")
-                        .font(BeansFont.appFont(15, .semibold))
-                }
-            }
-            .foregroundStyle(.white)
-            .padding(.horizontal, 38)
-            .padding(.vertical, 28)
-            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
-            .overlay(
-                RoundedRectangle(cornerRadius: 26, style: .continuous)
-                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
-            )
-            .shadow(radius: 12, y: 6)
-        }
-        .ignoresSafeArea()
-        .contentShape(Rectangle())
-        .onTapGesture {
-            withAnimation(.easeOut(duration: 0.3)) { showSwipeHint = false }
         }
     }
 
