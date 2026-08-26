@@ -36,8 +36,8 @@ enum ChangelogStore {
     /// 日志按新到旧排列；本次只保留当前版本说明
     static let logs: [VersionLog] = [
         VersionLog(
-            id: "1.6.5",
-            version: "1.6.5",
+            id: "1.4.5",
+            version: "1.4.5",
             title: "恢复灵动岛实时活动 + 修复 VIP 误判",
             features: [
                 "恢复播放时灵动岛 / 锁屏实时活动：显示歌名、歌手、封面与播放进度（需 iOS 16.1+），可在播放设置中开关",
