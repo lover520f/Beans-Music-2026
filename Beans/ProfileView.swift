@@ -17,7 +17,6 @@ struct ProfileView: View {
 
     @State private var showHistory = false
 
-    @State private var showSleepTimer = false
     /// 统一账号登录面板（网易云 + QQ 音乐整合）
     @State private var showAccountHub = false
     /// 设置页（外观 + 歌词翻译等）
@@ -148,10 +147,6 @@ struct ProfileView: View {
         }
         .sheet(isPresented: $showUsageGuide) {
             UsageGuideSheet()
-        }
-        .sheet(isPresented: $showSleepTimer) {
-            SleepTimerSheet()
-                .environmentObject(player)
         }
         .alert("检查更新", isPresented: $showUpdateResult, presenting: updateResult) { result in
             switch result {
@@ -388,12 +383,9 @@ struct ProfileView: View {
     private var featuresGrid: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "我的功能")
-            LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 12), count: 2), spacing: 12) {
+            VStack(spacing: 12) {
                 featureCell(icon: "clock.arrow.circlepath", title: "播放历史", subtitle: "最近播放 \(player.history.count) 首") {
                     showHistory = true
-                }
-                featureCell(icon: "moon.zzz.fill", title: "定时关闭", subtitle: "播放到点自动停止") {
-                    showSleepTimer = true
                 }
                 featureCell(icon: qqAuth.isLoggedIn || auth.isLoggedIn ? "checkmark.seal.fill" : "globe", title: "账号与登录", subtitle: qqAuth.isLoggedIn || auth.isLoggedIn ? accountStatusLine : "统一登录网易云 / QQ 音乐") {
                     BeansHaptics.tap()
@@ -838,7 +830,6 @@ struct SettingsView: View {
     @State private var showRestoreConfirm = false
     @State private var backupMessage: String?
     /// 日志
-    @ObservedObject private var logger = BeansLogger.shared
     @State private var showLogViewer = false
     @State private var showLogShare = false
     @State private var showLogImport = false
@@ -853,7 +844,7 @@ struct SettingsView: View {
             ZStack {
                 GlassBackdrop(customColor: theme.backgroundSyncAll ? theme.customBackground : nil)
                 ScrollView {
-                    VStack(alignment: .leading, spacing: 22) {
+                    LazyVStack(alignment: .leading, spacing: 22) {
                         appearanceSection
                         playbackSection
                         unblockSection
@@ -1472,7 +1463,9 @@ struct SettingsView: View {
             .foregroundStyle(Color.beansLabel)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 12)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 14, style: .continuous))
+            }
         }
         .buttonStyle(GlassPressButtonStyle(scale: 0.95))
     }
@@ -1618,7 +1611,7 @@ struct SettingsView: View {
                         showLogImport = true
                     }
                     logActionButton(icon: "trash", title: "清空日志") {
-                        logger.clear()
+                        BeansLogger.shared.clear()
                         ToastCenter.shared.show("日志已清空")
                     }
                 }
@@ -1644,7 +1637,9 @@ struct SettingsView: View {
             .foregroundStyle(Color.beansLabel)
             .frame(maxWidth: .infinity)
             .padding(.vertical, 11)
-            .background(.thinMaterial, in: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            .background {
+                BeansGlass(shape: RoundedRectangle(cornerRadius: 13, style: .continuous))
+            }
         }
         .buttonStyle(GlassPressButtonStyle(scale: 0.95))
     }

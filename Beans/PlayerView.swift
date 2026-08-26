@@ -1959,7 +1959,7 @@ struct PlayerSettingsSheet: View {
     var body: some View {
         BeansNavigationStack {
             ScrollView {
-                VStack(spacing: 14) {
+                LazyVStack(spacing: 14) {
                     playingCard
                     lyricDisplayCard
                     lyricEffectCard
