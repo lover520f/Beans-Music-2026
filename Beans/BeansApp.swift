@@ -13,6 +13,8 @@ struct BeansApp: App {
     init() {
         // 启动时重新注册用户上传的全局字体（覆盖安装后依然生效）
         FontManager.reinstallIfNeeded()
+        // 提升整体流畅度：保持高刷新率渲染
+        HighRefreshKeeper.shared.start()
     }
 
     var body: some Scene {

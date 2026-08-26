@@ -11,7 +11,7 @@ enum RootTab: String, CaseIterable, Identifiable {
 
     var title: String {
         switch self {
-        case .discover: return "发现"
+        case .discover: return "主页"
         case .search: return "搜索"
         case .library: return "音乐库"
         case .profile: return "我的"
@@ -20,7 +20,7 @@ enum RootTab: String, CaseIterable, Identifiable {
 
     var icon: String {
         switch self {
-        case .discover: return "sparkles"
+        case .discover: return "house.fill"
         case .search: return "magnifyingglass"
         case .library: return "music.note.list"
         case .profile: return "person.crop.circle"
@@ -57,7 +57,7 @@ struct RootView: View {
             // 因为系统 TabView 的内容层会盖住 RootView 底层的 ZStack 背景。
             TabView(selection: $selection) {
                 DiscoverView()
-                    .tabItem { Label("发现", systemImage: "sparkles") }
+                    .tabItem { Label("主页", systemImage: "house.fill") }
                     .tag(RootTab.discover)
                 SearchView()
                     .tabItem { Label("搜索", systemImage: "magnifyingglass") }

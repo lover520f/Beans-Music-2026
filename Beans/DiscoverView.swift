@@ -22,8 +22,13 @@ struct DiscoverView: View {
     private var availableSections: [String] {
         source == .qq ? Array(SectionOrderStore.homeDefaults.dropLast()) : SectionOrderStore.homeDefaults
     }
+    /// 首页数据源：记住上次选择，下次打开仍保持该平台（默认网易云）
+    @AppStorage("beans.homeSource") private var homeSourceRaw = SearchProvider.netease.rawValue
     /// 首页数据源：网易云 / QQ音乐（与搜索页同一控件样式）
-    @State private var source: SearchProvider = .netease
+    private var source: SearchProvider {
+        get { SearchProvider(rawValue: homeSourceRaw) ?? .netease }
+        set { homeSourceRaw = newValue.rawValue }
+    }
     @State private var qqTopLists: [QQTopInfo] = []
     @State private var selectedQQTopList: QQTopInfo?
     @State private var selectedQQPlaylist: Playlist?

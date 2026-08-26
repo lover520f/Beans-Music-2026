@@ -330,6 +330,7 @@ final class PlayerManager: NSObject, ObservableObject {
             let enableUnblock = defaults.object(forKey: "beans.enableUnblock") as? Bool ?? false
             let strictUnlock = shouldLockOfficialOnly(song)
             let quality = BeansAudioQuality.current
+            BeansLogger.shared.log("▶ 开始播放：\(song.name) - \(song.artists)｜平台=\(song.source.rawValue) id=\(song.id) 音质=\(quality.level) 免费听歌=\(enableUnblock ? "开" : "关") 官方受限=\(strictUnlock ? "是" : "否")", level: .info)
             if song.source == .qq, let mid = song.qqMid {
                 // VIP 歌曲：登录了 VIP/SVIP 账号时 vkey 可返回完整音轨（官方直链，优先使用）；
                 // 未登录或无会员时 vkey 只会返回试听片段，直接走网易云同名兜底（免费听 VIP）
@@ -366,7 +367,8 @@ final class PlayerManager: NSObject, ObservableObject {
                         BeansLogger.shared.log("播放失败：\(song.name) - 未找到原唱音源（官方受限），拒绝翻唱版本", level: .error)
                         ToastCenter.shared.show("《\(song.name)》未找到原唱音源（官方受限），已停止播放，拒绝翻唱版本")
                     } else {
-                        BeansLogger.shared.log("播放失败：\(song.name) - 无法解析播放地址", level: .error)
+                        let hint = resolvedThirdParty == nil ? "（第三方音源未命中）" : "（第三方音源尝试后无结果）"
+                        BeansLogger.shared.log("播放失败：\(song.name) - 无法解析播放地址\(hint)｜音质=\(quality.level) 免费听歌=\(enableUnblock ? "开" : "关")", level: .error)
                     }
                 }
                 return
@@ -389,6 +391,7 @@ final class PlayerManager: NSObject, ObservableObject {
             let fallback = try? await NetEaseAPI.shared.songURLInfo(ids: [song.id], level: "standard")
             info = fallback?[song.id]
         }
+        BeansLogger.shared.log("网易云解析：\(song.name) 音质=\(quality.level) 官方URL=\(info?.url == nil ? "无" : "有") 试听=\(info?.freeTrial == true ? "是" : "否")", level: .debug)
         // 试听片段 / 无 URL 一律不直接播放，交给第三方解锁，避免"只能试听"
         if let u = info?.url, info?.freeTrial != true {
             urlString = u
@@ -402,6 +405,7 @@ final class PlayerManager: NSObject, ObservableObject {
                 strict: strict
             )
         }
+        BeansLogger.shared.log("网易云结果：\(song.name) 官方=\(urlString != nil ? "是" : "否") 第三方=\(resolved != nil ? "命中" : "未用/未命中")", level: .debug)
         return (urlString, resolved)
     }
 
@@ -438,6 +442,7 @@ final class PlayerManager: NSObject, ObservableObject {
                 strict: strict
             )
         }
+        BeansLogger.shared.log("QQ兜底：\(song.name) 官方=\(urlString != nil ? "是" : "否") 第三方=\(resolved != nil ? "命中" : "未用/未命中")", level: .debug)
         return (urlString, resolved)
     }
 
@@ -476,6 +481,9 @@ final class PlayerManager: NSObject, ObservableObject {
 
 
     private func setupPlayer(url: URL) {
+        if let song = currentSong {
+            BeansLogger.shared.log("▶ 播放成功：\(song.name)｜域名=\(url.host ?? "?")", level: .info)
+        }
         configureAudioSession()
         removeCurrentObservers()
         let item = AVPlayerItem(url: url)
@@ -517,6 +525,7 @@ final class PlayerManager: NSObject, ObservableObject {
         failureObserver = NotificationCenter.default.addObserver(forName: .AVPlayerItemFailedToPlayToEndTime, object: item, queue: .main) { [weak self] _ in
             self?.loadFailed = true
             self?.isBuffering = false
+            BeansLogger.shared.log("播放中断：AVPlayerItem 播放失败（解码或网络错误）", level: .error)
         }
         updateNowPlaying()
     }

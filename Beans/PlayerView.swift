@@ -34,6 +34,9 @@ struct PlayerView: View {
     @State private var showArtistHome = false
     @State private var pickedArtistName = ""
     @State private var showArtistPicker = false
+    /// 首次进入播放器的切歌指引
+    @State private var showSwipeHint = false
+    @AppStorage("beans.swipeHintShown") private var swipeHintShown = false
     @AppStorage("beans.djVisual") private var djVisualEnabled = false
     @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
     @State private var dominantColor: RGBColor?
@@ -68,8 +71,8 @@ struct PlayerView: View {
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
     /// 圆形封面模式（播放器大封面 / 歌词页左上角小封面）
     @AppStorage("beans.circularCover") private var circularCover = true
-    /// 圆形封面自动旋转（默认关闭）
-    @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = false
+    /// 圆形封面自动旋转（默认开启）
+    @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = true
     /// 歌词自定义发光颜色（留空跟随当前行颜色 / 封面取色）
     @AppStorage("beans.lyricGlowColorRaw") private var lyricGlowColorRaw = ""
     /// 侧边滑动切歌（抖音式刷视频交互，默认开启）
@@ -211,12 +214,29 @@ struct PlayerView: View {
                         .padding(.top, 54)
                         .transition(.opacity)
                 }
+
+                // 首次进入播放器的切歌指引
+                if showSwipeHint {
+                    swipeHintOverlay
+                        .transition(.opacity)
+                        .zIndex(20)
+                }
             }
         }
         .task(id: song?.identityKey) {
             dominantColor = nil
             await loadLyrics()
             await extractCoverPalette()
+        }
+        .onAppear {
+            if !swipeHintShown {
+                swipeHintShown = true
+                withAnimation(.easeOut(duration: 0.25)) { showSwipeHint = true }
+                Task {
+                    try? await Task.sleep(nanoseconds: 3_000_000_000)
+                    withAnimation(.easeOut(duration: 0.35)) { showSwipeHint = false }
+                }
+            }
         }
         .onChange(of: layoutData) { newValue in
             PlayerLayoutStore.save(newValue)
@@ -275,6 +295,42 @@ struct PlayerView: View {
         }
         .overlay(alignment: .bottom) {
             ToastView(center: ToastCenter.shared)
+        }
+    }
+
+    /// 首次进入播放器的切歌指引：上滑下一首 / 下滑上一首
+    private var swipeHintOverlay: some View {
+        ZStack {
+            Color.black.opacity(0.32).ignoresSafeArea()
+            VStack(spacing: 22) {
+                VStack(spacing: 5) {
+                    Image(systemName: "chevron.up")
+                        .font(.system(size: 20, weight: .semibold))
+                    Text("上滑 切换下一首")
+                        .font(BeansFont.appFont(15, .semibold))
+                }
+                Divider().frame(width: 60).overlay(Color.white.opacity(0.45))
+                VStack(spacing: 5) {
+                    Image(systemName: "chevron.down")
+                        .font(.system(size: 20, weight: .semibold))
+                    Text("下滑 切换上一首")
+                        .font(BeansFont.appFont(15, .semibold))
+                }
+            }
+            .foregroundStyle(.white)
+            .padding(.horizontal, 38)
+            .padding(.vertical, 28)
+            .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 26, style: .continuous))
+            .overlay(
+                RoundedRectangle(cornerRadius: 26, style: .continuous)
+                    .strokeBorder(Color.white.opacity(0.16), lineWidth: 1)
+            )
+            .shadow(radius: 12, y: 6)
+        }
+        .ignoresSafeArea()
+        .contentShape(Rectangle())
+        .onTapGesture {
+            withAnimation(.easeOut(duration: 0.3)) { showSwipeHint = false }
         }
     }
 
@@ -1839,7 +1895,7 @@ struct PlayerSettingsSheet: View {
     @AppStorage("beans.lyricAnchorY") private var lyricAnchorY = 0.0
     @AppStorage("beans.deckGrabberEnabled") private var deckGrabberEnabled = true
     @AppStorage("beans.circularCover") private var circularCover = true
-    @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = false
+    @AppStorage("beans.circularCoverSpin") private var circularCoverSpin = true
     @AppStorage("beans.djVisual") private var djVisualEnabled = false
     @AppStorage("beans.djVisualIntensity") private var djVisualIntensity = 0.8
     @AppStorage("beans.lyricGlowColorRaw") private var glowColorRaw = ""

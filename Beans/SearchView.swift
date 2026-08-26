@@ -722,6 +722,8 @@ struct SearchView: View {
                     guard !Task.isCancelled else { return }
                     albumResults = albums
                 }
+                let count = resultType == .song ? songResults.count : (resultType == .artist ? artistResults.count : albumResults.count)
+                BeansLogger.shared.log("搜索完成：\(provider.rawValue) [\(resultType.rawValue)] \(trimmed) 结果=\(count)", level: .info)
             } catch {
                 guard !Task.isCancelled else { return }
                 errorMessage = error.localizedDescription

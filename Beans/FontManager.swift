@@ -5,9 +5,14 @@ import CoreText
 enum FontManager {
     static let storedFontNameKey = "beans.globalFont"
 
+    private static var cachedInstalledFontName: String? = UserDefaults.standard.string(forKey: storedFontNameKey)
+
     static var installedFontName: String? {
-        get { UserDefaults.standard.string(forKey: storedFontNameKey) }
-        set { UserDefaults.standard.set(newValue, forKey: storedFontNameKey) }
+        get { cachedInstalledFontName }
+        set {
+            cachedInstalledFontName = newValue
+            UserDefaults.standard.set(newValue, forKey: storedFontNameKey)
+        }
     }
 
     private static var fontsDirectory: URL {
