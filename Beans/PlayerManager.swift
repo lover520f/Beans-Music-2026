@@ -334,7 +334,7 @@ final class PlayerManager: NSObject, ObservableObject {
             if song.source == .qq, let mid = song.qqMid {
                 // VIP 歌曲：登录了 VIP/SVIP 账号时 vkey 可返回完整音轨（官方直链，优先使用）；
                 // 未登录或无会员时 vkey 只会返回试听片段，直接走网易云同名兜底（免费听 VIP）
-                if song.isVIP, QQMusicAuth.shared.isLoggedIn, QQMusicAuth.shared.vipBadge != nil {
+                if song.isVIP, QQMusicAuth.shared.isLoggedIn, (QQMusicAuth.shared.vipBadge != nil || strictUnlock) {
                     urlString = try? await QQMusicAPI.shared.songURL(songmid: mid)
                     if urlString == nil {
                         (urlString, resolvedThirdParty) = await qqFallback(song: song, quality: quality, enableUnblock: enableUnblock, strict: strictUnlock)
@@ -471,12 +471,13 @@ final class PlayerManager: NSObject, ObservableObject {
         }) { return hit }
         // 严格模式（周杰伦等版权歌手）：找不到原唱直接放弃，绝不返回翻唱
         if strict { return nil }
-        // 其次：仅时长接近
+        // 其次：仅时长接近（必须足够接近才用，避免张冠李戴）
         if let hit = results.min(by: { abs($0.duration - target) < abs($1.duration - target) }),
            abs(hit.duration - target) < 20 {
             return hit
         }
-        return results.first
+        // 找不到可靠匹配：宁可播放失败，也不播放错误歌曲
+        return nil
     }
 
 
