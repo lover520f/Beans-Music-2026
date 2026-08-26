@@ -16,10 +16,7 @@ struct ProfileView: View {
     @AppStorage("beans.themeMode") private var themeModeRaw = BeansThemeMode.system.rawValue
 
     @State private var showHistory = false
-    @State private var weekRecord: [PlayRecordItem] = []
-    @State private var allRecord: [PlayRecordItem] = []
 
-    @State private var showNetEaseRank = false
     @State private var showSleepTimer = false
     /// 统一账号登录面板（网易云 + QQ 音乐整合）
     @State private var showAccountHub = false
@@ -127,17 +124,11 @@ struct ProfileView: View {
             .beansScrollIndicatorsHidden()
         }
         .task(id: auth.isLoggedIn) {
-            await loadNetEaseRank()
             await auth.refreshAccount()
             await qqAuth.fetchVIPStatus()
         }
         .sheet(isPresented: $showHistory) {
             HistoryView()
-                .environmentObject(player)
-                .environmentObject(auth)
-        }
-        .sheet(isPresented: $showNetEaseRank) {
-            NetEaseRankSheet(week: weekRecord, all: allRecord)
                 .environmentObject(player)
                 .environmentObject(auth)
         }
@@ -401,13 +392,6 @@ struct ProfileView: View {
                 featureCell(icon: "clock.arrow.circlepath", title: "播放历史", subtitle: "最近播放 \(player.history.count) 首") {
                     showHistory = true
                 }
-                featureCell(icon: "chart.bar.fill", title: "历史听歌排行", subtitle: auth.isLoggedIn ? "网易云同步" : "登录后可用") {
-                    if auth.isLoggedIn {
-                        showNetEaseRank = true
-                    } else {
-                        ToastCenter.shared.show("请先登录网易云账号")
-                    }
-                }
                 featureCell(icon: "moon.zzz.fill", title: "定时关闭", subtitle: "播放到点自动停止") {
                     showSleepTimer = true
                 }
@@ -451,17 +435,6 @@ struct ProfileView: View {
         .buttonStyle(GlassPressButtonStyle(scale: 0.97))
     }
 
-    /// 加载网易云听歌排行（本周 + 所有时间）
-    private func loadNetEaseRank() async {
-        guard let user = auth.user, auth.isLoggedIn else { return }
-
-        async let w = try? NetEaseAPI.shared.playRecord(uid: user.uid, type: 1)
-        async let a = try? NetEaseAPI.shared.playRecord(uid: user.uid, type: 0)
-        let (wr, ar) = await (w, a)
-        weekRecord = wr?.items ?? []
-        allRecord = ar?.items ?? []
-
-    }
 
     /// 软件使用说明入口
     private var usageGuideCard: some View {
@@ -1315,7 +1288,7 @@ struct SettingsView: View {
                             Text("免费听歌")
                                 .font(BeansFont.appFont(15))
                                 .foregroundStyle(Color.beansLabel)
-                            Text("灰色 / VIP / 周杰伦等版权歌曲自动从第三方音源匹配播放（默认关闭，手动开启）")
+                            Text("可听部分VIP歌曲，并不保证百分百所有歌曲都可以听")
                                 .font(BeansFont.appFont(11))
                                 .foregroundStyle(Color.beansComment)
                         }
@@ -1345,27 +1318,6 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .tint(Color.beansAmber)
 
-                Divider().overlay(Color.beansComment.opacity(0.15))
-
-                Toggle(isOn: Binding(get: { player.liveActivityEnabled }, set: { player.liveActivityEnabled = $0 })) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "iphone")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color.beansAmber)
-                            .frame(width: 28)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("灵动岛实时活动")
-                                .font(BeansFont.appFont(15))
-                                .foregroundStyle(Color.beansLabel)
-                            Text("播放音频时在灵动岛 / 锁屏显示正在播放（需 iOS 16.1+）")
-                                .font(BeansFont.appFont(11))
-                                .foregroundStyle(Color.beansComment)
-                        }
-                    }
-                }
-                .toggleStyle(.switch)
-                .tint(Color.beansAmber)
-
             }
             .padding(16)
             .background {
@@ -1375,17 +1327,11 @@ struct SettingsView: View {
         }
     }
 
-    /// 第三方音源管理：内置源开关 + 导入自定义源
+    /// 第三方音源管理：用户导入的自定义源（可单独开启 / 关闭）
     private var unblockSection: some View {
         VStack(alignment: .leading, spacing: 12) {
             SectionHeader(title: "第三方音源")
             VStack(spacing: 10) {
-                unblockSourceToggle(id: "pyncmd", icon: "bolt.fill", title: "GD 音乐台", subtitle: "按网易云 ID 取高音质地址")
-                unblockSourceToggle(id: "kuwo", icon: "music.note", title: "酷我音源", subtitle: "酷我搜索 + 双直链兜底")
-                unblockSourceToggle(id: "bodian", icon: "waveform.badge.plus", title: "波点音源", subtitle: "波点签名取流（Splayer 解锁插件）")
-
-                Divider().overlay(Color.beansComment.opacity(0.15))
-
                 Button {
                     BeansHaptics.tap()
                     showSourceImport = true
@@ -1427,6 +1373,17 @@ struct SettingsView: View {
                                     .foregroundStyle(Color.beansComment)
                             }
                             Spacer()
+                            Toggle("", isOn: Binding(
+                                get: { source.enabled },
+                                set: { newValue in
+                                    if let idx = unblockStore.customSources.firstIndex(where: { $0.id == source.id }) {
+                                        unblockStore.customSources[idx].enabled = newValue
+                                    }
+                                    BeansHaptics.select()
+                                }
+                            ))
+                            .labelsHidden()
+                            .tint(Color.beansAmber)
                             Button(role: .destructive) {
                                 BeansHaptics.medium()
                                 unblockStore.remove(source)
@@ -1448,32 +1405,6 @@ struct SettingsView: View {
         }
     }
 
-    private func unblockSourceToggle(id: String, icon: String, title: String, subtitle: String) -> some View {
-        Toggle(isOn: Binding(
-            get: { unblockStore.isEnabled(id) },
-            set: {
-                unblockStore.setBuiltin(id, enabled: $0)
-                ToastCenter.shared.show("部分音源开关需重启 App 后完全生效")
-            }
-        )) {
-            HStack(spacing: 10) {
-                Image(systemName: icon)
-                    .font(.system(size: 13))
-                    .foregroundStyle(Color.beansAmber)
-                    .frame(width: 28)
-                VStack(alignment: .leading, spacing: 2) {
-                    Text(title)
-                        .font(BeansFont.appFont(14))
-                        .foregroundStyle(Color.beansLabel)
-                    Text(subtitle)
-                        .font(BeansFont.appFont(10))
-                        .foregroundStyle(Color.beansComment)
-                }
-            }
-        }
-        .toggleStyle(.switch)
-        .tint(Color.beansAmber)
-    }
 
     /// 更新日志入口
     private var changelogSection: some View {
@@ -1790,84 +1721,6 @@ struct SettingsView: View {
             .buttonStyle(.plain)
             .zIndex(2)
         }
-    }
-}
-
-// MARK: - 网易云听歌排行详情
-
-struct NetEaseRankSheet: View {
-    @EnvironmentObject private var player: PlayerManager
-    @Environment(\.dismiss) private var dismiss
-    let week: [PlayRecordItem]
-    let all: [PlayRecordItem]
-    @State private var tab = 0
-
-    var body: some View {
-        BeansNavigationStack {
-            VStack(spacing: 0) {
-                Picker("范围", selection: $tab) {
-                    Text("最近一周").tag(0)
-                    Text("所有时间").tag(1)
-                }
-                .pickerStyle(.segmented)
-                .padding(.horizontal, 16)
-                .padding(.vertical, 8)
-
-                let items = tab == 0 ? week : all
-                if items.isEmpty {
-                    EmptyStateView(icon: "chart.bar", text: "暂无播放记录")
-                } else {
-                    List {
-                        ForEach(Array(items.enumerated()), id: \.element.id) { index, item in
-                            Button {
-                                BeansHaptics.tap()
-                                player.play(songs: items.map(\.song), startAt: index)
-                            } label: {
-                                HStack(spacing: 12) {
-                                    Text("\(index + 1)")
-                                        .font(BeansFont.appFont(13, .bold, .rounded))
-                                        .foregroundStyle(index < 3 ? Color.beansAmber : Color.beansComment)
-                                        .frame(width: 24)
-                                    VStack(alignment: .leading, spacing: 2) {
-                                        Text(item.song.name)
-                                            .font(BeansFont.appFont(15))
-                                            .foregroundStyle(Color.beansLabel)
-                                            .lineLimit(1)
-                                        Text(item.song.artists)
-                                            .font(BeansFont.appFont(12))
-                                            .foregroundStyle(Color.beansComment)
-                                            .lineLimit(1)
-                                    }
-                                    Spacer()
-                                    Text("\(item.playCount) 次")
-                                        .font(BeansFont.appFont(12, .regular, .monospaced))
-                                        .foregroundStyle(Color.beansComment)
-                                }
-                                .padding(.horizontal, 12)
-                                .padding(.vertical, 8)
-                                .contentShape(Rectangle())
-                                .background {
-                                                                        BeansGlass(shape: RoundedRectangle(cornerRadius: 16, style: .continuous))
-                                }
-                            }
-                            .listRowBackground(Color.clear)
-                            .listRowSeparator(.hidden)
-                        }
-                    }
-                    .beansScrollContentBackgroundHidden()
-                    .listStyle(.plain)
-                    .background(LinearGradient.beansBackdrop)
-                }
-            }
-            .navigationTitle("听歌排行")
-            .navigationBarTitleDisplayMode(.inline)
-            .toolbar {
-                ToolbarItem(placement: .confirmationAction) {
-                    Button("完成") { dismiss() }
-                }
-            }
-        }
-        .modifier(BeansSheetModifier(detents: [.medium, .large], dragIndicator: true))
     }
 }
 

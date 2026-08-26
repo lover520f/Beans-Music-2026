@@ -20,45 +20,6 @@ struct ThirdPartySourceImportSheet: View {
                     .foregroundStyle(Color.beansLabel)
                 HStack(spacing: 8) {
                     Button {
-                        jsonText = #"""
-                        {
-                          "name": "落雪音乐源",
-                          "kind": "lx",
-                          "template": "https://你的服务器地址",
-                          "urlPath": "url",
-                          "headers": { "source": "kg", "br": "320" }
-                        }
-                        """#
-                        errorMessage = nil
-                    } label: {
-                        Text("落雪音乐源" + (jsonText.contains("\"kind\": \"lx\"") ? " ✓" : ""))
-                            .font(BeansFont.appFont(12, .semibold))
-                            .foregroundStyle(jsonText.contains("\"kind\": \"lx\"") ? Color.beansAmber : Color.beansLabel)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(Capsule().fill(Color.beansGlassFill))
-                    }
-                    .buttonStyle(.plain)
-                    Button {
-                        jsonText = #"""
-                        {
-                          "name": "我的音源",
-                          "kind": "keyword",
-                          "template": "https://api.example.com/music?keyword={keyword}",
-                          "urlPath": "data.url"
-                        }
-                        """#
-                        errorMessage = nil
-                    } label: {
-                        Text("通用音源示例")
-                            .font(BeansFont.appFont(12, .semibold))
-                            .foregroundStyle(Color.beansLabel)
-                            .padding(.horizontal, 12)
-                            .padding(.vertical, 7)
-                            .background(Capsule().fill(Color.beansGlassFill))
-                    }
-                    .buttonStyle(.plain)
-                    Button {
                         BeansHaptics.tap()
                         showFilePicker = true
                     } label: {

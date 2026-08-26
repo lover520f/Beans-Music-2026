@@ -2053,9 +2053,6 @@ struct PlayerSettingsSheet: View {
             Divider().opacity(0.5)
             settingToggle("与其他音频同时播放", isOn: Binding(get: { player.mixesWithOthers }, set: { player.mixesWithOthers = $0 }),
                           caption: "开启：打开其他音频软件也能继续播放；关闭：其他音频开始播放时自动暂停")
-            Divider().opacity(0.5)
-            settingToggle("灵动岛实时活动", isOn: Binding(get: { player.liveActivityEnabled }, set: { player.liveActivityEnabled = $0 }),
-                          caption: "播放音频时在灵动岛 / 锁屏显示正在播放（需 iOS 16.1+）")
         }
     }
 
