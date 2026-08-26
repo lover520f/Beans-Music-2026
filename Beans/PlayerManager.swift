@@ -1,7 +1,6 @@
 import AVFoundation
 import MediaPlayer
 import SwiftUI
-import ActivityKit
 
 enum PlayMode: String, CaseIterable, Identifiable {
     case sequential
@@ -54,15 +53,10 @@ final class PlayerManager: NSObject, ObservableObject {
     private var sleepTimer: Timer?
     private var lastCountedSongID: String?
     private var wasPlayingBeforeInterruption = false
-    /// 灵动岛实时活动引用（Any 以兼容 iOS 16.1 以下编译）
-    private var liveActivity: Any?
-    /// 灵动岛节流：每 15s 最多同步一次进度，避免高频刷新
-    private var lastLiveActivitySync: Date?
 
     private let historyKey = "beans.history"
     private let countsKey = "beans.playcounts"
     private let audioMixKey = "beans.audio.mixothers.v1"
-    private let liveActivityKey = "beans.liveActivity"
     private let defaults = UserDefaults.standard
 
     var currentSong: Song? {
@@ -485,11 +479,6 @@ final class PlayerManager: NSObject, ObservableObject {
             if let itemDuration = player.currentItem?.duration, itemDuration.isNumeric {
                 self.duration = itemDuration.seconds
             }
-            // 灵动岛进度节流同步（每 15s）
-            if self.lastLiveActivitySync == nil || Date().timeIntervalSince(self.lastLiveActivitySync!) >= 15 {
-                self.lastLiveActivitySync = Date()
-                self.syncLiveActivity()
-            }
             if let item = player.currentItem {
                 let waiting = player.timeControlStatus == .waitingToPlayAtSpecifiedRate
                 if waiting != self.isBuffering {
@@ -641,7 +630,6 @@ final class PlayerManager: NSObject, ObservableObject {
                 }
             }
         }
-        syncLiveActivity()
     }
 
     private func setupRemoteCommands() {
@@ -687,57 +675,6 @@ final class PlayerManager: NSObject, ObservableObject {
             sessionConfigured = false
             configureAudioSession()
         }
-    }
-
-    /// 灵动岛实时活动开关（默认开启，iOS 16.1+ 生效）
-    var liveActivityEnabled: Bool {
-        get { defaults.object(forKey: liveActivityKey) as? Bool ?? true }
-        set {
-            defaults.set(newValue, forKey: liveActivityKey)
-            if newValue { syncLiveActivity() } else { endLiveActivity() }
-        }
-    }
-
-    /// 播放状态变化时同步灵动岛（切歌 / 播放 / 暂停 / 进度）
-    func syncLiveActivity() {
-        guard #available(iOS 16.1, *) else { return }
-        guard liveActivityEnabled, let song = currentSong else {
-            endLiveActivity()
-            return
-        }
-        let state = NowPlayingAttributes.ContentState(
-            songName: song.name,
-            artist: song.artists,
-            coverURL: song.coverURL?.absoluteString,
-            isPlaying: isPlaying,
-            progress: progress,
-            duration: max(duration, song.duration)
-        )
-        if let activity = liveActivity as? Activity<NowPlayingAttributes> {
-            Task { await activity.update(using: state) }
-        } else {
-            do {
-                let activity = try Activity<NowPlayingAttributes>.request(
-                    attributes: NowPlayingAttributes(),
-                    contentState: state,
-                    pushType: nil
-                )
-                liveActivity = activity
-            } catch {
-                BeansLogger.shared.log("灵动岛启动失败：\(error)", level: .error)
-            }
-        }
-    }
-
-    /// 结束灵动岛实时活动（结束所有当前活动的正在播放，避免进程重启后引用丢失导致关不掉）
-    func endLiveActivity() {
-        guard #available(iOS 16.1, *) else { return }
-        let fallbackState = (liveActivity as? Activity<NowPlayingAttributes>)?.contentState
-        for activity in Activity<NowPlayingAttributes>.activities {
-            let state = fallbackState ?? activity.contentState
-            Task { await activity.end(using: state, dismissalPolicy: .immediate) }
-        }
-        liveActivity = nil
     }
 
 }
