@@ -1297,6 +1297,27 @@ struct SettingsView: View {
                 .toggleStyle(.switch)
                 .tint(Color.beansAmber)
 
+                Divider().overlay(Color.beansComment.opacity(0.15))
+
+                Toggle(isOn: Binding(get: { player.liveActivityEnabled }, set: { player.liveActivityEnabled = $0 })) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "iphone")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("灵动岛实时活动")
+                                .font(BeansFont.appFont(15))
+                                .foregroundStyle(Color.beansLabel)
+                            Text("播放音频时在灵动岛 / 锁屏显示正在播放（需 iOS 16.1+）")
+                                .font(BeansFont.appFont(11))
+                                .foregroundStyle(Color.beansComment)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .tint(Color.beansAmber)
+
             }
             .padding(16)
             .background {
