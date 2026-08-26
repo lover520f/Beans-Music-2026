@@ -48,6 +48,8 @@ targets:
     sources:
       - path: BeansWidget
       - path: Beans/NowPlayingActivity.swift
+    info:
+      path: BeansWidget/Info.plist
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.beans.app.widget
@@ -55,8 +57,7 @@ targets:
         CURRENT_PROJECT_VERSION: "53"
         TARGETED_DEVICE_FAMILY: "1"
         SWIFT_VERSION: "5.0"
-        GENERATE_INFOPLIST_FILE: YES
-        INFOPLIST_KEY_CFBundleDisplayName: Beans Music
+        APPLICATION_EXTENSION_API_ONLY: YES
 
 schemes:
   Beans:
