@@ -34,7 +34,7 @@ jobs:
               content = f.read()
           def bump_build(m):
               return 'CURRENT_PROJECT_VERSION: "' + str(int(m.group(1)) + 1) + '"'
-          content, n2 = re.subn(r'CURRENT_PROJECT_VERSION:\s*"(\d+)"', bump_build, content, count=1)
+          content, n2 = re.subn(r'CURRENT_PROJECT_VERSION:\s*"(\d+)"', bump_build, content)
           with open(path, 'w') as f:
               f.write(content)
           ver = re.search(r'MARKETING_VERSION:\s*"([^"]+)"', content).group(1)
@@ -42,6 +42,8 @@ jobs:
           print('::notice title=Version::Building %s (build %s)' % (ver, build))
           with open('version.txt', 'w') as f:
               f.write(ver)
+          with open('build.txt', 'w') as f:
+              f.write(build)
           PYEOF
 
       - name: Generate Xcode project
@@ -49,8 +51,8 @@ jobs:
 
       - name: Build (unsigned)
         run: |
-          VER=$(grep -oE 'MARKETING_VERSION: "[^"]+"' project.yml | sed -E 's/.*"([^"]+)"/\1/')
-          BUILD=$(grep -oE 'CURRENT_PROJECT_VERSION: "[0-9]+"' project.yml | sed -E 's/.*"([0-9]+)"/\1/')
+          VER=$(cat version.txt)
+          BUILD=$(cat build.txt)
           echo "Building with MARKETING_VERSION=$VER CURRENT_PROJECT_VERSION=$BUILD"
           echo "BUILD_NUMBER=$BUILD" >> "$GITHUB_ENV"
           echo "VERSION_LABEL=$VER" >> "$GITHUB_ENV"
