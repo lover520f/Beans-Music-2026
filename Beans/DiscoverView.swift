@@ -26,8 +26,7 @@ struct DiscoverView: View {
     @AppStorage("beans.homeSource") private var homeSourceRaw = SearchProvider.netease.rawValue
     /// 首页数据源：网易云 / QQ音乐（与搜索页同一控件样式）
     private var source: SearchProvider {
-        get { SearchProvider(rawValue: homeSourceRaw) ?? .netease }
-        set { homeSourceRaw = newValue.rawValue }
+        SearchProvider(rawValue: homeSourceRaw) ?? .netease
     }
     @State private var qqTopLists: [QQTopInfo] = []
     @State private var selectedQQTopList: QQTopInfo?
@@ -158,7 +157,7 @@ struct DiscoverView: View {
             ForEach(SearchProvider.allCases) { p in
                 Button {
                     BeansHaptics.tap()
-                    if source != p { source = p }
+                    if source != p { homeSourceRaw = p.rawValue }
                 } label: {
                     HStack(spacing: 6) {
                         Image(systemName: p.icon)
