@@ -423,7 +423,7 @@ final class PlayerManager: NSObject, ObservableObject {
             // 免费完整 URL 直接用；试听片段 / 无 URL 交给第三方解锁
             if let u = info?.url, info?.freeTrial != true {
                 urlString = u
-            } else if enableUnblock {
+            } else if enableUnblock || strict {
                 resolved = await UnblockService.resolve(
                     name: matched.name,
                     artists: matched.artists,
@@ -433,7 +433,7 @@ final class PlayerManager: NSObject, ObservableObject {
                 )
             }
         }
-        if urlString == nil, resolved == nil, enableUnblock {
+        if urlString == nil, resolved == nil, (enableUnblock || strict) {
             resolved = await UnblockService.resolve(
                 name: song.name,
                 artists: song.artists,
