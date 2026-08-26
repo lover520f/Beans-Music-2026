@@ -50,6 +50,14 @@ targets:
       - path: Beans/NowPlayingActivity.swift
     info:
       path: BeansWidget/Info.plist
+      properties:
+        CFBundleDisplayName: Beans Music
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+        NSExtension:
+          NSExtensionPointIdentifier: com.apple.widgetkit-extension
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.beans.app.widget
