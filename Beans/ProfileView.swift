@@ -811,17 +811,12 @@ struct SettingsView: View {
     @AppStorage("beans.themeMode") private var themeModeRaw = BeansThemeMode.system.rawValue
     /// 音质等级（借鉴 Kumone）
     @AppStorage("beans.audioQuality") private var audioQualityRaw = BeansAudioQuality.exhigh.rawValue
-    /// 免费听歌 / 灰色歌曲解锁总开关（默认关闭，用户手动开启）
-    @AppStorage("beans.enableUnblock") private var enableUnblock = false
     /// 底栏是否显示文字（关闭后只显示图标）
     @AppStorage("beans.tabLabelsVisible") private var tabLabelsVisible = true
 
     @State private var appearanceExpanded = false
     @State private var showWallpaperPicker = false
     @State private var showFontImporter = false
-    /// 第三方音源管理
-    @ObservedObject private var unblockStore = UnblockSourceStore.shared
-    @State private var showSourceImport = false
     /// 更新日志
     @State private var showChangelog = false
     /// 配置备份与恢复
@@ -849,7 +844,6 @@ struct SettingsView: View {
                     LazyVStack(alignment: .leading, spacing: 22) {
                         appearanceSection
                         playbackSection
-                        unblockSection
                         changelogSection
                         backupSection
                         logSection
@@ -875,10 +869,6 @@ struct SettingsView: View {
                 BeansHaptics.success()
             }
             .ignoresSafeArea()
-        }
-        .sheet(isPresented: $showSourceImport) {
-            ThirdPartySourceImportSheet()
-                .environmentObject(theme)
         }
         .fullScreenCover(isPresented: $showFontImporter) {
             FontDocumentPicker { url in
@@ -1288,27 +1278,6 @@ struct SettingsView: View {
 
                 Divider().overlay(Color.beansComment.opacity(0.15))
 
-                Toggle(isOn: $enableUnblock) {
-                    HStack(spacing: 12) {
-                        Image(systemName: "wand.and.stars")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color.beansAmber)
-                            .frame(width: 28)
-                        VStack(alignment: .leading, spacing: 2) {
-                            Text("免费听歌")
-                                .font(BeansFont.appFont(15))
-                                .foregroundStyle(Color.beansLabel)
-                            Text("可听部分VIP歌曲，并不保证百分百所有歌曲都可以听")
-                                .font(BeansFont.appFont(11))
-                                .foregroundStyle(Color.beansComment)
-                        }
-                    }
-                }
-                .toggleStyle(.switch)
-                .tint(Color.beansAmber)
-
-                Divider().overlay(Color.beansComment.opacity(0.15))
-
                 Toggle(isOn: Binding(get: { player.mixesWithOthers }, set: { player.mixesWithOthers = $0 })) {
                     HStack(spacing: 12) {
                         Image(systemName: "speaker.wave.2.fill")
@@ -1336,85 +1305,6 @@ struct SettingsView: View {
             .beansCardShadow(radius: 9, y: 3)
         }
     }
-
-    /// 第三方音源管理：用户导入的自定义源（可单独开启 / 关闭）
-    private var unblockSection: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            SectionHeader(title: "第三方音源")
-            VStack(spacing: 10) {
-                Button {
-                    BeansHaptics.tap()
-                    showSourceImport = true
-                } label: {
-                    HStack(spacing: 10) {
-                        Image(systemName: "square.and.arrow.down")
-                            .font(.system(size: 14))
-                            .foregroundStyle(Color.beansAmber)
-                            .frame(width: 28)
-                        Text("导入第三方源")
-                            .font(BeansFont.appFont(15))
-                            .foregroundStyle(Color.beansLabel)
-                        Spacer()
-                        Image(systemName: "chevron.right")
-                            .font(.system(size: 11, weight: .semibold))
-                            .foregroundStyle(Color.beansComment.opacity(0.6))
-                    }
-                }
-                .buttonStyle(.plain)
-
-                if unblockStore.customSources.isEmpty {
-                    Text("尚未导入自定义音源（JSON 配置：请求模板 + 播放地址字段路径）")
-                        .font(BeansFont.appFont(11))
-                        .foregroundStyle(Color.beansComment)
-                } else {
-                    ForEach(unblockStore.customSources) { source in
-                        HStack(spacing: 10) {
-                            Image(systemName: "externaldrive.fill")
-                                .font(.system(size: 12))
-                                .foregroundStyle(Color.beansAmber)
-                                .frame(width: 28)
-                            VStack(alignment: .leading, spacing: 2) {
-                                Text(source.name)
-                                    .font(BeansFont.appFont(14, .semibold))
-                                    .foregroundStyle(Color.beansLabel)
-                                    .lineLimit(1)
-                                Text(source.kind == "netease-id" ? "按网易云 ID 查询" : "关键词查询")
-                                    .font(BeansFont.appFont(10))
-                                    .foregroundStyle(Color.beansComment)
-                            }
-                            Spacer()
-                            Toggle("", isOn: Binding(
-                                get: { source.enabled },
-                                set: { newValue in
-                                    if let idx = unblockStore.customSources.firstIndex(where: { $0.id == source.id }) {
-                                        unblockStore.customSources[idx].enabled = newValue
-                                    }
-                                    BeansHaptics.select()
-                                }
-                            ))
-                            .labelsHidden()
-                            .tint(Color.beansAmber)
-                            Button(role: .destructive) {
-                                BeansHaptics.medium()
-                                unblockStore.remove(source)
-                            } label: {
-                                Image(systemName: "trash")
-                                    .font(.system(size: 13))
-                                    .foregroundStyle(.red)
-                            }
-                            .buttonStyle(.plain)
-                        }
-                    }
-                }
-            }
-            .padding(16)
-            .background {
-                BeansGlass(shape: RoundedRectangle(cornerRadius: 22, style: .continuous))
-            }
-            .beansCardShadow(radius: 9, y: 3)
-        }
-    }
-
 
     /// 更新日志入口
     private var changelogSection: some View {

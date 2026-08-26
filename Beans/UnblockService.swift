@@ -35,8 +35,6 @@ enum UnblockService {
             .joined(separator: " ")
             .trimmingCharacters(in: .whitespacesAndNewlines)
         guard !keyword.isEmpty else { return nil }
-        // 内置咪咕音源：咪咕拥有周杰伦等版权歌，官方 CDN 直链，无需导入即可使用
-        if let r = await migu(name: name, artists: artists, strict: strict) { return r }
         let store = UnblockSourceStore.shared
         // 用户导入的自定义源（按导入顺序；kind == "lx" 走落雪 API 服务器）
         for source in store.customSources where source.enabled {
@@ -119,51 +117,6 @@ enum UnblockService {
             current = next
         }
         return current
-    }
-
-    /// 内置咪咕音源：搜索式接口，返回咪咕官方 CDN 直链（咪咕拥有周杰伦等版权歌）
-    /// 严格模式下校验歌名+歌手，避免误配翻唱
-    private static func migu(name: String, artists: String, strict: Bool) async -> Resolved? {
-        let keyword = ([name, artists].filter { !$0.isEmpty })
-            .joined(separator: " ")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-        guard !keyword.isEmpty,
-              let enc = keyword.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed),
-              let url = URL(string: "https://api.xcvts.cn/api/music/migu?gm=\(enc)&n=1&num=1&type=json"),
-              let data = await get(url),
-              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              (obj["code"] as? Int) == 200,
-              let musicURL = obj["music_url"] as? String, !musicURL.isEmpty,
-              let playURL = URL(string: musicURL) else { return nil }
-        if strict {
-            let title = obj["title"] as? String ?? ""
-            let singer = obj["singer"] as? String ?? ""
-            if !matchTitle(title, name) || !matchArtist(singer, artists) { return nil }
-        }
-        return Resolved(url: playURL, source: "咪咕")
-    }
-
-    private static func normalize(_ string: String) -> String {
-        string.lowercased()
-            .replacingOccurrences(of: "（", with: "")
-            .replacingOccurrences(of: "）", with: "")
-            .replacingOccurrences(of: "(", with: "")
-            .replacingOccurrences(of: ")", with: "")
-            .replacingOccurrences(of: " ", with: "")
-            .replacingOccurrences(of: "-", with: "")
-            .replacingOccurrences(of: "·", with: "")
-    }
-
-    private static func matchTitle(_ apiTitle: String, _ expect: String) -> Bool {
-        let a = normalize(apiTitle), b = normalize(expect)
-        guard !a.isEmpty, !b.isEmpty else { return true }
-        return a.contains(b) || b.contains(a)
-    }
-
-    private static func matchArtist(_ apiSinger: String, _ expect: String) -> Bool {
-        let a = normalize(apiSinger), b = normalize(expect)
-        guard !a.isEmpty, !b.isEmpty else { return true }
-        return a.contains(b) || b.contains(a)
     }
 
     private static func urlEncoded(_ string: String) -> String {

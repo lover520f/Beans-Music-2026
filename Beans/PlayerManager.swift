@@ -396,15 +396,6 @@ final class PlayerManager: NSObject, ObservableObject {
         if let u = info?.url, info?.freeTrial != true {
             urlString = u
         }
-        if urlString == nil, enableUnblock {
-            resolved = await UnblockService.resolve(
-                name: song.name,
-                artists: song.artists,
-                durationMS: Int(song.duration * 1000),
-                neteaseID: song.id,
-                strict: strict
-            )
-        }
         BeansLogger.shared.log("网易云结果：\(song.name) 官方=\(urlString != nil ? "是" : "否") 第三方=\(resolved != nil ? "命中" : "未用/未命中")", level: .debug)
         return (urlString, resolved)
     }
@@ -423,24 +414,7 @@ final class PlayerManager: NSObject, ObservableObject {
             // 免费完整 URL 直接用；试听片段 / 无 URL 交给第三方解锁
             if let u = info?.url, info?.freeTrial != true {
                 urlString = u
-            } else if enableUnblock || strict {
-                resolved = await UnblockService.resolve(
-                    name: matched.name,
-                    artists: matched.artists,
-                    durationMS: Int(matched.duration * 1000),
-                    neteaseID: matched.id,
-                    strict: strict
-                )
             }
-        }
-        if urlString == nil, resolved == nil, (enableUnblock || strict) {
-            resolved = await UnblockService.resolve(
-                name: song.name,
-                artists: song.artists,
-                durationMS: Int(song.duration * 1000),
-                neteaseID: 0,
-                strict: strict
-            )
         }
         BeansLogger.shared.log("QQ兜底：\(song.name) 官方=\(urlString != nil ? "是" : "否") 第三方=\(resolved != nil ? "命中" : "未用/未命中")", level: .debug)
         return (urlString, resolved)
