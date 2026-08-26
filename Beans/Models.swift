@@ -70,8 +70,15 @@ struct Song: Identifiable, Hashable, Codable {
     }
 
     /// 是否为 VIP / 付费歌曲（用于列表与播放器角标）
+    /// 网易云 fee：0 免费、1 VIP、4 付费单曲；8 为翻唱/免费资源，不视为 VIP
+    /// QQ 音乐 payplay：0 免费，非 0 需要会员/付费
     var isVIP: Bool {
-        fee != 0
+        switch source {
+        case .netease:
+            return fee == 1 || fee == 4
+        case .qq:
+            return fee != 0
+        }
     }
 
     init(id: Int, name: String, artists: String, album: String, coverURL: URL?, duration: TimeInterval, source: SongSource = .netease, qqMid: String? = nil, fee: Int = 0) {
