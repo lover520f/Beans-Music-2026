@@ -13,6 +13,8 @@ targets:
     type: application
     platform: iOS
     sources: [Beans]
+    dependencies:
+      - target: BeansWidget
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.beans.app
@@ -37,12 +39,31 @@ targets:
         LSSupportsOpeningDocumentsInPlace: true
         NSAppTransportSecurity:
           NSAllowsArbitraryLoads: true
+        NSSupportsLiveActivities: true
+        NSSupportsLiveActivitiesFrequentUpdates: true
+
+  BeansWidget:
+    type: app-extension
+    platform: iOS
+    sources:
+      - path: BeansWidget
+      - path: Beans/NowPlayingActivity.swift
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.beans.app.widget
+        MARKETING_VERSION: "1.4"
+        CURRENT_PROJECT_VERSION: "53"
+        TARGETED_DEVICE_FAMILY: "1"
+        SWIFT_VERSION: "5.0"
+        GENERATE_INFOPLIST_FILE: YES
+        INFOPLIST_KEY_CFBundleDisplayName: Beans Music
 
 schemes:
   Beans:
     build:
       targets:
         Beans: all
+        BeansWidget: all
     run:
       config: Debug
     archive:

@@ -17,6 +17,11 @@ struct DiscoverView: View {
     @State private var showSectionSort = false
     /// 主页板块顺序（每日推荐 / 排行榜 / 歌单广场，可自定义）
     @State private var homeOrder = SectionOrderStore.load(SectionOrderStore.homeKey, defaults: SectionOrderStore.homeDefaults)
+
+    /// 当前平台可排序的板块：QQ 音乐没有「歌单广场」，仅网易云保留
+    private var availableSections: [String] {
+        source == .qq ? Array(SectionOrderStore.homeDefaults.dropLast()) : SectionOrderStore.homeDefaults
+    }
     /// 首页数据源：网易云 / QQ音乐（与搜索页同一控件样式）
     @State private var source: SearchProvider = .netease
     @State private var qqTopLists: [QQTopInfo] = []
@@ -51,7 +56,7 @@ struct DiscoverView: View {
                         LoadingStateView()
                     } else {
                         // 板块按用户自定义顺序渲染（可拖拽排序）
-                        ForEach(homeOrder, id: \.self) { key in
+                        ForEach(homeOrder.filter { availableSections.contains($0) }, id: \.self) { key in
                             switch key {
                             case "每日推荐":
                                 if !dailySongs.isEmpty { dailySection.sectionEntrance(delay: 0) }
@@ -73,6 +78,9 @@ struct DiscoverView: View {
             .beansScrollIndicatorsHidden()
             .refreshable { await load(force: true) }
             .task(id: source) { await load(force: false) }
+            .onChange(of: source) { _ in
+                homeOrder = SectionOrderStore.load(SectionOrderStore.homeKey, defaults: availableSections)
+            }
             .onChange(of: disclaimerAccepted) { accepted in
                 // 免责声明确认进入后：若首页加载失败则自动刷新（无需手动下拉）
                 if accepted, errorMessage != nil {
@@ -105,7 +113,7 @@ struct DiscoverView: View {
                     .environmentObject(auth)
             }
             .sheet(isPresented: $showSectionSort) {
-                SectionOrderSheet(title: "主页板块排序", sections: SectionOrderStore.homeDefaults, order: $homeOrder)
+                SectionOrderSheet(title: "主页板块排序", sections: availableSections, order: $homeOrder)
                     .onDisappear { SectionOrderStore.save(SectionOrderStore.homeKey, homeOrder) }
             }
         }

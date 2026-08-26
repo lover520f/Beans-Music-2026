@@ -149,6 +149,7 @@ struct ProfileView: View {
         .sheet(isPresented: $showSettings) {
             SettingsView()
                 .environmentObject(theme)
+                .environmentObject(player)
         }
         .sheet(isPresented: $showSectionSort) {
             SectionOrderSheet(title: "我的板块排序", sections: SectionOrderStore.profileDefaults, order: $profileOrder)
@@ -840,6 +841,7 @@ struct AccountHubSheet: View {
 
 struct SettingsView: View {
     @EnvironmentObject private var theme: ThemeStore
+    @EnvironmentObject private var player: PlayerManager
     @Environment(\.dismiss) private var dismiss
     @AppStorage("beans.themeMode") private var themeModeRaw = BeansThemeMode.system.rawValue
     /// 音质等级（借鉴 Kumone）
@@ -1314,6 +1316,48 @@ struct SettingsView: View {
                                 .font(BeansFont.appFont(15))
                                 .foregroundStyle(Color.beansLabel)
                             Text("灰色 / VIP / 周杰伦等版权歌曲自动从第三方音源匹配播放（默认关闭，手动开启）")
+                                .font(BeansFont.appFont(11))
+                                .foregroundStyle(Color.beansComment)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .tint(Color.beansAmber)
+
+                Divider().overlay(Color.beansComment.opacity(0.15))
+
+                Toggle(isOn: Binding(get: { player.mixesWithOthers }, set: { player.mixesWithOthers = $0 })) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "speaker.wave.2.fill")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("与其他音频同时播放")
+                                .font(BeansFont.appFont(15))
+                                .foregroundStyle(Color.beansLabel)
+                            Text("开启：播放音乐时打开其他音频软件也能继续播放；关闭：其他音频开始播放时自动暂停")
+                                .font(BeansFont.appFont(11))
+                                .foregroundStyle(Color.beansComment)
+                        }
+                    }
+                }
+                .toggleStyle(.switch)
+                .tint(Color.beansAmber)
+
+                Divider().overlay(Color.beansComment.opacity(0.15))
+
+                Toggle(isOn: Binding(get: { player.liveActivityEnabled }, set: { player.liveActivityEnabled = $0 })) {
+                    HStack(spacing: 12) {
+                        Image(systemName: "iphone")
+                            .font(.system(size: 14))
+                            .foregroundStyle(Color.beansAmber)
+                            .frame(width: 28)
+                        VStack(alignment: .leading, spacing: 2) {
+                            Text("灵动岛实时活动")
+                                .font(BeansFont.appFont(15))
+                                .foregroundStyle(Color.beansLabel)
+                            Text("播放音频时在灵动岛 / 锁屏显示正在播放（需 iOS 16.1+）")
                                 .font(BeansFont.appFont(11))
                                 .foregroundStyle(Color.beansComment)
                         }
