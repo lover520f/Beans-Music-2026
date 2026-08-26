@@ -39,6 +39,8 @@ struct RootView: View {
     @State private var showPlayer = false
     /// 免责声明确认状态（门禁在 BeansApp 中，这里用于确认后弹出更新说明）
     @AppStorage("beans.disclaimerAccepted") private var disclaimerAccepted = false
+    /// 底栏是否显示文字（关闭后只显示图标）
+    @AppStorage("beans.tabLabelsVisible") private var tabLabelsVisible = true
     /// 版本更新说明弹窗
     @State private var showWhatsNew = false
     /// 自动检测更新结果
@@ -57,16 +59,16 @@ struct RootView: View {
             // 因为系统 TabView 的内容层会盖住 RootView 底层的 ZStack 背景。
             TabView(selection: $selection) {
                 DiscoverView()
-                    .tabItem { Label("主页", systemImage: "house.fill") }
+                    .tabItem { Label(tabLabelsVisible ? "主页" : "", systemImage: "house.fill") }
                     .tag(RootTab.discover)
                 SearchView()
-                    .tabItem { Label("搜索", systemImage: "magnifyingglass") }
+                    .tabItem { Label(tabLabelsVisible ? "搜索" : "", systemImage: "magnifyingglass") }
                     .tag(RootTab.search)
                 LibraryView()
-                    .tabItem { Label("音乐库", systemImage: "music.note.list") }
+                    .tabItem { Label(tabLabelsVisible ? "音乐库" : "", systemImage: "music.note.list") }
                     .tag(RootTab.library)
                 ProfileView()
-                    .tabItem { Label("我的", systemImage: "person.crop.circle") }
+                    .tabItem { Label(tabLabelsVisible ? "我的" : "", systemImage: "person.crop.circle") }
                     .tag(RootTab.profile)
             }
             .tint(Color.beansAmber)

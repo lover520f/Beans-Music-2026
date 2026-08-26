@@ -813,6 +813,8 @@ struct SettingsView: View {
     @AppStorage("beans.audioQuality") private var audioQualityRaw = BeansAudioQuality.exhigh.rawValue
     /// 免费听歌 / 灰色歌曲解锁总开关（默认关闭，用户手动开启）
     @AppStorage("beans.enableUnblock") private var enableUnblock = false
+    /// 底栏是否显示文字（关闭后只显示图标）
+    @AppStorage("beans.tabLabelsVisible") private var tabLabelsVisible = true
 
     @State private var appearanceExpanded = false
     @State private var showWallpaperPicker = false
@@ -976,6 +978,23 @@ struct SettingsView: View {
                 .contentShape(Rectangle())
             }
             .buttonStyle(GlassPressButtonStyle(scale: 0.98))
+
+            // 底栏是否显示文字（关闭后底栏只显示图标）
+            Toggle(isOn: $tabLabelsVisible) {
+                HStack(spacing: 12) {
+                    Image(systemName: "rectangle.3.group")
+                        .font(.system(size: 14))
+                        .foregroundStyle(Color.beansAmber)
+                        .frame(width: 28)
+                    Text("底栏显示文字")
+                        .font(BeansFont.appFont(15))
+                        .foregroundStyle(Color.beansLabel)
+                }
+            }
+            .toggleStyle(.switch)
+            .tint(Color.beansAmber)
+            .padding(.horizontal, 14)
+            .padding(.vertical, 6)
 
             if appearanceExpanded {
             VStack(alignment: .leading, spacing: 14) {
