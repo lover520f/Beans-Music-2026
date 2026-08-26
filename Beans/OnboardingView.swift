@@ -98,6 +98,21 @@ struct OnboardingView: View {
                             .textFieldStyle(.plain)
                             .autocorrectionDisabled()
                             .textInputAutocapitalization(.never)
+                        if typed != confirmText {
+                            Button {
+                                withAnimation(.easeOut(duration: 0.2)) { typed = confirmText }
+                            } label: {
+                                Text("一键填入")
+                                    .font(BeansFont.appFont(12, .semibold))
+                                    .foregroundStyle(.white)
+                                    .padding(.horizontal, 12)
+                                    .frame(height: 30)
+                                    .background(
+                                        Capsule().fill(LinearGradient.beansAccent)
+                                    )
+                            }
+                            .buttonStyle(.plain)
+                        }
                     }
                     .padding(.horizontal, 14)
                     .frame(height: 50)
