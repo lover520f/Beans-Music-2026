@@ -745,11 +745,12 @@ final class PlayerManager: NSObject, ObservableObject {
         }
     }
 
-    /// 结束灵动岛实时活动
+    /// 结束灵动岛实时活动（结束所有当前活动的正在播放，避免进程重启后引用丢失导致关不掉）
     func endLiveActivity() {
         guard #available(iOS 16.1, *) else { return }
-        if let activity = liveActivity as? Activity<NowPlayingAttributes> {
-            let state = activity.contentState
+        let fallbackState = (liveActivity as? Activity<NowPlayingAttributes>)?.contentState
+        for activity in Activity<NowPlayingAttributes>.activities {
+            let state = fallbackState ?? activity.contentState
             Task { await activity.end(using: state, dismissalPolicy: .immediate) }
         }
         liveActivity = nil
