@@ -9,7 +9,7 @@ on:
         default: 'false'
         type: boolean
   push:
-    branches: [main]
+    branches: [main, lx-script-test]
 
 permissions:
   contents: write
@@ -104,7 +104,7 @@ jobs:
           PYEOF
 
       - name: Publish Release
-        if: success() && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish_release == 'true')
+        if: success() && github.ref != 'refs/heads/lx-script-test' && (github.event_name != 'workflow_dispatch' || github.event.inputs.publish_release == 'true')
         uses: softprops/action-gh-release@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
