@@ -172,7 +172,8 @@ struct ThirdPartySourceImportSheet: View {
             return
         }
         jsonText = text
-        if LxScriptRuntime.looksLikeLxScript(text) {
+        let isJavaScriptFile = url.pathExtension.lowercased() == "js"
+        if isJavaScriptFile || LxScriptRuntime.looksLikeLxScript(text) {
             let name = url.deletingPathExtension().lastPathComponent
             let sourceName = name.isEmpty ? "LX 音源" : name
             store.addLxScript(LxScriptSource(name: sourceName, script: text))

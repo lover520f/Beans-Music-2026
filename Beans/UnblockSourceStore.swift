@@ -45,13 +45,15 @@ struct LxScriptSource: Identifiable, Codable, Hashable, Sendable {
     var id = UUID().uuidString
     var name: String
     var script: String
+    var enabled: Bool = true
 
-    enum CodingKeys: String, CodingKey { case id, name, script }
+    enum CodingKeys: String, CodingKey { case id, name, script, enabled }
 
-    init(id: String = UUID().uuidString, name: String, script: String) {
+    init(id: String = UUID().uuidString, name: String, script: String, enabled: Bool = true) {
         self.id = id
         self.name = name
         self.script = script
+        self.enabled = enabled
     }
 
     init(from decoder: Decoder) throws {
@@ -59,6 +61,7 @@ struct LxScriptSource: Identifiable, Codable, Hashable, Sendable {
         id = try container.decodeIfPresent(String.self, forKey: .id) ?? UUID().uuidString
         name = try container.decodeIfPresent(String.self, forKey: .name) ?? "未命名 LX 音源"
         script = try container.decodeIfPresent(String.self, forKey: .script) ?? ""
+        enabled = try container.decodeIfPresent(Bool.self, forKey: .enabled) ?? true
     }
 }
 
@@ -144,6 +147,11 @@ final class UnblockSourceStore: ObservableObject {
 
     func removeLxScript(_ source: LxScriptSource) {
         lxScripts.removeAll { $0.id == source.id }
+    }
+
+    func setLxScriptEnabled(_ sourceID: String, enabled: Bool) {
+        guard let index = lxScripts.firstIndex(where: { $0.id == sourceID }) else { return }
+        lxScripts[index].enabled = enabled
     }
 
     private func save() {
