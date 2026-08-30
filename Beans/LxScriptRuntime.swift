@@ -175,26 +175,6 @@ private final class LxScriptRunner {
             env: 'mobile',
             version: '0.0.0'
           };
-          if (!Promise.any) {
-            Promise.any = function(iterable) {
-              return new Promise(function(resolve, reject) {
-                var items = Array.prototype.slice.call(iterable);
-                if (!items.length) {
-                  reject(new Error('All promises were rejected'));
-                  return;
-                }
-                var remaining = items.length;
-                var errors = [];
-                items.forEach(function(item, index) {
-                  Promise.resolve(item).then(resolve, function(error) {
-                    errors[index] = error;
-                    remaining -= 1;
-                    if (remaining === 0) reject(errors);
-                  });
-                });
-              });
-            };
-          }
           var consoleObject = root.console || {};
           ['log', 'warn', 'error', 'info', 'debug', 'group', 'groupEnd'].forEach(function(name) {
             if (typeof consoleObject[name] !== 'function') consoleObject[name] = function() {};

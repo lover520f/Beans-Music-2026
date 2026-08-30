@@ -1738,9 +1738,6 @@ struct SettingsView: View {
                                 .foregroundStyle(Color.beansComment)
                         }
                         Spacer()
-                        Toggle("", isOn: lxScriptEnabledBinding(source.id))
-                            .labelsHidden()
-                            .tint(Color.beansAmber)
                         Button {
                             sourceStore.removeLxScript(source)
                             BeansHaptics.tap()
@@ -1772,15 +1769,6 @@ struct SettingsView: View {
             set: { value in
                 guard let index = sourceStore.customSources.firstIndex(where: { $0.id == id }) else { return }
                 sourceStore.customSources[index].enabled = value
-            }
-        )
-    }
-
-    private func lxScriptEnabledBinding(_ id: String) -> Binding<Bool> {
-        Binding(
-            get: { sourceStore.lxScripts.first(where: { $0.id == id })?.enabled ?? false },
-            set: { value in
-                sourceStore.setLxScriptEnabled(id, enabled: value)
             }
         )
     }

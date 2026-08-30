@@ -46,7 +46,7 @@ enum UnblockService {
         guard !keyword.isEmpty else { return nil }
         let jsonSources = UnblockSourceStore.shared.customSources
             .filter { $0.enabled && canUse(source: $0, songSource: songSource, neteaseID: neteaseID, qqMid: qqMid, kugouID: kugouID) }
-        let lxScripts = UnblockSourceStore.shared.lxScripts.filter(\.enabled)
+        let lxScripts = UnblockSourceStore.shared.lxScripts
         guard !jsonSources.isEmpty || !lxScripts.isEmpty else { return nil }
 
         // 慢源/失效源不要拖住播放：全部候选一起请求，最快命中的播放地址直接返回。
